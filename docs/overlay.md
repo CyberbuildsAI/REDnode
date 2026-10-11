@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O2 UI kit passed in game.** Next: O3 Apps, which includes the player install. O1 Windows passed earlier. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O3 Apps built, in-game test pending.** O1 Windows and O2 UI kit passed in game. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -215,6 +215,21 @@ The host now opens two apps: **Kit**, a titled window with every widget, and **N
 
 **Result, 2026-10-11: passed.** Modded profile with CET, 3840 x 2160 SDR. All widgets, both themes, keyboard use, the native-style button and its notifications worked. Game UI sounds played through `audio.play`, so `AudioSystem.Play` with no entity works for overlay sounds. No errors in the logs.
 
+### O3 Apps: test
+
+Built 2026-10-11, REDnode 0.6.0. Apps are folders with a `rednode-app.json` manifest. The **launcher**, built into the host, lists them and opens or closes them. The host is packaged as `REDnode-overlay.exe` and the plugin starts it with the game, in a job object so it never outlives the game. Tested against a mock of the plugin: app discovery, anchors, the launcher, opening an app from it, saved choices, the log file and the single-instance lock. Window anchoring has 5 new unit tests.
+
+This is the player path: no `npm run overlay`.
+
+1. Close any host you started by hand. In the game folder, REDnode now has `host/` (the packaged host) and `apps/` (Kit, Native, Demo, Signal).
+2. Launch the game normally. Do not start anything else. At the main menu: Kit, the **Open stash** button, and a small **REDNODE · 2/4** tab at the lower left appear on their own.
+3. **F10**, then click the **REDNODE** tab. The launcher lists the four apps with their versions and descriptions.
+4. Switch **Signal** and **Demo** on: they open. Switch **Kit** off: it closes.
+5. Quit the game through the menu. The host closes with it: `REDnode-overlay.exe` is no longer in Task Manager.
+6. Launch the game again. The apps you left on are on, and the ones you switched off stay off.
+
+Logs: the host writes `red4ext/logs/rednode-overlay.log` in the game folder.
+
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
 ### UI kit
@@ -263,7 +278,7 @@ Running `npm run overlay` by hand is the developer setup. Players should install
 
 | Piece | How |
 |---|---|
-| Packaged host | Build the Electron host into a standalone app with its own Node (for example with electron-builder). No Node, npm or repo needed. Ships inside the REDnode mod, for example `red4ext/plugins/REDnode/host/`. About 100 MB unpacked |
+| Packaged host | Build the Electron host into a standalone app with its own Node, with `@electron/packager`. No Node, npm or repo needed. Ships inside the REDnode mod as `red4ext/plugins/REDnode/host/`. **320 MB unpacked** with Electron 44: the executable alone is 235 MB. The zipped size is not measured yet |
 | Auto-start | The plugin starts the host when the game starts. The host exits when the pipe closes, so it never outlives the game |
 | Apps as separate mods | Overlay apps, and later Tier 2 Node mods, install into a REDnode apps folder, each with its manifest. On Nexus they list REDnode as a requirement, like CET mods list CET |
 | Player settings | Enabled apps, the hotkey (F10 today) and similar, held by the launcher app |
@@ -273,7 +288,7 @@ The player's path then is: install RED4ext and REDnode, add any REDnode apps, la
 | Risk | Note |
 |---|---|
 | Antivirus | A game plugin that starts a program may cause false alarms. Code signing helps. Unverified |
-| Size | About 100 MB is large for a mod, but fine for Nexus |
+| Size | 320 MB unpacked is large for a mod. Nexus allows it; a shared runtime for all REDnode apps keeps it to one copy |
 | Vortex | The archive layout must let Vortex deploy REDnode as a normal mod |
 
 ### Looking like the game

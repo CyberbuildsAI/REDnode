@@ -2,7 +2,7 @@
 
 Overlay apps are small web apps drawn on top of the game: HTML, CSS and JavaScript. They talk to the game through the `rednode` bridge and can play the game's own UI sounds. Every example on this page comes from an app that was tested in game on 2026-10-11 (Cyberpunk 2077 2.31).
 
-Status: **developer preview.** Apps run in the overlay host from the repo (`npm run overlay`). App folders with manifests and a player install come in phase O3. See the [overlay design](overlay.md) for how it works and what is planned.
+Status: **developer preview.** See the [overlay design](overlay.md) for how it works and what is planned.
 
 ## How an app runs
 
@@ -16,16 +16,27 @@ In the game, **F10** cycles three modes: passive (your window is drawn, the game
 
 ## Your first app
 
-An app is a folder with a page. Until O3 adds manifests, the host lists apps in `APPS` at the top of [`packages/overlay/main.js`](https://github.com/CyberbuildsAI/REDnode/blob/main/packages/overlay/main.js):
+An app is a folder with a manifest and a page. Put it in the apps folder: `packages/overlay/apps/` in the repo, or `red4ext/plugins/REDnode/apps/` in the game folder.
 
-```js
-const APPS = [
-  { id: 'hello', entry: 'apps/hello/index.html', width: 360, height: 200, x: 100, y: 100 },
-  // ...
-];
+`hello/rednode-app.json`:
+
+```json
+{
+  "id": "hello",
+  "name": "Hello Night City",
+  "version": "0.1.0",
+  "author": "you",
+  "description": "Shows where V is.",
+  "entry": "index.html",
+  "width": 360,
+  "height": 200,
+  "anchor": "top-left",
+  "x": 100,
+  "y": 100
+}
 ```
 
-`packages/overlay/apps/hello/index.html`:
+`hello/index.html`:
 
 ```html
 <!doctype html>
@@ -53,7 +64,7 @@ const APPS = [
 </html>
 ```
 
-Run it with `npm run overlay -- --apps=hello`, start the game, load a save, press F10 and click the button.
+Start the game, press F10, open the **REDNODE** launcher tab at the lower left and switch **Hello Night City** on. Load a save and click the button. All manifest fields are listed in the [overlay host README](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay#apps-and-manifests).
 
 | Rule | Why |
 |---|---|

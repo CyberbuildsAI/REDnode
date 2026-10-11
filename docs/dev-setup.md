@@ -153,3 +153,79 @@ Edit `tools/brand/brand.html` to change the banner. Re-run the script after chan
 ## 8. VS Code theme
 
 The REDnode HUD color theme for VS Code lives in the [REDcode](https://github.com/CyberbuildsAI/REDcode) repository, at `extensions/rednode-hud-theme`, because REDcode is the VS Code environment REDnode mods are built in. Build or install it from there (`npm run theme:package` in REDcode). This repository no longer carries a copy.
+
+## 9. Game API reference
+
+The game API reference at https://cyberbuildsai.github.io/REDnode/game/ is generated from a base-game RTTI dump, committed as `gameapi/<game version>/rtti.json`, plus REDnode's notes in `gameapi/notes/`.
+
+| Tool | Version | Install |
+|---|---|---|
+| marked | 18.1.0 | Root dev dependency, installed by `npm install`. Renders the notes |
+
+Build it locally:
+
+```powershell
+npm run docs:game   # writes docs/game (ignored by git), about a minute, ~100 MB
+```
+
+Open `docs/game/index.html` in a browser. Search needs a web server, because browsers block `fetch` on `file://` pages.
+
+### New dump after a game patch
+
+Do this once per game patch. The dump must contain only the base game, so every other mod has to be off.
+
+1. In Vortex, create a profile named `vanilla` with only RED4ext enabled, switch to it and click **Deploy**. Mods installed outside Vortex stay behind. Check `red4ext/plugins/` for other plugin DLLs.
+2. If another RED4ext plugin is still in `red4ext/plugins/`, add its folder name to `ignored` in `red4ext/config.ini`, for example `ignored = ["cet_mod_manager"]`. Script mods in `r6/scripts` do not matter, because redscript is not deployed in this profile.
+3. Build and deploy REDnode, then create an empty `dump.request` file next to `REDnode.dll`:
+
+   ```powershell
+   .\tools\build-native.ps1
+   .\tools\deploy-native.ps1 -GameDir '<game folder>'
+   New-Item -ItemType File '<game folder>\red4ext\plugins\REDnode\dump.request'
+   ```
+
+4. Launch the game, wait for the main menu and quit. The REDnode log shows `RTTI dump written to ...`, and the plugin deletes `dump.request`.
+5. Check `red4ext/logs/red4ext-*.log`: REDnode must be the only plugin that says `has been loaded`.
+6. Import the dump, giving the game's product version from the RED4ext log:
+
+   ```powershell
+   npm run gameapi:import -- '<game folder>\red4ext\plugins\REDnode\rtti-dump.json' --game 2.31
+   ```
+
+7. Set `ignored = []` back in `red4ext/config.ini`, and switch Vortex back to your normal profile.
+
+## 10. HTML overlay host
+
+`packages/overlay` is the overlay host from [the overlay design](overlay.md): an Electron app that renders overlay apps off-screen and streams them to the REDnode plugin in the game. `packages/ui` is the UI kit apps use.
+
+| Tool | Version | Install |
+|---|---|---|
+| Electron | 44.7.0 | Dev dependency of `packages/overlay`, installed by `npm install` |
+| @electron/packager | 20.3.0 | Dev dependency of `packages/overlay`. Packages the host for players |
+
+On the reference machine `npm install` did not run Electron's install script, so the Electron binary was missing. Download it by hand once:
+
+```powershell
+node node_modules/electron/install.js   # puts electron.exe in node_modules/electron/dist (about 370 MB)
+```
+
+Run the host:
+
+```powershell
+npm run overlay          # off-screen, waits for the game on \.\pipe\rednode-overlay
+npm run overlay:window   # the demo app in a normal window, without the game
+```
+
+Package the host the way players get it, then deploy it with the plugin:
+
+```powershell
+.\tools\build-native.ps1
+npm run overlay:package    # host\REDnode-overlay.exe and apps\ next to the staged plugin (about 320 MB)
+.\tools\deploy-native.ps1 -GameDir '<game folder>'
+```
+
+With the packaged host deployed, the plugin starts it with the game, so `npm run overlay` is not needed. Only one host runs at a time: one started by hand before the game keeps the pipe, and the packaged one exits. The packaged host logs to `red4ext/logs/rednode-overlay.log`.
+
+The host clears `ELECTRON_RUN_AS_NODE` before starting Electron, because VS Code sets it for processes it starts and it turns Electron into plain Node.
+
+CI skips the Electron download with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, because the docs build does not need it.
