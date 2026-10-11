@@ -65,4 +65,4 @@ Gamepad navigation is planned but not in O2: the game reads the controller too, 
 
 ## Sounds
 
-`sound` and `hover-sound` play a game sound event through the bridge call `audio.play`, which uses the game's `AudioSystem.Play`. Which event names exist is **unverified**; the kit app's Sound tab lets you try names. Outside the game, sounds are skipped silently.
+`sound` and `hover-sound` play a game sound event through the bridge call `audio.play`, which uses the game's `AudioSystem.Play`. Confirmed in game on 2.31: `ui_menu_onpress`, `ui_menu_hover`, `ui_menu_tutorial_close`, `ui_loot_take_all`, `ui_menu_item_bought`, `ui_jingle_quest_success`. Unknown names play nothing. Outside the game, sounds are skipped silently. Examples: [Overlay apps](https://cyberbuildsai.github.io/REDnode/overlay-apps.html#playing-game-sounds).

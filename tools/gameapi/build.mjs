@@ -35,7 +35,7 @@ const notes = new Map();
 const notesDir = join(repo, 'gameapi', 'notes');
 if (existsSync(notesDir)) {
   for (const file of readdirSync(notesDir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
-    const text = readFileSync(join(notesDir, file), 'utf8').replace(/^# .*\n/, '');
+    const text = readFileSync(join(notesDir, file), 'utf8').replace(/\r\n/g, '\n').replace(/^# .*\n/, '');
     const [intro, ...sections] = text.split(/^## /m);
     const members = new Map();
     for (const s of sections) {

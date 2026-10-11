@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O2 UI kit passed in game.** Next: O3 Apps, which includes the player install. O1 Windows passed earlier. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O2 UI kit passed in game.** Next: O3 Apps, which includes the player install. O1 Windows passed earlier. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 

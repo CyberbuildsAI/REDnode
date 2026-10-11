@@ -31,6 +31,8 @@ nav:
     url: /design.html
   - title: Overlay
     url: /overlay.html
+  - title: Overlay apps
+    url: /overlay-apps.html
   - title: P0 findings
     url: /p0-findings.html
   - title: P1 results
