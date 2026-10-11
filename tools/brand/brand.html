@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- Source for the README banner and the GitHub social preview.
+     Rendered to PNG by tools/brand/render.ps1 with headless Chrome:
+       brand.html?banner  -> 1280 x 320
+       brand.html?social  -> 1280 x 640 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode brand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@500;600&family=JetBrains+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090d;
+  --panel: #10131b;
+  --line: #262c3d;
+  --fg: #e3e6ee;
+  --dim: #8a93a8;
+  --yellow: #fcee0a;
+  --cyan: #19f3ff;
+  --green: #5dffa1;
+  --display: "Chakra Petch", sans-serif;
+  --body: "Rajdhani", sans-serif;
+  --mono: "JetBrains Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+.frame {
+  position: relative; overflow: hidden;
+  width: 1280px; height: 320px; padding: 44px 56px;
+  display: grid; grid-template-columns: 1fr 360px; gap: 40px; align-items: center;
+  background:
+    radial-gradient(ellipse at 18% 120%, rgba(252,238,10,.10), transparent 55%),
+    linear-gradient(rgba(25,243,255,.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(25,243,255,.06) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--bg);
+}
+.social .frame { height: 640px; padding: 72px 80px; grid-template-columns: 1fr; gap: 44px; align-content: center; }
+
+/* corner brackets */
+.frame::before, .frame::after {
+  content: ""; position: absolute; width: 36px; height: 36px; border: 2px solid var(--yellow);
+}
+.frame::before { top: 16px; left: 16px; border-right: 0; border-bottom: 0; }
+.frame::after { bottom: 16px; right: 16px; border-left: 0; border-top: 0; }
+
+.eyebrow { font-family: var(--mono); font-size: 15px; letter-spacing: .22em; text-transform: uppercase; color: var(--cyan); }
+h1 {
+  margin: 10px 0 12px; font-family: var(--display); font-weight: 700; text-transform: uppercase;
+  font-size: 104px; line-height: .9; letter-spacing: .02em;
+}
+h1 span { color: var(--yellow); }
+.tag { font-family: var(--body); font-weight: 500; font-size: 26px; color: #c3c9d8; margin: 0; max-width: 52ch; text-wrap: balance; }
+.rule { height: 3px; width: 100%; max-width: 560px; margin-top: 22px; background: linear-gradient(90deg, var(--yellow) 0 72px, var(--line) 72px); }
+.social h1 { font-size: 150px; }
+.social .eyebrow { font-size: 18px; }
+.social .tag { font-size: 34px; max-width: 44ch; }
+
+.panel {
+  background: rgba(16,19,27,.92); border: 1px solid var(--line); padding: 18px 22px;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+  font-family: var(--mono); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+}
+.panel .row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.panel .row:last-child { border-bottom: 0; }
+.panel b { font-weight: 500; }
+.y { color: var(--yellow); } .c { color: var(--cyan); } .g { color: var(--green); }
+.social .panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; font-size: 15px; }
+.social .panel .row { border-bottom: 0; flex-direction: column; gap: 4px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div>
+    <div class="eyebrow">// Node.js modding framework &middot; Cyberpunk 2077 PC</div>
+    <h1>RED<span>node</span></h1>
+    <p class="tag">Script Night City in TypeScript. Async Node mods plus sandboxed in&#8209;game interceptors.</p>
+    <div class="rule"></div>
+  </div>
+  <div class="panel">
+    <div class="row"><span>Tier 2</span><b class="c">Async Node mods</b></div>
+    <div class="row"><span>Tier 1</span><b class="y">Sync interceptors</b></div>
+    <div class="row"><span>Bridge</span><b class="g">RED4ext plugin</b></div>
+  </div>
+</div>
+<script>
+  if (location.search.includes("social")) document.body.classList.add("social");
+</script>
+</body>
+</html>
