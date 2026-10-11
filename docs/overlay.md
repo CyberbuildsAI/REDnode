@@ -147,7 +147,7 @@ The result was the first row.
 
 ## Plan for the real version
 
-Status: **draft for review.** Phases are numbered O1 to O6 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
+Status: **draft for review.** Phases are numbered O1 to O7 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
 
 ### Goal
 
@@ -160,7 +160,7 @@ The plugin owns window placement, so moving a window never waits on Chromium. Th
 | Property | Values | Notes |
 |---|---|---|
 | `kind` | `window` or `hud` | A `hud` window is drawn but never focused and never takes input |
-| `frame` | `none` (default) or `hud` | `none` draws nothing but the page. `hud` adds an optional REDnode title bar with close and drag |
+| `frame` | `none` (default) | REDnode draws nothing but the page. A title bar with close and drag comes from the UI kit's `<rn-window>`, not from the plugin |
 | `size` | page pixels | Scaled with the screen height, like the proof of concept. Later also with the game's UI scale |
 | `anchor` | `center`, `top-left` and so on, plus an offset | Lets HUD widgets sit at a screen edge at any resolution and aspect ratio |
 | `draggable` | yes or no | Drag handles are marked in the page's HTML, for example `data-rednode-drag` |
@@ -179,13 +179,54 @@ Rules that make borderless windows behave:
 | Phase | Builds | In-game test proves |
 |---|---|---|
 | **O1 Windows** | Several windows, each with its own texture and placement. Drag handles, focus, z-order, click-through on transparent pixels, saved positions. Drag runs in the plugin, at the game's frame rate | Two demo windows can be dragged, overlapped and focused. Clicks pass through transparent parts |
-| **O2 Apps** | App folders with a `rednode-app.json` manifest (id, name, entry page, kind, size, anchor). The host loads every app it finds. A small launcher app opens and closes the others | A third-party style app in its own folder loads without changing the host |
-| **O3 HUD widgets** | The `hud` kind, anchors, and `hideWith`, driven by game UI state events from the bridge. Research which game state shows menus, photo mode and scenes | A HUD widget sits at a screen edge, never takes input, and hides in menus and photo mode |
-| **O4 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
-| **O5 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data | A Node mod and an overlay app use the same API call and get the same answer |
-| **O6 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
+| **O2 UI kit** | `@rednode/ui`: web components with the `rednode` and `game` themes, keyboard and gamepad navigation, UI sounds through the game. See [UI kit](#ui-kit) | A titled window with widgets, and a borderless native-style button, both built from markup only |
+| **O3 Apps** | App folders with a `rednode-app.json` manifest (id, name, entry page, kind, size, anchor). The host loads every app it finds. A launcher app, built with the UI kit, opens and closes the others | A third-party style app in its own folder loads without changing the host |
+| **O4 HUD widgets** | The `hud` kind, anchors, and `hideWith`, driven by game UI state events from the bridge. Research which game state shows menus, photo mode and scenes | A HUD widget sits at a screen edge, never takes input, and hides in menus and photo mode |
+| **O5 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
+| **O6 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data. Node mods get the UI builder | A Node mod and an overlay app use the same API call and get the same answer. A Node mod opens a window without writing HTML |
+| **O7 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
 
-O1 to O3 make the feature usable. O4 makes it cheap. O5 joins it to the rest of REDnode. O6 hardens it.
+O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
+
+### UI kit
+
+UI is written as markup, not built by hand in code. Two layers keep it optional:
+
+| Layer | What it is | Required? |
+|---|---|---|
+| Window API, in `rednode` | Open, place, show and hide windows (`kind`, `size`, `anchor`, drag handles, `hideWith`), plus the game bridge | Used by every app |
+| UI kit, `@rednode/ui` | Ready-made widgets as web components, with two themes | Optional. Apps can use their own HTML or any web framework |
+
+Web components (custom elements like `<rn-button>`) work in plain HTML, React, Vue or anything else. Their styles are sealed in Shadow DOM, so app CSS cannot break them, and themes are CSS custom properties.
+
+```html
+<!-- A titled REDnode window with widgets in it (kind: window) -->
+<rn-window title="Weather control" draggable>
+  <rn-toggle label="Freeze time"></rn-toggle>
+  <rn-slider label="Rain" min="0" max="100"></rn-slider>
+  <rn-button>Apply</rn-button>
+</rn-window>
+
+<!-- A borderless button that looks like part of the game (kind: hud or window) -->
+<body style="background: transparent">
+  <rn-button theme="game" sound="ui_click">Open stash</rn-button>
+</body>
+```
+
+| Item | Plan |
+|---|---|
+| First widgets | `rn-window`, `rn-panel`, `rn-button`, `rn-toggle`, `rn-slider`, `rn-input`, `rn-list`, `rn-tabs`, `rn-menu`, `rn-progress`, `rn-tooltip`, `rn-notification` |
+| Theme `rednode` | The REDnode HUD house style, as in the demo app |
+| Theme `game` | A look-alike of the game's own UI, rebuilt in CSS. No CDPR textures or fonts are copied |
+| Built in | Keyboard and gamepad navigation, focus that works with click-through and the F10 modes, UI sounds played through the game's audio by the bridge |
+
+Every REDnode kernel reaches the same widgets, because only the overlay host can render a page:
+
+| Who | How they make UI |
+|---|---|
+| Overlay app (HTML and JavaScript) | Uses the components in its markup |
+| Tier 2 Node mod | A builder that produces the same components, for example `rednode.ui.window({ title, children: [button('Apply')] })`. No HTML needed. Arrives in O6 |
+| Tier 1 and declarative rules | Ask through the bridge for a ready-made piece of UI, such as a notification. The host renders it with the kit |
 
 ### Looking like the game
 
@@ -193,7 +234,7 @@ O1 to O3 make the feature usable. O4 makes it cheap. O5 joins it to the rest of 
 |---|---|---|
 | Visual effects | CSS and WebGL in the page: glow, scanlines, glitch, chromatic aberration | Standard web techniques |
 | Fonts | The game's fonts cannot be shipped with REDnode. Use close open-source fonts, or load fonts from the player's own install at runtime | Loading from the install is unverified, and needs a licensing check |
-| Colors | Match the game's palette. In HDR, match the game HUD's brightness (O6) | |
+| Colors | Match the game's palette. In HDR, match the game HUD's brightness (O7) | |
 | Sound | Play UI sounds through the game's audio system with a bridge call, so they mix with the game | Unverified |
 
 ### Known limits and research items
