@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode launcher</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* Collapsed, only the tab at the bottom is drawn; the rest is transparent
+     and clicks through to the game. Expanded, the app list opens above it. */
+  html, body { margin: 0; width: 380px; height: 560px; overflow: hidden; background: transparent; }
+  .dock { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  rn-window { width: 380px; max-height: 500px; }
+  rn-window[hidden] { display: none; }
+  .dock { padding-bottom: 2px; }
+  /* The tab stays visible over the game, so it gets a dark backing. */
+  .tab { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; background: var(--rn-bg); }
+  .grip { width: 14px; height: 34px; cursor: move;
+    background: repeating-linear-gradient(0deg, var(--rn-accent) 0 2px, transparent 2px 6px); opacity: .7; }
+  .app { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--rn-line); }
+  .app:last-child { border-bottom: 0; }
+  .name { font: 700 15px var(--rn-display); letter-spacing: .06em; text-transform: uppercase; }
+  .meta { font: 11px var(--rn-mono); color: var(--rn-dim); letter-spacing: .06em; }
+  .desc { grid-column: 1 / -1; font-size: 14px; color: var(--rn-dim); }
+  .empty { color: var(--rn-dim); font-size: 14px; }
+  .status { font: 11px var(--rn-mono); letter-spacing: .1em; color: var(--rn-dim); }
+  .status b { color: var(--rn-ok); font-weight: 500; }
+  .status b.off { color: var(--rn-danger); }
+  #rn-notifications { bottom: auto !important; top: 8px; }
+</style>
+</head>
+<body>
+  <div class="dock">
+    <rn-window id="panel" title="REDnode apps" hidden>
+      <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
+      <div id="apps"><p class="empty">Looking for apps...</p></div>
+      <span slot="footer"></span>
+    </rn-window>
+    <div class="tab">
+      <div class="grip" data-rednode-drag title="Drag to move"></div>
+      <rn-button id="toggle" variant="ghost">REDnode <span id="count"></span></rn-button>
+    </div>
+  </div>
+<script src="app.js"></script>
+</body>
+</html>

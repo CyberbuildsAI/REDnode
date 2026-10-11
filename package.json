@@ -12,7 +12,8 @@
     "docs:game": "node tools/gameapi/build.mjs",
     "gameapi:import": "node tools/gameapi/import.mjs",
     "overlay": "npm start --workspace @rednode/overlay",
-    "overlay:window": "npm run window --workspace @rednode/overlay"
+    "overlay:window": "npm run window --workspace @rednode/overlay",
+    "overlay:package": "node tools/overlay/package-host.mjs"
   },
   "devDependencies": {
     "marked": "18.1.0"

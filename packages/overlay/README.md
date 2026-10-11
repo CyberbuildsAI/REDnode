@@ -1,13 +1,14 @@
 # REDnode overlay host
 
-Status: **phase O2, UI kit.** The proof of concept and O1 (several draggable windows) work in game. O2 serves the [`@rednode/ui`](../ui/) web components to every app. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O3, apps.** The proof of concept, O1 (windows) and O2 (UI kit) work in game. O3 adds app manifests, the launcher, and a packaged host that the game starts by itself. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and gives apps a `window.rednode` API for talking to the game. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
 ```powershell
 npm run overlay                          # from the repo root: off-screen, connects to the game
 npm run overlay:window                   # the apps in normal desktop windows, without the game
-npm run overlay -- --apps=demo,signal    # choose which apps to open
+npm run overlay -- --apps=demo,signal    # open exactly these apps this time
+npm run overlay:package                  # package the host for players (see below)
 ```
 
 Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev-setup.md), section 10.
@@ -16,15 +17,62 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 
 | File | What it does |
 |---|---|
-| [main.js](main.js) | The host: off-screen window, the pipe to the game, frame streaming, input replay, the bridge |
+| [main.js](main.js) | The host: app discovery, off-screen windows, the pipe to the game, frame streaming, input replay, the bridge |
 | [preload.js](preload.js) | Defines `window.rednode` for apps |
-| [start.js](start.js) | Starts Electron with a clean environment |
+| [start.js](start.js) | Starts Electron with a clean environment (developer runs only) |
+| [launcher/](launcher/) | The built-in launcher: a REDNODE tab that lists apps and opens or closes them |
 | [apps/kit/](apps/kit/) | Every UI kit widget in one titled window, built from markup. Opens by default |
 | [apps/native/](apps/native/) | A borderless, game-style button and menu. Opens by default |
 | [apps/demo/](apps/demo/) | The proof-of-concept demo, written by hand without the kit |
 | [apps/signal/](apps/signal/) | A small round HUD widget: a borderless window with a transparent middle |
 
-For now the apps are listed in `APPS` at the top of [main.js](main.js); `open: false` ones start only when named in `--apps`. Phase O3 replaces that list with app folders and manifests.
+## Apps and manifests
+
+Every folder in the apps folder with a `rednode-app.json` is an app. In the repo the apps folder is [apps/](apps/); for players it is `red4ext/plugins/REDnode/apps/` in the game folder.
+
+```json
+{
+  "id": "native",
+  "name": "Native button",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "A borderless, game-style button and menu.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 440,
+  "height": 380,
+  "anchor": "bottom-right",
+  "x": -40,
+  "y": -100,
+  "open": true
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Unique, lowercase letters, digits, `-` and `_`. Saved positions and settings use it |
+| `name`, `version`, `author`, `description` | Shown in the launcher |
+| `entry` | The page to load, relative to the folder |
+| `width`, `height` | Window size in page pixels, 1 to 4096 |
+| `anchor` | `top-left` (default), `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom` or `bottom-right` |
+| `x`, `y` | Offset from the anchor in reference pixels (1080p). `bottom-right` with x -40 is 40 px from the right edge |
+| `kind` | `window`. `hud` is planned for phase O4 |
+| `open` | Whether the app starts open, until the player changes it in the launcher |
+
+A window the player has dragged keeps its saved position instead of the anchor. The launcher remembers which apps are on. Both are kept in the host's user data folder, `%APPDATA%\@rednode\overlay`.
+
+## Packaged host
+
+`npm run overlay:package` builds `REDnode-overlay.exe` with its own Electron, and stages it with the example apps next to the plugin:
+
+```
+red4ext/plugins/REDnode/
+  REDnode.dll
+  host/REDnode-overlay.exe
+  apps/<id>/rednode-app.json
+```
+
+The plugin starts the host when the game loads, as `REDnode-overlay.exe --apps-dir=<plugin>\apps --parent-pid=<game> --log=<game>\red4ext\logs\rednode-overlay.log`. It runs in a job object, so it ends with the game even after a crash, and it also exits when the game process is gone. Only one host runs at a time.
 
 Apps get the UI kit with `<script src="rednode://ui/rednode-ui.js"></script>`. See [packages/ui](../ui/).
 

@@ -10,6 +10,7 @@
     "window": "node start.js --window"
   },
   "devDependencies": {
+    "@electron/packager": "20.3.0",
     "electron": "44.7.0"
   }
 }

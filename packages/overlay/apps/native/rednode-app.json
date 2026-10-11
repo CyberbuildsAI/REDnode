@@ -1,0 +1,15 @@
+{
+  "id": "native",
+  "name": "Native button",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "A borderless, game-style button and menu that look like part of the game UI.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 440,
+  "height": 380,
+  "anchor": "bottom-right",
+  "x": -40,
+  "y": -100,
+  "open": true
+}

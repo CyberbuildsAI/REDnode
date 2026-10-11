@@ -1,0 +1,15 @@
+{
+  "id": "demo",
+  "name": "Proof-of-concept demo",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "The first overlay test: live HTML, input, the bridge and game events, written without the UI kit.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 1024,
+  "height": 640,
+  "anchor": "center",
+  "x": 0,
+  "y": 0,
+  "open": false
+}

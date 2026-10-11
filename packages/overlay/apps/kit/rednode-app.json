@@ -1,0 +1,15 @@
+{
+  "id": "kit",
+  "name": "UI kit",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "Every @rednode/ui widget in one titled window, in both themes.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 600,
+  "height": 620,
+  "anchor": "top-left",
+  "x": 140,
+  "y": 150,
+  "open": true
+}

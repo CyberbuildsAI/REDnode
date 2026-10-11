@@ -19,8 +19,13 @@ contextBridge.exposeInMainWorld('rednode', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  /** Connection state: { connected, mode, windowed }. */
+  /** Connection state: { connected, mode, windowed, version }. */
   state: () => ipcRenderer.invoke('rednode:state'),
+  /** Installed apps. Only the built-in REDnode launcher may use these; other apps get an error. */
+  apps: {
+    list: () => ipcRenderer.invoke('rednode:apps:list'),
+    setOpen: (id, open) => ipcRenderer.invoke('rednode:apps:set-open', id, open),
+  },
 });
 
 // Elements marked data-rednode-drag are drag handles: pressing on one moves the

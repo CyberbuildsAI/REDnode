@@ -1,0 +1,15 @@
+{
+  "id": "signal",
+  "name": "Signal",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "A small round HUD widget with a transparent middle. Clicks there pass through.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 320,
+  "height": 320,
+  "anchor": "top-right",
+  "x": -120,
+  "y": 140,
+  "open": false
+}
