@@ -108,3 +108,20 @@ Read-only clones used for research. They live outside the repo and are never com
 ```powershell
 git clone --depth 1 https://github.com/WopsS/RED4ext.SDK.git
 ```
+
+## 6. Docs site
+
+The site at https://cyberbuildsex.github.io/REDnode/ is built and deployed by `.github/workflows/pages.yml` on every push to `main`. In the repository settings, **Settings > Pages > Source** must be set to **GitHub Actions**.
+
+| Tool | Version | Install |
+|---|---|---|
+| TypeDoc | 0.28.20 | Dev dependency of `packages/rednode`, installed by `npm install` |
+| Jekyll | Whatever `actions/jekyll-build-pages` ships | Runs in CI only |
+
+Generate the API reference locally:
+
+```powershell
+npm run docs:api   # writes docs/api (ignored by git), open docs/api/index.html
+```
+
+Previewing the Jekyll pages locally needs Ruby and Jekyll, which are not installed on the reference machine. Push to `main` and check the deployed site instead.

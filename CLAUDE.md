@@ -28,6 +28,8 @@ Follow [docs/dev-setup.md](docs/dev-setup.md) top to bottom. Whenever you instal
 ## Docs site
 
 - `docs/` is published by GitHub Pages at https://cyberbuildsex.github.io/REDnode/. It is the human-facing documentation, so it must look polished.
+- `.github/workflows/pages.yml` builds and deploys the site on every push to `main`: TypeDoc generates the API reference into `docs/api`, then Jekyll renders `docs/`. Never commit `docs/api`.
+- Give every exported symbol in `packages/rednode/src` a TSDoc comment with an `@example` where it helps. That is the source of the API reference.
 - Write docs as markdown in `docs/`. Jekyll renders them with the HUD layout (`docs/_layouts/default.html`, `docs/assets/css/hud.css`). Add every new page to `nav` in `docs/_config.yml`.
 - `docs/design.html` is a standalone, hand-written page and must stay a complete HTML document.
 - Long-term goal: a rich, navigable docs site with a full API browser. Offline browsing (shipping the built site) is a later concern.
