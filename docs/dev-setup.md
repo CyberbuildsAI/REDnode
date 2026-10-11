@@ -146,88 +146,10 @@ The README banner, the GitHub social preview and the README badges are generated
 | `docs/assets/brand/banner.png` | 2560 x 640 | README header |
 | `docs/assets/brand/social.png` | 1280 x 640 | Uploaded by hand in **Settings > General > Social preview** |
 | `docs/assets/brand/badges/*.svg` | | README badges. Edit the list in `tools/brand/badges.py` |
-| `tools/vscode-theme/images/icon.png` | 256 x 256 | VS Code theme extension icon, from `tools/brand/icon.html` |
+| `docs/assets/brand/icon.png` | 256 x 256 | App and site icon, from `tools/brand/icon.html` |
 
 Edit `tools/brand/brand.html` to change the banner. Re-run the script after changing version numbers in the badges.
 
-## 8. VS Code theme extension
+## 8. VS Code theme
 
-`tools/vscode-theme/` is a VS Code extension containing the REDnode HUD color theme.
-
-| Tool | Version | Install |
-|---|---|---|
-| @vscode/vsce | 4.0.0 | Root dev dependency, installed by `npm install` |
-
-```powershell
-npm run theme:package   # writes dist/rednode-hud-theme-<version>.vsix (ignored by git)
-code --install-extension dist/rednode-hud-theme-0.1.0.vsix
-```
-
-npm 12 blocks the install script of `@vscode/vsce-sign`, which downloads a signing binary. Packaging does not need it. Only publishing to the Marketplace would, and that also needs a publisher account named `cyberbuildsai`.
-
-Bump `version` in `tools/vscode-theme/package.json` and add a `CHANGELOG.md` entry before packaging a new release.
-
-## 9. Game API reference
-
-The game API reference at https://cyberbuildsai.github.io/REDnode/game/ is generated from a base-game RTTI dump, committed as `gameapi/<game version>/rtti.json`, plus REDnode's notes in `gameapi/notes/`.
-
-| Tool | Version | Install |
-|---|---|---|
-| marked | 18.1.0 | Root dev dependency, installed by `npm install`. Renders the notes |
-
-Build it locally:
-
-```powershell
-npm run docs:game   # writes docs/game (ignored by git), about a minute, ~100 MB
-```
-
-Open `docs/game/index.html` in a browser. Search needs a web server, because browsers block `fetch` on `file://` pages.
-
-### New dump after a game patch
-
-Do this once per game patch. The dump must contain only the base game, so every other mod has to be off.
-
-1. In Vortex, create a profile named `vanilla` with only RED4ext enabled, switch to it and click **Deploy**. Mods installed outside Vortex stay behind. Check `red4ext/plugins/` for other plugin DLLs.
-2. If another RED4ext plugin is still in `red4ext/plugins/`, add its folder name to `ignored` in `red4ext/config.ini`, for example `ignored = ["cet_mod_manager"]`. Script mods in `r6/scripts` do not matter, because redscript is not deployed in this profile.
-3. Build and deploy REDnode, then create an empty `dump.request` file next to `REDnode.dll`:
-
-   ```powershell
-   .\tools\build-native.ps1
-   .\tools\deploy-native.ps1 -GameDir '<game folder>'
-   New-Item -ItemType File '<game folder>\red4ext\plugins\REDnode\dump.request'
-   ```
-
-4. Launch the game, wait for the main menu and quit. The REDnode log shows `RTTI dump written to ...`, and the plugin deletes `dump.request`.
-5. Check `red4ext/logs/red4ext-*.log`: REDnode must be the only plugin that says `has been loaded`.
-6. Import the dump, giving the game's product version from the RED4ext log:
-
-   ```powershell
-   npm run gameapi:import -- '<game folder>\red4ext\plugins\REDnode\rtti-dump.json' --game 2.31
-   ```
-
-7. Set `ignored = []` back in `red4ext/config.ini`, and switch Vortex back to your normal profile.
-
-## 10. HTML overlay proof of concept
-
-`packages/overlay` is the overlay host from [the overlay design](overlay.md): an Electron app that renders overlay apps off-screen and streams them to the REDnode plugin in the game.
-
-| Tool | Version | Install |
-|---|---|---|
-| Electron | 44.7.0 | Dev dependency of `packages/overlay`, installed by `npm install` |
-
-On the reference machine `npm install` did not run Electron's install script, so the Electron binary was missing. Download it by hand once:
-
-```powershell
-node node_modules/electron/install.js   # puts electron.exe in node_modules/electron/dist (about 370 MB)
-```
-
-Run the host:
-
-```powershell
-npm run overlay          # off-screen, waits for the game on \.\pipe\rednode-overlay
-npm run overlay:window   # the demo app in a normal window, without the game
-```
-
-The host clears `ELECTRON_RUN_AS_NODE` before starting Electron, because VS Code sets it for processes it starts and it turns Electron into plain Node.
-
-CI skips the Electron download with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, because the docs build does not need it.
+The REDnode HUD color theme for VS Code lives in the [REDcode](https://github.com/CyberbuildsAI/REDcode) repository, at `extensions/rednode-hud-theme`, because REDcode is the VS Code environment REDnode mods are built in. Build or install it from there (`npm run theme:package` in REDcode). This repository no longer carries a copy.
