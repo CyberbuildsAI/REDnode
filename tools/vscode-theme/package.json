@@ -2,7 +2,7 @@
   "name": "rednode-hud-theme",
   "displayName": "REDnode HUD",
   "description": "Dark theme in the REDnode house style: near-black HUD panels with yellow and cyan accents.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "cyberbuildsai",
   "license": "MIT",
   "icon": "images/icon.png",

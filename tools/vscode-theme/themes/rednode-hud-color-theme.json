@@ -114,8 +114,8 @@
     "commandCenter.activeBorder": "#fcee0a",
 
     "activityBar.background": "#08090d",
-    "activityBar.foreground": "#fcee0a",
-    "activityBar.inactiveForeground": "#5d6780",
+    "activityBar.foreground": "#e3e6ee",
+    "activityBar.inactiveForeground": "#fcee0a",
     "activityBar.activeBorder": "#fcee0a",
     "activityBar.activeBackground": "#10131b",
     "activityBar.border": "#262c3d",
