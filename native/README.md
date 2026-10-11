@@ -34,10 +34,10 @@ red4ext/plugins/REDnode/
 
 ## Expected log after loading a save
 
-`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.1.0, author(s): CyberbuildsAI) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
+`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.2.0, author(s): CyberbuildsAI) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
 
 ```
-REDnode 0.1.0 loading (P1 probe)
+REDnode 0.2.0 loading (P1 probe)
 RTTI ready: <n> types, <n> global functions
 Game thread pump started
 Event drained on frame <n>: PlayerPuppet.OnGameAttached REDnode_Ping(21) = 42
@@ -45,6 +45,12 @@ Pump heartbeat: 3600 frames
 ```
 
 `= 42` confirms the synchronous call returned its value to the script. The frame number confirms the event was handled on the game thread.
+
+## RTTI dump
+
+The plugin can also dump the game's type data for the [game API reference](https://cyberbuildsai.github.io/REDnode/game/). Create an empty `dump.request` file next to `REDnode.dll`. When the game reaches the main menu, the plugin writes `rtti-dump.json` beside it, logs `RTTI dump written to ...` and deletes the request. Normal runs do nothing.
+
+The dump holds every class, enum, bitfield and global function with names, types and flags. REDnode's own functions are left out. Code: [src/dump.cpp](src/dump.cpp). The full procedure, including the base-game setup, is in [docs/dev-setup.md](../docs/dev-setup.md), section 9.
 
 ## Open decisions
 

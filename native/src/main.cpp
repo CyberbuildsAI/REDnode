@@ -6,6 +6,11 @@
 //   3. Synchronous redscript-to-native calls work (the Tier 1 path).
 //   4. Events queued from scripts are drained on the game thread by a
 //      per-frame pump (the Tier 2 path).
+//
+// Also dumps the game's RTTI for the game API reference when the file
+// dump.request sits next to the DLL. See dump.cpp.
+
+#include "dump.hpp"
 
 #include <RED4ext/RED4ext.hpp>
 
@@ -15,6 +20,7 @@
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -95,11 +101,40 @@ void PostRegisterTypes()
                          rtti->funcs.size);
 }
 
+// Dumps the RTTI once if dump.request exists, then deletes the request.
+// Runs when the game first reaches the Running state, after scripts load.
+void DumpIfRequested()
+{
+    const auto dir = GetPluginDir();
+    const auto request = dir / L"dump.request";
+    std::error_code ec;
+    if (!std::filesystem::exists(request, ec))
+    {
+        return;
+    }
+
+    const auto* v = g_sdk->runtime;
+    const auto version = std::to_string(v->major) + "." + std::to_string(v->minor) + "." + std::to_string(v->patch);
+    const auto file = dir / L"rtti-dump.json";
+
+    std::string error;
+    if (rednode::DumpRtti(file, version, error))
+    {
+        std::filesystem::remove(request, ec);
+        g_sdk->logger->InfoWF(g_handle, L"RTTI dump written to %ls", file.c_str());
+    }
+    else
+    {
+        g_sdk->logger->ErrorF(g_handle, "RTTI dump failed: %s", error.c_str());
+    }
+}
+
 bool OnRunningEnter(RED4ext::CGameApplication* aApp)
 {
     RED4EXT_UNUSED_PARAMETER(aApp);
 
     g_sdk->logger->Info(g_handle, "Game thread pump started");
+    DumpIfRequested();
     return true;
 }
 
@@ -147,7 +182,7 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
         g_handle = aHandle;
         g_sdk = aSdk;
 
-        aSdk->logger->Info(aHandle, "REDnode 0.1.0 loading (P1 probe)");
+        aSdk->logger->Info(aHandle, "REDnode 0.2.0 loading (P1 probe)");
 
         RED4ext::CRTTISystem::Get()->AddPostRegisterCallback(PostRegisterTypes);
 
@@ -177,7 +212,7 @@ RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::v1::PluginInfo* aInfo)
 {
     aInfo->name = L"REDnode";
     aInfo->author = L"CyberbuildsAI";
-    aInfo->version = RED4EXT_V1_SEMVER(0, 1, 0);
+    aInfo->version = RED4EXT_V1_SEMVER(0, 2, 0);
     aInfo->runtime = RED4EXT_V1_RUNTIME_VERSION_LATEST;
     aInfo->sdk = RED4EXT_V1_SDK_VERSION_CURRENT;
 }
