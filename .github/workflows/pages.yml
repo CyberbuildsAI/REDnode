@@ -1,7 +1,9 @@
 # Builds the docs site and deploys it to GitHub Pages.
 #   1. TypeDoc generates the API reference into docs/api (never committed).
-#   2. Jekyll renders docs/ with the HUD layout and copies docs/api as-is.
-#   3. The result is deployed to https://cyberbuildsai.github.io/REDnode/
+#   2. tools/gameapi/build.mjs generates the game API reference into docs/game
+#      from gameapi/<version>/rtti.json and gameapi/notes (never committed).
+#   3. Jekyll renders docs/ with the HUD layout and copies docs/api and docs/game as-is.
+#   4. The result is deployed to https://cyberbuildsai.github.io/REDnode/
 # Requires Settings > Pages > Source: GitHub Actions.
 
 name: Docs site
@@ -36,6 +38,9 @@ jobs:
 
       - name: Generate API reference
         run: npm run docs:api
+
+      - name: Generate game API reference
+        run: npm run docs:game
 
       - uses: actions/configure-pages@v5
 

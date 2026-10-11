@@ -16,8 +16,9 @@ native/out/
 *.exe
 rtti-dump*
 
-# generated API reference (built by CI)
+# generated API references (built by CI)
 docs/api/
+docs/game/
 
 # editor settings: shared ones live in REDnode.code-workspace
 .vscode/

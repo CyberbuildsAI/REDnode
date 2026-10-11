@@ -1,0 +1,122 @@
+/* Game API pages. Builds on hud.css: same tokens, same HUD look. */
+.gameapi.doc { padding-block: 28px 0; }
+.doc.gameapi > h1:not(:first-child) {
+  text-transform: none; font-family: var(--display); font-weight: 700; font-size: clamp(28px, 5vw, 46px);
+  line-height: 1.1; letter-spacing: .01em; margin: 18px 0 10px; overflow-wrap: anywhere;
+}
+.gameapi > h1::before {
+  content: "// Game API"; display: block; margin-bottom: 10px;
+  font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: .2em; color: var(--cyan);
+}
+.gameapi h2 small, .gameapi h3 small { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .1em; margin-left: 8px; }
+
+/* top strip: breadcrumb and search */
+.ga-top { min-width: 0; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+.crumb { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.crumb a { color: var(--dim); text-decoration: none; }
+.crumb a:hover { color: var(--cyan); }
+.ga-search { position: relative; flex: 1 1 260px; min-width: 0; max-width: 420px; }
+.ga-search input {
+  width: 100%; padding: 9px 12px; font: 14px var(--mono); color: var(--fg);
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--yellow); outline: none;
+}
+.ga-search input:focus { border-color: var(--cyan); border-left-color: var(--yellow); }
+.ga-results {
+  position: absolute; z-index: 10; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px 0;
+  list-style: none; max-height: 60vh; overflow-y: auto;
+  background: var(--panel-2); border: 1px solid var(--cyan);
+}
+.ga-results li { margin: 0; }
+.ga-results a { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; text-decoration: none; color: var(--fg); font-family: var(--mono); font-size: 13px; }
+.ga-results a:hover, .ga-results a[aria-selected="true"] { background: rgba(25,243,255,.1); color: var(--cyan); }
+.ga-results .k { flex: none; width: 18px; font-size: 11px; color: var(--yellow); text-transform: uppercase; }
+.ga-results .alt { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ga-results .none { padding: 6px 12px; color: var(--dim); font: 13px var(--mono); }
+
+/* type header */
+.ga-sub { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; max-width: none; }
+.ga-sub .kind { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--yellow); }
+.ga-sub .native { font-size: 15px; color: var(--dim); }
+.ga-chain { font-family: var(--mono); font-size: 14px; max-width: none; overflow-wrap: anywhere; }
+.ga-chain .lbl { color: var(--dim); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; margin-right: 6px; }
+.ga-kids { margin: 0 0 14px; font-family: var(--mono); font-size: 13px; }
+.ga-kids summary { cursor: pointer; color: var(--dim); letter-spacing: .06em; }
+.ga-kids p { display: flex; flex-wrap: wrap; gap: 4px 14px; max-width: none; margin-top: 8px; }
+
+/* badges */
+.badge {
+  display: inline-block; margin: 0 6px 0 0; padding: 1px 7px;
+  font: 500 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dim); border: 1px solid var(--line); background: var(--panel-2); white-space: nowrap;
+}
+.b-native { color: var(--cyan); border-color: rgba(25,243,255,.35); }
+.b-scripted, .b-scriptedClass, .b-scriptedStruct { color: var(--green); border-color: rgba(93,255,161,.35); }
+.b-importOnly, .b-exec, .b-quest { color: var(--yellow); border-color: rgba(252,238,10,.35); }
+.b-private, .b-protected { color: #ff9ad5; border-color: rgba(255,154,213,.3); }
+
+/* signatures and type links */
+.gameapi pre.sig {
+  margin: 0 0 6px; padding: 10px 14px; border-left-color: var(--line);
+  font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.gameapi td.sig { font-family: var(--mono); font-size: 13px; }
+.kw { color: #8a93a8; }
+.fn { color: #fff; font-weight: 500; }
+.t-prim { color: #ffb86b; }
+.t-void, .t-dim { color: var(--dim); }
+.gameapi a.t-class, .gameapi a.t-native-class, .gameapi a.t-struct, .gameapi a.t-enum, .gameapi a.t-bitfield { text-decoration: none; }
+.gameapi a.t-class { color: var(--cyan); }
+.gameapi a.t-native-class { color: #7fb8ff; }
+.gameapi a.t-struct { color: var(--green); }
+.gameapi a.t-enum, .gameapi a.t-bitfield { color: #ff9ad5; }
+.gameapi a[class^="t-"]:hover { text-decoration: underline; }
+.ga-fn { margin: 0 0 8px; scroll-margin-top: 70px; }
+.ga-fn pre.sig { margin: 0; }
+.ga-fn .fl { float: right; margin-left: 12px; }
+.ga-fn .fl .badge { margin: 0 0 0 6px; }
+.ga-fn:target pre.sig, tr:target td { background: rgba(252,238,10,.07); }
+.ga-fn:target pre.sig { border-left-color: var(--yellow); }
+.gameapi tr { scroll-margin-top: 70px; }
+.ga-scroll { max-width: 100%; overflow-x: auto; margin: 0 0 18px; }
+.ga-scroll > table { display: table; margin: 0; }
+.ga-scroll > table.ga-props { width: 100%; }
+.ga-props td:first-child, .ga-props td.sig { white-space: nowrap; }
+.gameapi td code { background: none; padding: 0; font-size: 13px; }
+.gameapi td.num { font-family: var(--mono); font-size: 14px; text-align: right; }
+
+/* REDnode notes */
+.note {
+  margin: 8px 0 18px; padding: 12px 16px; max-width: 80ch;
+  background: var(--panel); border: 1px solid rgba(252,238,10,.35); border-left: 3px solid var(--yellow);
+}
+.note::before { content: "REDnode note"; display: block; margin-bottom: 6px; font: 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--yellow); }
+.note p:last-child, .note ul:last-child { margin-bottom: 0; }
+.ga-fn .note { margin-top: 2px; }
+tr.note-row td { background: var(--panel-2); }
+tr.note-row td p:last-child { margin-bottom: 0; }
+
+/* index */
+.ga-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 24px 0 8px; }
+.ga-card {
+  display: grid; gap: 2px; padding: 16px 18px; text-decoration: none; color: var(--fg);
+  background: var(--panel); border: 1px solid var(--line);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+}
+.ga-card:hover { border-color: var(--cyan); }
+.ga-card .n { font: 700 34px var(--display); color: var(--yellow); line-height: 1; }
+.ga-card .l { font: 600 17px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--cyan); }
+.ga-card .d { font-size: 15px; color: var(--dim); }
+
+/* letter lists */
+.ga-jump { display: flex; flex-wrap: wrap; gap: 4px; max-width: none; position: sticky; top: 38px; z-index: 4; padding: 8px 0; background: var(--bg); }
+.ga-jump a { min-width: 28px; padding: 2px 6px; text-align: center; font: 13px var(--mono); text-decoration: none; border: 1px solid var(--line); background: var(--panel); }
+.ga-jump a:hover { border-color: var(--cyan); }
+.gameapi h3[id^="l-"] { scroll-margin-top: 100px; }
+.ga-list { columns: 3 260px; column-gap: 28px; list-style: none; padding: 0 !important; max-width: none !important; font: 13px/1.55 var(--mono); }
+.ga-list li { break-inside: avoid; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.ga-list .t-dim { font-size: 11px; }
+
+@media (max-width: 640px) {
+  .ga-search { max-width: none; }
+  .ga-jump { top: 64px; }
+}

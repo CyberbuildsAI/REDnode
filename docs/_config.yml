@@ -25,6 +25,8 @@ nav:
     url: /
   - title: API
     url: /api/
+  - title: Game API
+    url: /game/
   - title: Design
     url: /design.html
   - title: P0 findings

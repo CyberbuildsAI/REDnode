@@ -166,3 +166,43 @@ code --install-extension dist/rednode-hud-theme-0.1.0.vsix
 npm 12 blocks the install script of `@vscode/vsce-sign`, which downloads a signing binary. Packaging does not need it. Only publishing to the Marketplace would, and that also needs a publisher account named `cyberbuildsai`.
 
 Bump `version` in `tools/vscode-theme/package.json` and add a `CHANGELOG.md` entry before packaging a new release.
+
+## 9. Game API reference
+
+The game API reference at https://cyberbuildsai.github.io/REDnode/game/ is generated from a base-game RTTI dump, committed as `gameapi/<game version>/rtti.json`, plus REDnode's notes in `gameapi/notes/`.
+
+| Tool | Version | Install |
+|---|---|---|
+| marked | 18.1.0 | Root dev dependency, installed by `npm install`. Renders the notes |
+
+Build it locally:
+
+```powershell
+npm run docs:game   # writes docs/game (ignored by git), about a minute, ~100 MB
+```
+
+Open `docs/game/index.html` in a browser. Search needs a web server, because browsers block `fetch` on `file://` pages.
+
+### New dump after a game patch
+
+Do this once per game patch. The dump must contain only the base game, so every other mod has to be off.
+
+1. In Vortex, create a profile named `vanilla` with only RED4ext enabled, switch to it and click **Deploy**. Mods installed outside Vortex stay behind. Check `red4ext/plugins/` for other plugin DLLs.
+2. If another RED4ext plugin is still in `red4ext/plugins/`, add its folder name to `ignored` in `red4ext/config.ini`, for example `ignored = ["cet_mod_manager"]`. Script mods in `r6/scripts` do not matter, because redscript is not deployed in this profile.
+3. Build and deploy REDnode, then create an empty `dump.request` file next to `REDnode.dll`:
+
+   ```powershell
+   .\tools\build-native.ps1
+   .\tools\deploy-native.ps1 -GameDir '<game folder>'
+   New-Item -ItemType File '<game folder>\red4ext\plugins\REDnode\dump.request'
+   ```
+
+4. Launch the game, wait for the main menu and quit. The REDnode log shows `RTTI dump written to ...`, and the plugin deletes `dump.request`.
+5. Check `red4ext/logs/red4ext-*.log`: REDnode must be the only plugin that says `has been loaded`.
+6. Import the dump, giving the game's product version from the RED4ext log:
+
+   ```powershell
+   npm run gameapi:import -- '<game folder>\red4ext\plugins\REDnode\rtti-dump.json' --game 2.31
+   ```
+
+7. Set `ignored = []` back in `red4ext/config.ini`, and switch Vortex back to your normal profile.
