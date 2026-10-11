@@ -52,6 +52,10 @@ The plugin can also dump the game's type data for the [game API reference](https
 
 The dump holds every class, enum, bitfield and global function with names, types and flags. REDnode's own functions are left out. Code: [src/dump.cpp](src/dump.cpp). The full procedure, including the base-game setup, is in [docs/dev-setup.md](../docs/dev-setup.md), section 9.
 
+## Overlay
+
+The plugin also runs the in-game half of the [HTML overlay](../docs/overlay.md): a Present hook that draws overlay windows, a window hook for input (F10), and a named pipe to the overlay host. Code: [src/overlay/](src/overlay/). If `host/REDnode-overlay.exe` is next to the DLL, the plugin starts it with the game, in a job object so it ends with the game. Window logic has unit tests in [tests/](tests/), run by `tools/build-native.ps1`.
+
 ## Open decisions
 
 - IPC transport for Tier 2: named pipe, local socket, or shared memory for hot data.

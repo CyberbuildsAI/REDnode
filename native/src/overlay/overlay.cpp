@@ -58,11 +58,12 @@ std::string JsonString(std::string_view aText)
     return out + "\"";
 }
 
-void Start(RED4ext::v1::PluginHandle aHandle, const RED4ext::v1::Sdk* aSdk)
+void Start(RED4ext::v1::PluginHandle aHandle, const RED4ext::v1::Sdk* aSdk, const std::filesystem::path& aPluginDir)
 {
     g_handle = aHandle;
     g_sdk = aSdk;
     detail::StartLink();
+    detail::StartHost(aPluginDir);
 }
 
 void Install()
@@ -86,6 +87,7 @@ void Stop()
     detail::UninstallInput();
     detail::UninstallCompositor();
     detail::StopLink();
+    detail::StopHost();
     g_installed = false;
 }
 } // namespace rednode::overlay

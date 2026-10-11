@@ -10,7 +10,10 @@
 //   - keys go to the focused window.
 //
 // Host -> plugin commands (JSON, "cmd"):
-//   {"cmd":"window.open","window":1,"x":448,"y":220,"width":1024,"height":640,"draggable":true}
+//   {"cmd":"window.open","window":1,"anchor":"top-left","x":448,"y":220,"width":1024,"height":640,"draggable":true}
+//      anchor: top-left, top, top-right, left, center, right, bottom-left, bottom or
+//      bottom-right. x and y are offsets from that point of the screen to the same
+//      point of the window, so "bottom-right" with x -20 puts the window 20 px from the right edge.
 //   {"cmd":"window.drag","window":1,"regions":[x,y,w,h, ...]}   page pixels
 //   {"cmd":"window.close","window":1}
 // Plugin -> host events:
@@ -41,6 +44,9 @@ struct Window
 {
     uint32_t id = 0;
     float x = 0, y = 0;
+    float anchorX = 0, anchorY = 0;   // 0, 0.5 or 1 across and down
+    float offsetX = 0, offsetY = 0;   // from the anchor, reference pixels
+    bool placed = false;              // false until the screen size is known
     uint32_t width = 0, height = 0;
     bool draggable = true;
     std::vector<DragRegion> dragRegions;
@@ -94,6 +100,8 @@ Hit HitTest(float aX, float aY)
     for (auto it = g_windows.rbegin(); it != g_windows.rend(); ++it)
     {
         Window& w = *it;
+        if (!w.placed)
+            continue;
         const float lx = aX - w.x;
         const float ly = aY - w.y;
         if (lx < 0 || ly < 0 || lx >= float(w.width) || ly >= float(w.height))
@@ -160,6 +168,28 @@ void SetHover(Actions& aActions, uint32_t aId)
     g_hover = aId;
 }
 
+// Turns an anchor name into fractions of the screen: "bottom-right" is (1, 1).
+void ParseAnchor(const std::string& aName, float& aX, float& aY)
+{
+    aX = aName.find("right") != std::string::npos ? 1.0f : (aName.find("left") != std::string::npos ? 0.0f : 0.5f);
+    aY = aName.find("bottom") != std::string::npos ? 1.0f : (aName.find("top") != std::string::npos ? 0.0f : 0.5f);
+    if (aName.empty())
+        aX = aY = 0; // no anchor: top-left
+}
+
+void Clamp(Window& aWindow);
+
+// Places the window from its anchor once the screen size is known.
+void Place(Window& aWindow, const Screen& aScreen)
+{
+    if (aScreen.width <= 0)
+        return;
+    aWindow.x = aWindow.anchorX * (aScreen.width - float(aWindow.width)) + aWindow.offsetX;
+    aWindow.y = aWindow.anchorY * (aScreen.height - float(aWindow.height)) + aWindow.offsetY;
+    aWindow.placed = true;
+    Clamp(aWindow);
+}
+
 void Clamp(Window& aWindow)
 {
     Screen s;
@@ -182,8 +212,18 @@ Screen GetScreen()
 
 void SetScreen(const Screen& aScreen)
 {
-    std::scoped_lock lock(g_screenMutex);
-    g_screen = aScreen;
+    {
+        std::scoped_lock lock(g_screenMutex);
+        g_screen = aScreen;
+    }
+    if (aScreen.width <= 0)
+        return;
+    std::scoped_lock lock(g_mutex);
+    for (auto& w : g_windows)
+    {
+        if (!w.placed)
+            Place(w, aScreen);
+    }
 }
 
 void HandleWindowCommand(const std::string& aJson)
@@ -218,12 +258,16 @@ void HandleWindowCommand(const std::string& aJson)
                 w = &g_windows.back();
                 w->id = uint32_t(id);
             }
-            w->x = float(x);
-            w->y = float(y);
+            std::string anchor;
+            json::String(aJson, "anchor", anchor);
+            ParseAnchor(anchor, w->anchorX, w->anchorY);
+            w->offsetX = float(x);
+            w->offsetY = float(y);
             w->width = uint32_t(width);
             w->height = uint32_t(height);
             w->draggable = json::Bool(aJson, "draggable", true);
-            Clamp(*w);
+            w->placed = false;
+            Place(*w, GetScreen());
         }
         else if (cmd == "window.drag" && w)
         {
@@ -281,7 +325,10 @@ std::vector<WindowView> SnapshotWindows()
     std::vector<WindowView> out;
     out.reserve(g_windows.size());
     for (const auto& w : g_windows)
-        out.push_back({w.id, w.x, w.y, w.width, w.height});
+    {
+        if (w.placed)
+            out.push_back({w.id, w.x, w.y, w.width, w.height});
+    }
     return out;
 }
 

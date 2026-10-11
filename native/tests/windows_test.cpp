@@ -90,7 +90,20 @@ WindowView View(uint32_t aId)
 
 int main()
 {
+    // Anchored windows are placed once the screen size is known.
+    SetScreen({0, 0, 0, 0, 0});
+    HandleWindowCommand(
+        R"({"cmd":"window.open","window":9,"anchor":"bottom-right","x":-40,"y":-100,"width":440,"height":380})");
+    Check(SnapshotWindows().empty(), "an anchored window waits for the screen size");
     SetScreen({1.0f, 1920, 1080, 1920, 1080});
+    Check(View(9).x == 1440 && View(9).y == 600, "bottom-right anchor with an offset from the corner");
+    HandleWindowCommand(R"({"cmd":"window.open","window":8,"anchor":"center","x":0,"y":0,"width":1024,"height":640})");
+    Check(View(8).x == 448 && View(8).y == 220, "center anchor");
+    HandleWindowCommand(R"({"cmd":"window.open","window":7,"anchor":"top","x":0,"y":10,"width":200,"height":100})");
+    Check(View(7).x == 860 && View(7).y == 10, "top anchor");
+    HandleWindowCommand(R"({"cmd":"window.open","window":6,"x":100,"y":50,"width":200,"height":100})");
+    Check(View(6).x == 100 && View(6).y == 50, "no anchor means top-left");
+    CloseAllWindows();
 
     // A: 400 x 300 at (100, 100), title bar is a drag handle. B: 200 x 200 at (300, 200),
     // with a transparent 100 x 100 hole in the middle.

@@ -173,7 +173,7 @@ void ReaderLoop()
             }
             g_connected = true;
             Log("Overlay: host connected");
-            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.5.0\",\"mode\":") +
+            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.6.0\",\"mode\":") +
                      JsonString(ModeName(GetMode())) + "}");
 
             for (;;)

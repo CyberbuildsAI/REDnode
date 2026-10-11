@@ -16,14 +16,15 @@
 #include <Windows.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace rednode::overlay
 {
-// Plugin load: start the pipe to the overlay host.
-void Start(RED4ext::v1::PluginHandle aHandle, const RED4ext::v1::Sdk* aSdk);
+// Plugin load: start the pipe, and the packaged overlay host if there is one.
+void Start(RED4ext::v1::PluginHandle aHandle, const RED4ext::v1::Sdk* aSdk, const std::filesystem::path& aPluginDir);
 // First Running frame: hook Present and the game window. Safe to call again.
 void Install();
 // Every game frame, on the game thread: run queued bridge requests.
@@ -99,6 +100,10 @@ void UninstallCompositor();
 bool InstallInput(HWND aWindow);
 void UninstallInput();
 void GetCursor(float& aX, float& aY); // reference pixels
+
+// host.cpp
+void StartHost(const std::filesystem::path& aPluginDir);
+void StopHost();
 
 // bridge.cpp
 void QueueRequest(std::string aJson);

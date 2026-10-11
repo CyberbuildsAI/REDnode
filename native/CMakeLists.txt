@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(REDnode VERSION 0.5.0 LANGUAGES CXX)
+project(REDnode VERSION 0.6.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,6 +27,7 @@ add_library(REDnode SHARED
   src/overlay/input.cpp
   src/overlay/bridge.cpp
   src/overlay/windows.cpp
+  src/overlay/host.cpp
 )
 target_link_libraries(REDnode PRIVATE RED4ext::SDK d3d12 d3dcompiler)
 target_compile_definitions(REDnode PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
