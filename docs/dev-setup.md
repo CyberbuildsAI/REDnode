@@ -43,7 +43,17 @@ Verify:
   -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 ```
 
-Status on the reference machine: **install in progress, not yet verified.**
+Verified on the reference machine: Visual Studio Build Tools 2022 **17.14.37710.0**, MSVC toolset **14.44.35207** (compiler 19.44.35229), CMake bundled with the Build Tools.
+
+### Build and deploy the plugin
+
+```powershell
+.\tools\build-native.ps1           # configure, build, stage native\build\dist\red4ext\plugins\REDnode
+.\tools\deploy-native.ps1          # copy into the game (close the game first)
+.\tools\deploy-native.ps1 -Remove  # take it out again
+```
+
+The first configure clones RED4ext.SDK at the pinned commit, so it needs network access. The build needs no developer shell, because the script finds the Build Tools and their bundled CMake with `vswhere`.
 
 ## 3. Repository and GitHub
 
