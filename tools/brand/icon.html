@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Source for the 256 x 256 extension icon. Rendered by tools/brand/render.ps1. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode icon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=JetBrains+Mono:wght@500&display=block" rel="stylesheet">
+<style>
+html, body { margin: 0; background: transparent; }
+.icon {
+  position: relative; width: 256px; height: 256px;
+  background:
+    linear-gradient(rgba(25,243,255,.08) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(25,243,255,.08) 1px, transparent 1px) 0 0 / 32px 32px,
+    #08090d;
+  clip-path: polygon(0 0, calc(100% - 40px) 0, 100% 40px, 100% 100%, 40px 100%, 0 calc(100% - 40px));
+  display: grid; place-items: center;
+}
+.icon::before, .icon::after { content: ""; position: absolute; width: 34px; height: 34px; border: 6px solid #fcee0a; }
+.icon::before { top: 18px; left: 18px; border-right: 0; border-bottom: 0; }
+.icon::after { bottom: 18px; right: 18px; border-left: 0; border-top: 0; }
+.mark { font-family: "Chakra Petch", sans-serif; font-weight: 700; font-size: 112px; line-height: 1; color: #e3e6ee; letter-spacing: -.02em; }
+.mark span { color: #fcee0a; }
+.bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 58px; width: 120px; height: 6px; background: linear-gradient(90deg, #fcee0a 0 36px, #19f3ff 36px); }
+</style>
+</head>
+<body>
+<div class="icon"><div class="mark">R<span>N</span></div><div class="bar"></div></div>
+</body>
+</html>

@@ -7,6 +7,7 @@
 #   docs/assets/brand/banner.png   2560 x 640  (1280 x 320 at 2x), README header
 #   docs/assets/brand/social.png   1280 x 640, upload in Settings > General > Social preview
 #   docs/assets/brand/badges/*.svg
+#   tools/vscode-theme/images/icon.png   256 x 256, VS Code extension icon
 
 $ErrorActionPreference = 'Stop'
 
@@ -41,5 +42,18 @@ function Render($query, $file, $width, $height, $scale) {
 
 Render 'banner' 'banner.png' 1280 320 2
 Render 'social' 'social.png' 1280 640 1
+
+# VS Code extension icon, 256 x 256 with transparent cut corners.
+$iconUrl = 'file:///' + ((Join-Path $PSScriptRoot 'icon.html') -replace '\\', '/')
+$icon = Join-Path $repo 'tools\vscode-theme\images\icon.png'
+New-Item -ItemType Directory -Force (Split-Path $icon) | Out-Null
+if (Test-Path $icon) { Remove-Item $icon }
+$ErrorActionPreference = 'Continue'
+& $chrome --headless=new --disable-gpu --hide-scrollbars --no-first-run "--user-data-dir=$profileDir" `
+    --window-size=256,256 --default-background-color=00000000 --virtual-time-budget=8000 `
+    "--screenshot=$icon" $iconUrl 2>$null | Out-Null
+$ErrorActionPreference = 'Stop'
+if (-not (Test-Path $icon)) { throw 'Render failed: icon.png' }
+Write-Output "Rendered $icon"
 
 python -I (Join-Path $PSScriptRoot 'badges.py') (Join-Path $out 'badges')
