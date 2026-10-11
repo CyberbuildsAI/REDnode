@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "../../docs/api",
+  "name": "rednode API",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "customCss": "typedoc/hud.css",
+  "lightHighlightTheme": "github-dark",
+  "darkHighlightTheme": "github-dark",
+  "titleLink": "https://cyberbuildsex.github.io/REDnode/api/",
+  "navigationLinks": {
+    "Docs": "https://cyberbuildsex.github.io/REDnode/",
+    "Design": "https://cyberbuildsex.github.io/REDnode/design.html",
+    "GitHub": "https://github.com/CyberbuildsEX/REDnode"
+  },
+  "hostedBaseUrl": "https://cyberbuildsex.github.io/REDnode/api/",
+  "customFooterHtml": "REDnode &middot; MIT"
+}

@@ -1,0 +1,96 @@
+/* REDnode house style for the TypeDoc API reference. Same tokens as docs/assets/css/hud.css.
+   TypeDoc reads --light-* and --dark-* variables; both are set to the HUD palette so the
+   reference keeps one look whichever theme the reader picks. */
+@import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  --hud-bg: #08090d;
+  --hud-panel: #10131b;
+  --hud-panel-2: #151925;
+  --hud-line: #262c3d;
+  --hud-fg: #e3e6ee;
+  --hud-dim: #8a93a8;
+  --hud-yellow: #fcee0a;
+  --hud-cyan: #19f3ff;
+  --hud-red: #ff2a52;
+  --hud-green: #5dffa1;
+  --hud-display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --hud-body: "Rajdhani", "Segoe UI", sans-serif;
+  --hud-mono: "JetBrains Mono", "Consolas", monospace;
+
+  --light-color-scheme: dark;               --dark-color-scheme: dark;
+  --light-color-background: var(--hud-bg);  --dark-color-background: var(--hud-bg);
+  --light-color-background-secondary: var(--hud-panel);  --dark-color-background-secondary: var(--hud-panel);
+  --light-color-background-active: var(--hud-panel-2);   --dark-color-background-active: var(--hud-panel-2);
+  --light-color-background-warning: rgba(255, 42, 82, .12); --dark-color-background-warning: rgba(255, 42, 82, .12);
+  --light-color-warning-text: var(--hud-fg);  --dark-color-warning-text: var(--hud-fg);
+  --light-color-accent: var(--hud-line);      --dark-color-accent: var(--hud-line);
+  --light-color-active-menu-item: var(--hud-panel-2); --dark-color-active-menu-item: var(--hud-panel-2);
+  --light-color-text: var(--hud-fg);          --dark-color-text: var(--hud-fg);
+  --light-color-contrast-text: var(--hud-bg); --dark-color-contrast-text: var(--hud-bg);
+  --light-color-text-aside: var(--hud-dim);   --dark-color-text-aside: var(--hud-dim);
+  --light-color-link: var(--hud-cyan);        --dark-color-link: var(--hud-cyan);
+  --light-color-focus-outline: var(--hud-yellow); --dark-color-focus-outline: var(--hud-yellow);
+  --light-color-icon-background: var(--hud-panel); --dark-color-icon-background: var(--hud-panel);
+  --light-color-icon-text: var(--hud-fg);     --dark-color-icon-text: var(--hud-fg);
+  --light-color-comment-tag: var(--hud-panel-2); --dark-color-comment-tag: var(--hud-panel-2);
+  --light-color-comment-tag-text: var(--hud-yellow); --dark-color-comment-tag-text: var(--hud-yellow);
+  --light-color-document: var(--hud-fg);      --dark-color-document: var(--hud-fg);
+  --light-color-note: var(--hud-cyan);        --dark-color-note: var(--hud-cyan);
+  --light-color-tip: var(--hud-green);        --dark-color-tip: var(--hud-green);
+  --light-color-important: var(--hud-yellow); --dark-color-important: var(--hud-yellow);
+  --light-color-warning: var(--hud-yellow);   --dark-color-warning: var(--hud-yellow);
+  --light-color-caution: var(--hud-red);      --dark-color-caution: var(--hud-red);
+
+  /* symbol kinds */
+  --light-color-ts-project: var(--hud-yellow);   --dark-color-ts-project: var(--hud-yellow);
+  --light-color-ts-module: var(--hud-yellow);    --dark-color-ts-module: var(--hud-yellow);
+  --light-color-ts-namespace: var(--hud-yellow); --dark-color-ts-namespace: var(--hud-yellow);
+  --light-color-ts-class: var(--hud-yellow);     --dark-color-ts-class: var(--hud-yellow);
+  --light-color-ts-interface: var(--hud-cyan);   --dark-color-ts-interface: var(--hud-cyan);
+  --light-color-ts-type-alias: var(--hud-cyan);  --dark-color-ts-type-alias: var(--hud-cyan);
+  --light-color-ts-function: var(--hud-green);   --dark-color-ts-function: var(--hud-green);
+  --light-color-ts-method: var(--hud-green);     --dark-color-ts-method: var(--hud-green);
+  --light-color-ts-call-signature: var(--hud-green); --dark-color-ts-call-signature: var(--hud-green);
+  --light-color-ts-variable: #ff9ad5;            --dark-color-ts-variable: #ff9ad5;
+  --light-color-ts-property: #ff9ad5;            --dark-color-ts-property: #ff9ad5;
+  --light-color-ts-parameter: var(--hud-fg);     --dark-color-ts-parameter: var(--hud-fg);
+  --light-color-ts-type-parameter: #ffb86b;      --dark-color-ts-type-parameter: #ffb86b;
+  --light-color-ts-keyword: var(--hud-yellow);   --dark-color-ts-keyword: var(--hud-yellow);
+  --light-color-ts-enum: var(--hud-red);         --dark-color-ts-enum: var(--hud-red);
+}
+
+body {
+  font-family: var(--hud-body);
+  font-size: 17px;
+  background-image:
+    linear-gradient(rgba(25, 243, 255, .035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(25, 243, 255, .035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+code, pre { font-family: var(--hud-mono); }
+pre { border: 1px solid var(--hud-line); border-left: 3px solid var(--hud-cyan); }
+:not(pre) > code { color: var(--hud-yellow); background: rgba(252, 238, 10, .08); }
+
+h1, h2, h3, h4 { font-family: var(--hud-display); letter-spacing: .04em; }
+h1, h2 { text-transform: uppercase; }
+.tsd-page-title h1 { font-size: clamp(28px, 5vw, 44px); }
+.tsd-panel h2, .tsd-member-group > h2 { border-bottom: 2px solid transparent; border-image: linear-gradient(90deg, var(--hud-yellow) 0 56px, var(--hud-line) 56px) 1; padding-bottom: 6px; }
+.tsd-signature, .tsd-signatures .tsd-signature { font-family: var(--hud-mono); }
+
+.tsd-page-toolbar { background: rgba(8, 9, 13, .92); border-bottom: 1px solid var(--hud-line); }
+.tsd-page-toolbar .title {
+  font-family: var(--hud-mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--hud-yellow);
+}
+#tsd-toolbar-links a { font-family: var(--hud-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+
+table { border-collapse: collapse; }
+th { font-family: var(--hud-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--hud-yellow); background: var(--hud-panel-2); }
+th, td { border: 1px solid var(--hud-line); padding: 8px 12px; }
+
+blockquote {
+  background: var(--hud-panel); border: 1px solid rgba(25, 243, 255, .4); margin: 0 0 16px; padding: 12px 18px;
+}
+
+footer { font-family: var(--hud-mono); font-size: 12px; letter-spacing: .06em; }
