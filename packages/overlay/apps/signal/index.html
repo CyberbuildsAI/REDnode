@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- A borderless, round widget. Everything outside the ring, and the hole in
+       the middle, is transparent: clicks there pass through to what is behind. -->
+  <div class="tab" data-rednode-drag title="Drag to move">REDNODE // SIGNAL</div>
+
+  <svg class="ring" viewBox="0 0 320 320" aria-hidden="true">
+    <circle class="track" cx="160" cy="160" r="128"/>
+    <circle id="sweep" class="sweep" cx="160" cy="160" r="128"/>
+    <circle class="inner" cx="160" cy="160" r="106"/>
+    <g id="ticks"></g>
+  </svg>
+
+  <div class="readout">
+    <span id="time">--:--:--</span>
+    <span id="frame" class="dim">NO GAME</span>
+  </div>
+
+  <button id="ping">Ping</button>
+
+  <script src="app.js"></script>
+</body>
+</html>

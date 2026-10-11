@@ -1,0 +1,50 @@
+:root {
+  --line: #262c3d;
+  --fg: #e3e6ee;
+  --dim: #8a93a8;
+  --yellow: #fcee0a;
+  --cyan: #19f3ff;
+  --red: #ff2a52;
+  --display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --mono: "JetBrains Mono", "Consolas", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 320px; height: 320px; overflow: hidden; background: transparent; }
+body { position: relative; color: var(--fg); user-select: none; }
+
+.ring { position: absolute; inset: 0; width: 320px; height: 320px; }
+.track { fill: none; stroke: rgba(8, 9, 13, .82); stroke-width: 34; }
+.sweep {
+  fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: butt;
+  transform: rotate(-90deg); transform-origin: 160px 160px;
+  filter: drop-shadow(0 0 4px rgba(25, 243, 255, .8));
+}
+.inner { fill: none; stroke: rgba(252, 238, 10, .55); stroke-width: 1.5; }
+#ticks line { stroke: rgba(227, 230, 238, .5); stroke-width: 2; }
+#ticks line.major { stroke: var(--yellow); stroke-width: 3; }
+
+/* The drag handle: a tab on top of the ring. */
+.tab {
+  position: absolute; left: 50%; top: 4px; transform: translateX(-50%);
+  padding: 4px 14px; font: 600 11px var(--mono); letter-spacing: .16em; color: #08090d;
+  background: var(--yellow); cursor: move; white-space: nowrap;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+/* Readout on the lower part of the ring, outside the transparent hole. */
+.readout {
+  position: absolute; left: 50%; top: 236px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+  font: 500 14px var(--mono); line-height: 1.25; text-shadow: 0 0 6px #000;
+}
+.readout .dim { color: var(--dim); font-size: 11px; letter-spacing: .1em; }
+
+button {
+  position: absolute; left: 50%; top: 282px; transform: translateX(-50%);
+  padding: 5px 16px; font: 700 12px var(--display); letter-spacing: .14em; text-transform: uppercase;
+  color: #08090d; background: var(--cyan); border: 0; cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+}
+button:hover { background: #8ef9ff; }
+button:active { transform: translateX(-50%) translateY(1px); }
+body.unfocused .tab { background: var(--dim); }

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(REDnode VERSION 0.3.0 LANGUAGES CXX)
+project(REDnode VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,6 +26,7 @@ add_library(REDnode SHARED
   src/overlay/compositor.cpp
   src/overlay/input.cpp
   src/overlay/bridge.cpp
+  src/overlay/windows.cpp
 )
 target_link_libraries(REDnode PRIVATE RED4ext::SDK d3d12 d3dcompiler)
 target_compile_definitions(REDnode PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -40,3 +41,9 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:REDnode>" "${REDNODE_STAGE_DIR}/"
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/scripts" "${REDNODE_STAGE_DIR}/Scripts"
 )
+
+# Unit tests for code that does not need the game. Run by tools/build-native.ps1.
+add_executable(REDnode_tests tests/windows_test.cpp src/overlay/windows.cpp)
+target_link_libraries(REDnode_tests PRIVATE RED4ext::SDK)
+target_compile_definitions(REDnode_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_compile_options(REDnode_tests PRIVATE /W4 /utf-8)

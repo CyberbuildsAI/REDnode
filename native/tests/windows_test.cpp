@@ -1,0 +1,168 @@
+// Tests for the overlay window manager (src/overlay/windows.cpp): hit testing,
+// click-through, focus, z-order, dragging and keyboard routing.
+// Runs without the game: the plugin functions windows.cpp calls are stubbed here.
+//
+//   .\tools\build-native.ps1 builds and runs it.
+
+#include "../src/overlay/overlay.hpp"
+
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+namespace rednode::overlay
+{
+std::vector<std::string> g_sent;
+void SendJson(std::string aJson)
+{
+    g_sent.push_back(std::move(aJson));
+}
+std::string JsonString(std::string_view aText)
+{
+    return "\"" + std::string(aText) + "\"";
+}
+
+namespace detail
+{
+Mode g_mode = Mode::Interactive;
+Mode GetMode()
+{
+    return g_mode;
+}
+void SetMode(Mode aMode)
+{
+    g_mode = aMode;
+}
+const char* ModeName(Mode)
+{
+    return "";
+}
+void Log(const char*, ...)
+{
+}
+} // namespace detail
+} // namespace rednode::overlay
+
+using namespace rednode::overlay;
+using namespace rednode::overlay::detail;
+
+namespace
+{
+int g_failures = 0;
+
+void Check(bool aOk, const char* aWhat)
+{
+    std::printf("%s  %s\n", aOk ? "ok  " : "FAIL", aWhat);
+    if (!aOk)
+        ++g_failures;
+}
+
+bool SentContains(const std::string& aText)
+{
+    for (const auto& s : g_sent)
+    {
+        if (s.find(aText) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
+// An opaque frame, optionally with a transparent hole.
+std::vector<uint8_t> Frame(uint32_t aW, uint32_t aH, uint32_t aHoleX = 0, uint32_t aHoleY = 0, uint32_t aHoleW = 0,
+                           uint32_t aHoleH = 0)
+{
+    std::vector<uint8_t> px(size_t(aW) * aH * 4, 255);
+    for (uint32_t y = aHoleY; y < aHoleY + aHoleH; ++y)
+        for (uint32_t x = aHoleX; x < aHoleX + aHoleW; ++x)
+            px[(size_t(y) * aW + x) * 4 + 3] = 0;
+    return px;
+}
+
+WindowView View(uint32_t aId)
+{
+    for (const auto& v : SnapshotWindows())
+        if (v.id == aId)
+            return v;
+    return {0, 0, 0, 0, 0};
+}
+} // namespace
+
+int main()
+{
+    SetScreen({1.0f, 1920, 1080, 1920, 1080});
+
+    // A: 400 x 300 at (100, 100), title bar is a drag handle. B: 200 x 200 at (300, 200),
+    // with a transparent 100 x 100 hole in the middle.
+    HandleWindowCommand(R"({"cmd":"window.open","window":1,"x":100,"y":100,"width":400,"height":300,"draggable":true})");
+    HandleWindowCommand(R"({"cmd":"window.drag","window":1,"regions":[0,0,400,30]})");
+    HandleWindowCommand(R"({"cmd":"window.open","window":2,"x":300,"y":200,"width":200,"height":200,"draggable":true})");
+    SubmitFrame(1, 400, 300, Frame(400, 300));
+    SubmitFrame(2, 200, 200, Frame(200, 200, 50, 50, 100, 100));
+    Check(SnapshotWindows().size() == 2, "two windows open");
+    Check(SnapshotWindows().back().id == 2, "the window opened last is in front");
+
+    g_sent.clear();
+    OnMouseMove(310, 210); // B's opaque corner, over A
+    Check(SentContains(R"("window":2,"type":"mouseMove","x":10,"y":10)"), "move over an opaque pixel goes to the front window");
+
+    g_sent.clear();
+    OnMouseMove(400, 300); // B's transparent hole, over A
+    Check(SentContains(R"("window":1,"type":"mouseMove","x":300,"y":200)"), "transparent pixels click through to the window below");
+    Check(SentContains(R"("window":2,"type":"mouseLeave")"), "the window the mouse left gets mouseLeave");
+
+    g_sent.clear();
+    OnMouseButton(true, "left");
+    Check(SentContains(R"({"event":"focus","window":1})"), "a click focuses the window");
+    Check(SnapshotWindows().back().id == 1, "a click brings the window to the front");
+    Check(SentContains(R"("window":1,"type":"mouseDown")"), "the click reaches the page");
+    OnMouseButton(false, "left");
+    Check(SentContains(R"("window":1,"type":"mouseUp")"), "the release goes to the same window");
+
+    g_sent.clear();
+    OnKey(true, 'A');
+    OnChar(L'a');
+    Check(SentContains(R"("window":1,"type":"keyDown","vk":65)") && SentContains(R"("window":1,"type":"char","code":97)"),
+          "keys go to the focused window");
+
+    // Drag A by its title bar from (110, 110) to (310, 160).
+    g_sent.clear();
+    OnMouseMove(110, 110);
+    OnMouseButton(true, "left");
+    Check(!SentContains("mouseDown"), "a press on a drag handle is not sent to the page");
+    OnMouseMove(310, 160);
+    Check(View(1).x == 300 && View(1).y == 150, "dragging moves the window with the cursor");
+    OnMouseButton(false, "left");
+    Check(SentContains(R"({"event":"moved","window":1,"x":300,"y":150})"), "the end of a drag reports the new position");
+
+    // A drag cannot lose the window off screen.
+    OnMouseMove(310, 160);
+    OnMouseButton(true, "left");
+    OnMouseMove(5000, 5000);
+    OnMouseButton(false, "left");
+    Check(View(1).x <= 1920 - 48 && View(1).y <= 1080 - 48, "a dragged window stays partly on screen");
+
+    // B is not draggable from its body: a press there goes to the page.
+    g_sent.clear();
+    OnMouseMove(305, 205);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(SentContains(R"("window":2,"type":"mouseDown")"), "a press outside drag handles reaches the page");
+
+    // A click on empty screen gives input back to the game.
+    g_sent.clear();
+    OnMouseMove(30, 1000);
+    OnMouseButton(true, "left");
+    Check(GetMode() == Mode::Passive, "a click on empty screen leaves interactive mode");
+    Check(SentContains(R"({"event":"focus","window":0})"), "and clears the focus");
+
+    // Closing.
+    SetMode(Mode::Interactive);
+    HandleWindowCommand(R"({"cmd":"window.close","window":2})");
+    Check(SnapshotWindows().size() == 1 && SnapshotWindows()[0].id == 1, "window.close removes the window");
+    CloseAllWindows();
+    Check(SnapshotWindows().empty(), "CloseAllWindows removes everything");
+
+    std::printf("\n%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
+    return g_failures ? EXIT_FAILURE : EXIT_SUCCESS;
+}

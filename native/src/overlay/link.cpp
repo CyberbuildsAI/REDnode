@@ -1,9 +1,11 @@
 // Named pipe link to the overlay host. One host at a time.
 //
 // Wire format, both directions: uint32 type, uint32 length, then length bytes.
-//   type 1 FRAME (host -> game): uint32 width, uint32 height, then width * height
-//                                 BGRA pixels, premultiplied alpha
-//   type 2 JSON  (both ways):    one UTF-8 JSON object
+//   type 1 FRAME (host -> game): uint32 window, uint32 width, uint32 height, then
+//                                 width * height BGRA pixels, premultiplied alpha
+//   type 2 JSON  (both ways):    one UTF-8 JSON object. From the host, objects
+//                                 with "cmd" manage windows (windows.cpp); the
+//                                 rest are bridge requests (bridge.cpp)
 //
 // The pipe is overlapped so the reader and writer threads never block each other.
 
@@ -108,22 +110,26 @@ bool WriteAll(HANDLE aPipe, const void* aBuffer, uint32_t aSize)
 
 void Dispatch(uint32_t aType, std::vector<uint8_t>&& aPayload)
 {
-    if (aType == TypeFrame && aPayload.size() >= 8)
+    if (aType == TypeFrame && aPayload.size() >= 12)
     {
-        uint32_t size[2];
-        std::memcpy(size, aPayload.data(), 8);
-        const uint64_t expected = 8ull + uint64_t(size[0]) * size[1] * 4;
-        if (size[0] == 0 || size[1] == 0 || size[0] > 4096 || size[1] > 4096 || aPayload.size() != expected)
+        uint32_t head[3]; // window, width, height
+        std::memcpy(head, aPayload.data(), sizeof(head));
+        const uint64_t expected = 12ull + uint64_t(head[1]) * head[2] * 4;
+        if (head[1] == 0 || head[2] == 0 || head[1] > 4096 || head[2] > 4096 || aPayload.size() != expected)
         {
-            Log("Overlay: ignored a malformed frame (%u x %u, %zu bytes)", size[0], size[1], aPayload.size());
+            Log("Overlay: ignored a malformed frame (%u x %u, %zu bytes)", head[1], head[2], aPayload.size());
             return;
         }
-        aPayload.erase(aPayload.begin(), aPayload.begin() + 8);
-        SubmitFrame(size[0], size[1], std::move(aPayload));
+        aPayload.erase(aPayload.begin(), aPayload.begin() + 12);
+        SubmitFrame(head[0], head[1], head[2], std::move(aPayload));
     }
     else if (aType == TypeJson)
     {
-        QueueRequest(std::string(aPayload.begin(), aPayload.end()));
+        std::string json(aPayload.begin(), aPayload.end());
+        if (json.find("\"cmd\":") != std::string::npos)
+            HandleWindowCommand(json);
+        else
+            QueueRequest(std::move(json));
     }
 }
 
@@ -167,7 +173,7 @@ void ReaderLoop()
             }
             g_connected = true;
             Log("Overlay: host connected");
-            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.3.0\",\"mode\":") +
+            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.4.0\",\"mode\":") +
                      JsonString(ModeName(GetMode())) + "}");
 
             for (;;)
@@ -190,7 +196,7 @@ void ReaderLoop()
                 std::scoped_lock lock(g_pipeMutex);
                 g_pipe = INVALID_HANDLE_VALUE;
             }
-            DropFrame();
+            CloseAllWindows();
             if (GetMode() == Mode::Interactive)
                 SetMode(Mode::Passive); // give input back to the game
             Log("Overlay: host disconnected");

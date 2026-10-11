@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **proof of concept passed.** All four steps work in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results). The next step is planning the real version.
+Status: **O1 Windows built, in-game test pending.** The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -185,6 +185,18 @@ Rules that make borderless windows behave:
 | **O5 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
 | **O6 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data. Node mods get the UI builder | A Node mod and an overlay app use the same API call and get the same answer. A Node mod opens a window without writing HTML |
 | **O7 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
+
+### O1 Windows: test
+
+Built 2026-10-11, REDnode 0.4.0. Window logic is covered by 19 unit tests in `native/tests/windows_test.cpp`, run by `tools/build-native.ps1`. The host was tested against a mock of the plugin. Two apps open: the demo (1024 x 640, title bar is its drag handle) and **Signal** (a round 320 x 320 widget with a transparent middle and a yellow drag tab).
+
+1. Start the host (`npm run overlay`) and the game. Both windows appear at the main menu.
+2. **F10** for interactive mode. Drag the demo by its title bar and Signal by its yellow tab. They should follow the cursor with no lag.
+3. Overlap them. Click one: it comes to the front, and the other one's title dims.
+4. Put Signal over the demo. Click inside Signal's transparent middle: the click should reach the demo underneath, for example its **Click me** button.
+5. Click **Ping** on Signal: it shows the game frame.
+6. Click empty screen, away from both windows: interactive mode ends and the game gets input back.
+7. Quit the game and the host, start both again: the windows come back where you left them.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 

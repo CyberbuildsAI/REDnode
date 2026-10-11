@@ -1,50 +1,92 @@
-// REDnode overlay host (proof of concept). See docs/overlay.md.
+// REDnode overlay host. See docs/overlay.md and README.md.
 //
-// Renders an overlay app off-screen with Chromium and streams its frames to the
-// REDnode plugin in the game over a named pipe. Input from the game is replayed
-// into the page. Apps call the game through window.rednode (preload.js).
+// Renders each overlay window off-screen with Chromium and streams its frames
+// to the REDnode plugin in the game over a named pipe. The plugin owns window
+// placement, focus and dragging; the host replays the plugin's input into the
+// right page. Apps call the game through window.rednode (preload.js).
 //
-//   npm run overlay            # off-screen, streams to the game
-//   npm run overlay -- --window  # a normal window, to try an app without the game
+//   npm run overlay              # off-screen, streams to the game
+//   npm run overlay -- --window  # normal desktop windows, to try apps without the game
 
 'use strict';
 
 const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
 
-const PIPE = '\\\\.\\pipe\\rednode-overlay';
-const WIDTH = 1024;
-const HEIGHT = 640;
+// REDNODE_OVERLAY_PIPE lets tests use a private pipe instead of the game's.
+const PIPE = process.env.REDNODE_OVERLAY_PIPE || '\\\\.\\pipe\\rednode-overlay';
 const FPS = 60;
 const TYPE_FRAME = 1;
 const TYPE_JSON = 2;
 
+// Windows to open. O3 replaces this list with app folders and manifests.
+// Positions are in reference pixels (screen pixels at 1080p); x: null centers the window.
+const APPS = [
+  { id: 'demo', entry: 'apps/demo/index.html', width: 1024, height: 640, x: null, y: 220 },
+  { id: 'signal', entry: 'apps/signal/index.html', width: 320, height: 320, x: 1480, y: 140 },
+];
+
 const windowed = process.argv.includes('--window');
-const appPath = path.join(__dirname, 'apps', 'demo', 'index.html');
 
 // Page pixels must match frame pixels, whatever the desktop scaling is.
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
-let win = null;
 let socket = null;
 let connected = false;
 let mode = 'passive';
-
 let writable = true;
-let pendingFrame = null;
+const pendingFrames = new Map(); // window id -> newest frame waiting for the pipe
 let frames = 0;
 let bytes = 0;
 
 const pending = new Map(); // request id -> { resolve, reject, timer }
 let nextId = 1;
 
+/** @type {Map<number, { id: number, app: object, win: BrowserWindow, dragRegions: number[] }>} */
+const windows = new Map();
+
 function log(...args) {
   console.log(new Date().toISOString().slice(11, 19), ...args);
 }
 
-function toPage(message) {
-  if (win && !win.isDestroyed()) win.webContents.send('rednode:event', message);
+// ---------- saved positions ----------
+
+const positionsFile = () => path.join(app.getPath('userData'), 'window-positions.json');
+let positions = {};
+function loadPositions() {
+  try {
+    positions = JSON.parse(fs.readFileSync(positionsFile(), 'utf8'));
+  } catch {
+    positions = {};
+  }
+}
+let saveTimer = null;
+function savePosition(appId, x, y) {
+  positions[appId] = { x, y };
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(path.dirname(positionsFile()), { recursive: true });
+      fs.writeFileSync(positionsFile(), JSON.stringify(positions, null, 2));
+    } catch (err) {
+      log('Could not save window positions:', err.message);
+    }
+  }, 500);
+}
+
+// ---------- messages to pages ----------
+
+function toPage(w, message) {
+  if (!w.win.isDestroyed()) w.win.webContents.send('rednode:event', message);
+}
+function toAllPages(message) {
+  for (const w of windows.values()) toPage(w, message);
+}
+function windowFor(webContents) {
+  for (const w of windows.values()) if (w.win.webContents === webContents) return w;
+  return null;
 }
 
 // ---------- pipe ----------
@@ -56,24 +98,34 @@ function writeMessage(type, payload) {
   return socket.write(Buffer.concat([header, payload]));
 }
 
-function sendFrame(image) {
+function sendJson(object) {
+  if (connected) writeMessage(TYPE_JSON, Buffer.from(JSON.stringify(object), 'utf8'));
+}
+
+function sendFrame(windowId, image) {
   if (!connected) return;
   if (!writable) {
-    pendingFrame = image; // keep only the newest frame while the pipe is busy
+    pendingFrames.set(windowId, image); // keep only the newest frame per window while the pipe is busy
     return;
   }
   const { width, height } = image.getSize();
   const pixels = image.toBitmap(); // BGRA, premultiplied alpha
-  const size = Buffer.alloc(8);
-  size.writeUInt32LE(width, 0);
-  size.writeUInt32LE(height, 4);
-  writable = writeMessage(TYPE_FRAME, Buffer.concat([size, pixels]));
+  const head = Buffer.alloc(12);
+  head.writeUInt32LE(windowId, 0);
+  head.writeUInt32LE(width, 4);
+  head.writeUInt32LE(height, 8);
+  writable = writeMessage(TYPE_FRAME, Buffer.concat([head, pixels]));
   frames += 1;
   bytes += pixels.length;
 }
 
-function sendJson(object) {
-  if (connected) writeMessage(TYPE_JSON, Buffer.from(JSON.stringify(object), 'utf8'));
+function openInGame(w) {
+  const saved = positions[w.app.id];
+  const x = saved?.x ?? w.app.x ?? Math.round((1920 - w.app.width) / 2);
+  const y = saved?.y ?? w.app.y ?? Math.round((1080 - w.app.height) / 2);
+  sendJson({ cmd: 'window.open', window: w.id, x, y, width: w.app.width, height: w.app.height, draggable: true });
+  sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
+  w.win.webContents.invalidate(); // send a full frame now
 }
 
 function connect() {
@@ -84,16 +136,16 @@ function connect() {
     connected = true;
     writable = true;
     log('Connected to the game');
-    toPage({ event: 'link', connected: true });
-    if (win) win.webContents.invalidate(); // send a full frame now
+    for (const w of windows.values()) openInGame(w);
+    toAllPages({ event: 'link', connected: true });
   });
 
   socket.on('drain', () => {
     writable = true;
-    if (pendingFrame) {
-      const image = pendingFrame;
-      pendingFrame = null;
-      sendFrame(image);
+    for (const [id, image] of pendingFrames) {
+      pendingFrames.delete(id);
+      sendFrame(id, image);
+      if (!writable) break;
     }
   });
 
@@ -113,9 +165,10 @@ function connect() {
   socket.on('close', () => {
     if (connected) {
       log('Disconnected from the game');
-      toPage({ event: 'link', connected: false });
+      toAllPages({ event: 'link', connected: false });
     }
     connected = false;
+    pendingFrames.clear();
     for (const [id, p] of pending) {
       clearTimeout(p.timer);
       p.reject(new Error('Disconnected from the game'));
@@ -139,10 +192,13 @@ function keyName(vk) {
 }
 
 function onInput(m) {
-  const wc = win.webContents;
+  const w = windows.get(m.window);
+  if (!w || w.win.isDestroyed()) return;
+  const wc = w.win.webContents;
   switch (m.type) {
     case 'mouseMove':
-      wc.sendInputEvent({ type: 'mouseMove', x: m.x, y: m.y });
+    case 'mouseLeave':
+      wc.sendInputEvent({ type: m.type, x: m.x, y: m.y });
       break;
     case 'mouseDown':
     case 'mouseUp':
@@ -165,6 +221,17 @@ function onInput(m) {
   }
 }
 
+function onFocus(windowId) {
+  for (const w of windows.values()) {
+    const focused = w.id === windowId;
+    // Chromium only draws the text caret and :focus styles in a focused page.
+    // focusOnWebView focuses the page without taking OS focus from the game.
+    if (focused) w.win.focusOnWebView();
+    else w.win.blurWebView();
+    toPage(w, { event: 'focus', focused });
+  }
+}
+
 function onGameMessage(m) {
   if (m.id !== undefined) {
     const p = pending.get(m.id);
@@ -175,18 +242,28 @@ function onGameMessage(m) {
     else p.resolve(m.result);
     return;
   }
-  if (m.event === 'input') {
-    onInput(m);
-    return;
+  switch (m.event) {
+    case 'input':
+      onInput(m);
+      return;
+    case 'focus':
+      onFocus(m.window);
+      return;
+    case 'moved': {
+      const w = windows.get(m.window);
+      if (w) savePosition(w.app.id, m.x, m.y);
+      return;
+    }
+    case 'hello':
+    case 'overlay':
+      mode = m.mode;
+      log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
+      if (mode !== 'interactive') onFocus(0);
+      break;
+    default:
+      break;
   }
-  if (m.event === 'overlay' || m.event === 'hello') {
-    mode = m.mode;
-    // Chromium only draws the text caret and :focus styles in a focused page.
-    // focusOnWebView focuses the page without taking OS focus from the game.
-    if (mode === 'interactive') win.focusOnWebView();
-    log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
-  }
-  toPage(m);
+  toAllPages(m);
 }
 
 // ---------- the bridge for apps ----------
@@ -206,13 +283,23 @@ ipcMain.handle('rednode:call', (_event, method, params) => {
 
 ipcMain.handle('rednode:state', () => ({ connected, mode, windowed }));
 
-// ---------- window ----------
+// Drag handles reported by preload.js: flat [x, y, w, h, ...] in page pixels.
+ipcMain.on('rednode:drag-regions', (event, regions) => {
+  const w = windowFor(event.sender);
+  if (!w || !Array.isArray(regions)) return;
+  w.dragRegions = regions.map((n) => Math.round(Number(n) || 0));
+  sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
+});
 
-app.whenReady().then(() => {
-  win = new BrowserWindow({
-    width: WIDTH,
-    height: HEIGHT,
-    show: windowed, // never show the off-screen window: that would take OS focus from the game
+// ---------- windows ----------
+
+function createWindow(appDef, index) {
+  const win = new BrowserWindow({
+    width: appDef.width,
+    height: appDef.height,
+    x: windowed ? 60 + index * 80 : undefined,
+    y: windowed ? 60 + index * 80 : undefined,
+    show: windowed, // never show an off-screen window: that would take OS focus from the game
     frame: windowed,
     transparent: !windowed,
     backgroundColor: windowed ? '#08090d' : '#00000000',
@@ -224,10 +311,21 @@ app.whenReady().then(() => {
       sandbox: true,
     },
   });
+  const w = { id: index + 1, app: appDef, win, dragRegions: [] };
+  windows.set(w.id, w);
 
   if (!windowed) {
     win.webContents.setFrameRate(FPS);
-    win.webContents.on('paint', (_event, _dirty, image) => sendFrame(image));
+    win.webContents.on('paint', (_event, _dirty, image) => sendFrame(w.id, image));
+  }
+  win.loadFile(path.join(__dirname, appDef.entry));
+}
+
+app.whenReady().then(() => {
+  loadPositions();
+  APPS.forEach(createWindow);
+
+  if (!windowed) {
     connect();
     setInterval(() => {
       if (frames) log(`${frames} frames, ${(bytes / 1048576).toFixed(1)} MB sent in the last 10 s`);
@@ -235,9 +333,7 @@ app.whenReady().then(() => {
       bytes = 0;
     }, 10000);
   }
-
-  win.loadFile(appPath);
-  log(windowed ? 'Window mode: the app runs on the desktop, not in the game' : `Waiting for the game on ${PIPE}`);
+  log(windowed ? 'Window mode: apps run on the desktop, not in the game' : `Waiting for the game on ${PIPE}`);
 });
 
 app.on('window-all-closed', () => app.quit());

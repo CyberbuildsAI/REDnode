@@ -1,8 +1,8 @@
 # REDnode overlay host
 
-Status: **proof of concept.** It works in game (tested 2026-10-11 on 2.31). The design, the test and the open questions are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O1, windows.** The proof of concept works in game (tested 2026-10-11 on 2.31). O1 adds several draggable windows. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
-The host is an Electron app. It renders an overlay app off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the page, and gives the app a `window.rednode` API for talking to the game.
+The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and gives apps a `window.rednode` API for talking to the game. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
 ```powershell
 npm run overlay          # from the repo root: off-screen, connects to the game
@@ -18,7 +18,10 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [main.js](main.js) | The host: off-screen window, the pipe to the game, frame streaming, input replay, the bridge |
 | [preload.js](preload.js) | Defines `window.rednode` for apps |
 | [start.js](start.js) | Starts Electron with a clean environment |
-| [apps/demo/](apps/demo/) | The demo app used in the in-game test. Start here to learn how an app is built |
+| [apps/demo/](apps/demo/) | The demo app used in the in-game tests. Start here to learn how an app is built |
+| [apps/signal/](apps/signal/) | A small round HUD widget: a borderless window with a transparent middle |
+
+For now the windows to open are listed in `APPS` at the top of [main.js](main.js). Phase O3 replaces that list with app folders and manifests.
 
 ## Writing an overlay app
 
@@ -29,6 +32,8 @@ An overlay app is a plain web page. Anything that works in Chrome works here.
 | Design for **1024 x 640** page pixels | The panel is that size. The game scales it with the screen height: 1:1 at 1080p, 2x at 4K |
 | Leave the page **background transparent** | Transparent pixels show the game through. The demo draws its own panel with a semi-transparent background |
 | **Don't draw a cursor** | The REDnode plugin draws it in the game, at the game's frame rate |
+| Mark drag handles with **`data-rednode-drag`** | Pressing on such an element moves the window instead of clicking the page. The plugin does the dragging |
+| **Transparent pixels click through** | A click where your page is fully transparent goes to the window behind, or to the game. Shape your window with transparency |
 | Keep animation light | Every repaint is copied to the game. The host caps it at 60 frames a second |
 
 ### The `window.rednode` API
@@ -61,7 +66,8 @@ Messages from the game:
 |---|---|---|
 | `link` | `connected` | The host connects to, or loses, the game |
 | `hello` | `plugin`, `mode` | Right after connecting |
-| `overlay` | `mode`: `passive`, `interactive` or `hidden` | The player presses F10 or Esc |
+| `overlay` | `mode`: `passive`, `interactive` or `hidden` | The player presses F10 or Esc, or clicks empty screen |
+| `focus` | `focused`: `true` or `false` | This window gained or lost keyboard focus. Use it to dim your title bar |
 | `game` | `name`, `value`, `frame` | A redscript event, from the Tier 1 path (the P1 probe's `OnGameAttached`) |
 
 ### How the demo is built
@@ -81,5 +87,6 @@ The styling in [apps/demo/style.css](apps/demo/style.css) uses the REDnode HUD t
 
 | Key | Effect |
 |---|---|
-| **F10** | Cycles passive (drawn, input goes to the game), interactive (input goes to the app) and hidden |
-| **Esc** | Leaves interactive mode |
+| **F10** | Cycles passive (drawn, input goes to the game), interactive (input goes to the windows) and hidden |
+| **Esc**, or a click on empty screen | Leaves interactive mode |
+| Drag a handle | Moves the window. Positions are saved in the host's user data folder |

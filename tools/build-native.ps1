@@ -31,4 +31,7 @@ if ($LASTEXITCODE) { throw 'CMake configure failed.' }
 & $cmake --build $build --config $Config
 if ($LASTEXITCODE) { throw 'Build failed.' }
 
+& (Join-Path $build "$Config\REDnode_tests.exe")
+if ($LASTEXITCODE) { throw 'Unit tests failed.' }
+
 Write-Output "Staged plugin: $build\dist\red4ext\plugins\REDnode"

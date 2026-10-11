@@ -2,7 +2,7 @@
 //
 // Output format (version 1), arrays sorted by name so dumps diff cleanly:
 //   {
-//     "format": 1, "game": "2.31.0", "dumper": "REDnode 0.3.0",
+//     "format": 1, "game": "2.31.0", "dumper": "REDnode 0.4.0",
 //     "classes":   [{ name, scriptName?, parent?, flags[], props[], funcs[] }],
 //     "enums":     [{ name, scriptName?, flags[], size, members[{ name, value }] }],
 //     "bitfields": [{ name, scriptName?, flags[], size, bits[{ name, bit }] }],
@@ -307,7 +307,7 @@ bool rednode::DumpRtti(const std::filesystem::path& aFile, const std::string& aG
     j.Raw(",");
     j.Field("game", aGameVersion);
     j.Raw(",");
-    j.Field("dumper", "REDnode 0.3.0");
+    j.Field("dumper", "REDnode 0.4.0");
 
     // Classes and structs.
     j.Raw(",\n");

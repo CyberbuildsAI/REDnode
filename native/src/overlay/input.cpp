@@ -1,10 +1,10 @@
-// Game window hook: the F10 hotkey, and input for the overlay in interactive mode.
+// Game window hook: the F10 hotkey, and input for overlay windows in interactive mode.
 //
 // F10 cycles passive -> interactive -> hidden. Esc leaves interactive mode.
-// In interactive mode mouse and keyboard messages are sent to the host and not
-// passed to the game. The game hides and locks the cursor, so the overlay keeps
-// a virtual cursor moved by raw mouse input, and the page draws it.
-// Whether this stops all game input is unverified: see docs/overlay.md.
+// In interactive mode mouse and keyboard messages go to windows.cpp, which
+// routes them to the right overlay window, and are not passed to the game.
+// The game hides and locks the cursor, so the overlay keeps a virtual cursor
+// over the whole screen, moved by raw mouse input. The compositor draws it.
 
 #include "overlay.hpp"
 
@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <string>
 
 namespace rednode::overlay::detail
 {
@@ -24,73 +23,36 @@ HWND g_window = nullptr;
 WNDPROC g_origProc = nullptr;
 std::atomic_int g_mode{static_cast<int>(Mode::Passive)};
 
-// Virtual cursor in page pixels. Written by the window thread, read by the
-// compositor, which draws it every frame.
+// Virtual cursor in reference pixels. Written by the window thread, read by the compositor.
 std::atomic<float> g_cursorX{0};
 std::atomic<float> g_cursorY{0};
 bool g_rawMouse = false;    // raw mouse input seen: use it, ignore WM_MOUSEMOVE and buttons
 bool g_rawKeyboard = false; // raw keyboard input seen: use it, ignore WM_KEYDOWN and WM_CHAR
 
-void PageSize(float& aWidth, float& aHeight)
+void MoveCursorTo(float aX, float aY)
 {
-    const PanelRect r = GetPanelRect();
-    aWidth = r.scale > 0 ? r.width / r.scale : 0;
-    aHeight = r.scale > 0 ? r.height / r.scale : 0;
+    const Screen s = GetScreen();
+    g_cursorX = std::clamp(aX, 0.0f, std::max(0.0f, s.width - 1));
+    g_cursorY = std::clamp(aY, 0.0f, std::max(0.0f, s.height - 1));
+    OnMouseMove(g_cursorX, g_cursorY);
 }
 
-void SendMouse(const char* aType, const char* aButton = nullptr, int aDelta = 0)
-{
-    std::string json = "{\"event\":\"input\",\"type\":\"";
-    json += aType;
-    json += "\",\"x\":" + std::to_string(int(g_cursorX.load())) + ",\"y\":" + std::to_string(int(g_cursorY.load()));
-    if (aButton)
-        json += std::string(",\"button\":\"") + aButton + "\"";
-    if (aDelta)
-        json += ",\"delta\":" + std::to_string(aDelta);
-    json += "}";
-    SendJson(std::move(json));
-}
-
-void SendKey(const char* aType, UINT aVk)
-{
-    SendJson(std::string("{\"event\":\"input\",\"type\":\"") + aType + "\",\"vk\":" + std::to_string(aVk) + "}");
-}
-
-void SendChar(wchar_t aChar)
-{
-    if (aChar < 0x20 && aChar != L'\r' && aChar != L'\b' && aChar != L'\t')
-        return;
-    SendJson("{\"event\":\"input\",\"type\":\"char\",\"code\":" + std::to_string(unsigned(aChar)) + "}");
-}
-
-void MoveCursorBy(float aDx, float aDy)
-{
-    float w, h;
-    PageSize(w, h);
-    g_cursorX = std::clamp(g_cursorX.load() + aDx, 0.0f, std::max(0.0f, w - 1));
-    g_cursorY = std::clamp(g_cursorY.load() + aDy, 0.0f, std::max(0.0f, h - 1));
-    SendMouse("mouseMove");
-}
-
-// Client-area mouse position to page pixels.
-bool ClientToPage(LPARAM aLParam, float& aX, float& aY)
+// Client-area mouse position to reference pixels.
+bool ClientToReference(LPARAM aLParam, float& aX, float& aY)
 {
     RECT client{};
     GetClientRect(g_window, &client);
-    const PanelRect r = GetPanelRect();
-    if (client.right <= 0 || client.bottom <= 0 || r.scale <= 0)
+    const Screen s = GetScreen();
+    if (client.right <= 0 || client.bottom <= 0 || s.scale <= 0)
         return false;
-    const float bx = float(GET_X_LPARAM(aLParam)) * r.backBufferWidth / float(client.right);
-    const float by = float(GET_Y_LPARAM(aLParam)) * r.backBufferHeight / float(client.bottom);
-    aX = (bx - r.x) / r.scale;
-    aY = (by - r.y) / r.scale;
+    aX = float(GET_X_LPARAM(aLParam)) * s.width / float(client.right);
+    aY = float(GET_Y_LPARAM(aLParam)) * s.height / float(client.bottom);
     return true;
 }
 
 void ToggleMode()
 {
-    const auto next = static_cast<Mode>((g_mode.load() + 1) % 3);
-    SetMode(next);
+    SetMode(static_cast<Mode>((g_mode.load() + 1) % 3));
 }
 
 // Text for a raw key press, from the current modifier state.
@@ -107,7 +69,7 @@ void SendRawChar(UINT aVk, UINT aScanCode)
     wchar_t text[4] = {};
     const int n = ToUnicodeEx(aVk, aScanCode, state, text, 4, 0x4 /* no keyboard state change */, GetKeyboardLayout(0));
     for (int i = 0; i < n; ++i)
-        SendChar(text[i]);
+        OnChar(text[i]);
 }
 
 LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteractive, bool& aHandled)
@@ -141,7 +103,7 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
             }
             else
             {
-                SendKey(down ? "keyDown" : "keyUp", k.VKey);
+                OnKey(down, k.VKey);
                 if (down)
                     SendRawChar(k.VKey, k.MakeCode);
             }
@@ -154,18 +116,18 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
         const auto& m = raw->data.mouse;
         g_rawMouse = true;
         if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE) && (m.lLastX || m.lLastY))
-            MoveCursorBy(float(m.lLastX), float(m.lLastY));
+            MoveCursorTo(g_cursorX + float(m.lLastX), g_cursorY + float(m.lLastY));
         const USHORT f = m.usButtonFlags;
         if (f & RI_MOUSE_LEFT_BUTTON_DOWN)
-            SendMouse("mouseDown", "left");
+            OnMouseButton(true, "left");
         if (f & RI_MOUSE_LEFT_BUTTON_UP)
-            SendMouse("mouseUp", "left");
+            OnMouseButton(false, "left");
         if (f & RI_MOUSE_RIGHT_BUTTON_DOWN)
-            SendMouse("mouseDown", "right");
+            OnMouseButton(true, "right");
         if (f & RI_MOUSE_RIGHT_BUTTON_UP)
-            SendMouse("mouseUp", "right");
+            OnMouseButton(false, "right");
         if (f & RI_MOUSE_WHEEL)
-            SendMouse("mouseWheel", nullptr, static_cast<SHORT>(m.usButtonData));
+            OnWheel(static_cast<SHORT>(m.usButtonData));
         aHandled = true;
         return DefWindowProcW(aWnd, WM_INPUT, aWParam, aLParam);
     }
@@ -201,7 +163,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
                 if (aWParam == VK_ESCAPE)
                     SetMode(Mode::Passive);
                 else
-                    SendKey("keyDown", UINT(aWParam));
+                    OnKey(true, UINT(aWParam));
             }
             return 0;
         }
@@ -213,7 +175,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
         if (interactive)
         {
             if (!g_rawKeyboard)
-                SendKey("keyUp", UINT(aWParam));
+                OnKey(false, UINT(aWParam));
             return 0;
         }
         break;
@@ -222,7 +184,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
         if (interactive)
         {
             if (!g_rawKeyboard)
-                SendChar(wchar_t(aWParam));
+                OnChar(wchar_t(aWParam));
             return 0;
         }
         break;
@@ -230,12 +192,8 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
         if (interactive)
         {
             float x, y;
-            if (!g_rawMouse && ClientToPage(aLParam, x, y))
-            {
-                g_cursorX = x;
-                g_cursorY = y;
-                SendMouse("mouseMove");
-            }
+            if (!g_rawMouse && ClientToReference(aLParam, x, y))
+                MoveCursorTo(x, y);
             return 0;
         }
         break;
@@ -250,7 +208,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
             {
                 const bool down = aMsg == WM_LBUTTONDOWN || aMsg == WM_RBUTTONDOWN || aMsg == WM_LBUTTONDBLCLK;
                 const bool left = aMsg == WM_LBUTTONDOWN || aMsg == WM_LBUTTONUP || aMsg == WM_LBUTTONDBLCLK;
-                SendMouse(down ? "mouseDown" : "mouseUp", left ? "left" : "right");
+                OnMouseButton(down, left ? "left" : "right");
             }
             return 0;
         }
@@ -259,14 +217,14 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
         if (interactive)
         {
             if (!g_rawMouse)
-                SendMouse("mouseWheel", nullptr, GET_WHEEL_DELTA_WPARAM(aWParam));
+                OnWheel(GET_WHEEL_DELTA_WPARAM(aWParam));
             return 0;
         }
         break;
     case WM_SETCURSOR:
         if (interactive)
         {
-            SetCursor(nullptr); // the page draws the cursor
+            SetCursor(nullptr); // the compositor draws the cursor
             return TRUE;
         }
         break;
@@ -287,13 +245,12 @@ void SetMode(Mode aMode)
     const auto old = static_cast<Mode>(g_mode.exchange(static_cast<int>(aMode)));
     if (old == aMode)
         return;
+    if (old == Mode::Interactive)
+        OnLeaveInteractive();
     if (aMode == Mode::Interactive)
     {
-        float w, h;
-        PageSize(w, h);
-        g_cursorX = w * 0.5f;
-        g_cursorY = h * 0.5f;
-        SendMouse("mouseMove");
+        const Screen s = GetScreen();
+        MoveCursorTo(s.width * 0.5f, s.height * 0.5f);
     }
     Log("Overlay: %s", ModeName(aMode));
     SendJson(std::string("{\"event\":\"overlay\",\"mode\":") + JsonString(ModeName(aMode)) + "}");

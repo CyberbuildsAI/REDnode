@@ -73,6 +73,8 @@ window.rednode.on((m) => {
   } else if (m.event === 'overlay') {
     setMode(m.mode);
     addEvent(`<b>mode</b> ${m.mode}`);
+  } else if (m.event === 'focus') {
+    document.querySelector('.panel').classList.toggle('unfocused', !m.focused);
   } else if (m.event === 'game') {
     addEvent(`<b>${m.name.split(' ')[0]}</b> value ${m.value}, frame ${m.frame}`);
   }

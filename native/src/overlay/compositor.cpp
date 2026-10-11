@@ -1,9 +1,11 @@
-// Draws the overlay panel on the game's back buffer, just before Present.
+// Draws the overlay windows and the cursor on the game's back buffer, just before Present.
 //
 // Uses the game's own D3D12 device and direct queue from the RED4ext SDK.
 // Present is hooked by patching the swapchain vtable, so other hooks on the
 // Present code (CET, Steam) keep running: we call whatever the vtable held.
 // Back buffers are fetched per frame and never held, so resizes stay safe.
+// Each window has its own texture and upload buffers; windows are drawn back
+// to front, then the cursor on top.
 
 #include "overlay.hpp"
 
@@ -14,7 +16,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
-#include <atomic>
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 
@@ -26,18 +28,19 @@ namespace
 {
 constexpr UINT FramesInFlight = 3;
 constexpr UINT MaxBackBuffers = 8;
-constexpr UINT PlaceholderWidth = 1024; // panel size before the host sends a frame
-constexpr UINT PlaceholderHeight = 640;
 constexpr float ReferenceHeight = 1080.0f; // page pixels map 1:1 at 1080p
 constexpr float HdrPaperWhiteNits = 200.0f;  // unverified guess
+constexpr float CursorWidth = 18.0f;        // reference pixels
+constexpr float CursorHeight = 24.0f;
 
 constexpr char ShaderSource[] = R"(
-cbuffer Panel : register(b0)
+cbuffer Draw : register(b0)
 {
-    float4 rect;
-    float hasTex; float mode; float time; float nits;
-    float2 cursor; float showCursor; float pageW;
-    float pageH; float3 pad;
+    float4 rect;   // NDC: left, top, right, bottom
+    float kind;    // 0 window texture, 1 cursor
+    float mode;    // 0 SDR, 1 scRGB, 2 PQ
+    float nits;
+    float pad;
 };
 Texture2D tex : register(t0);
 SamplerState smp : register(s0);
@@ -60,7 +63,7 @@ float3 ToPQ(float3 n)
     return pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), 78.84375);
 }
 
-// The cursor arrow, in page pixels with the tip at (0, 0).
+// The cursor arrow, in reference pixels with the tip at (0, 0).
 static const float2 Arrow[7] = {
     float2(0, 0), float2(0, 18), float2(5, 13.5), float2(8.5, 21), float2(11.5, 19.6), float2(8, 12.4), float2(15, 12.4)
 };
@@ -87,27 +90,15 @@ float CursorHit(float2 p)
 float4 ps(V i) : SV_Target
 {
     float4 c;
-    if (hasTex > 0.5)
+    if (kind < 0.5)
     {
         c = tex.Sample(smp, i.uv); // premultiplied, from Chromium
     }
     else
     {
-        // Placeholder until the host connects: dark glass, yellow frame, moving cyan line.
-        float edge = min(min(i.uv.x, 1 - i.uv.x), min(i.uv.y, 1 - i.uv.y));
-        float3 col = float3(0.03, 0.035, 0.05);
-        float a = 0.8;
-        if (edge < 0.004) { col = float3(0.99, 0.93, 0.04); a = 1; }
-        if (abs(i.uv.y - frac(time * 0.25)) < 0.003) { col = float3(0.1, 0.95, 1.0); a = 1; }
-        c = float4(col * a, a);
-    }
-
-    if (showCursor > 0.5)
-    {
-        // Drawn here, not by the page, so it moves at the game's frame rate.
-        float hit = CursorHit(i.uv * float2(pageW, pageH) - cursor);
-        if (hit > 1.5) c = float4(0.99, 0.93, 0.04, 1);
-        else if (hit > 0.5) c = float4(0.03, 0.035, 0.05, 1);
+        // Drawn by the plugin, not the page, so it moves at the game's frame rate.
+        float hit = CursorHit(i.uv * float2(18, 24));
+        c = hit > 1.5 ? float4(0.99, 0.93, 0.04, 1) : (hit > 0.5 ? float4(0.03, 0.035, 0.05, 1) : float4(0, 0, 0, 0));
     }
 
     if (mode > 0.5)
@@ -131,15 +122,10 @@ float4 ps(V i) : SV_Target
 struct Constants
 {
     float rect[4];
-    float hasTex;
+    float kind;
     float mode;
-    float time;
     float nits;
-    float cursor[2];
-    float showCursor;
-    float pageW;
-    float pageH;
-    float pad[3];
+    float pad;
 };
 
 using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
@@ -150,6 +136,20 @@ constexpr size_t Present1Slot = 22; // IDXGISwapChain1::Present1
 void** g_vtable = nullptr;
 PresentFn g_origPresent = nullptr;
 Present1Fn g_origPresent1 = nullptr;
+
+// GPU side of one overlay window. Only touched on the render thread.
+struct GpuWindow
+{
+    uint32_t id = 0;
+    UINT srvIndex = 0;
+    ComPtr<ID3D12Resource> texture;
+    UINT texWidth = 0;
+    UINT texHeight = 0;
+    bool texReady = false;       // holds a frame worth drawing
+    bool texShaderState = false; // in PIXEL_SHADER_RESOURCE state, else COPY_DEST
+    ComPtr<ID3D12Resource> upload[FramesInFlight];
+    UINT64 uploadSize[FramesInFlight] = {};
+};
 
 struct Gpu
 {
@@ -166,8 +166,9 @@ struct Gpu
     ComPtr<ID3D12PipelineState> pso;
     DXGI_FORMAT psoFormat = DXGI_FORMAT_UNKNOWN;
     ComPtr<ID3D12DescriptorHeap> rtvHeap;
-    ComPtr<ID3D12DescriptorHeap> srvHeap;
+    ComPtr<ID3D12DescriptorHeap> srvHeap; // MaxWindows + 1; the last slot is a null view for the cursor
     UINT rtvSize = 0;
+    UINT srvSize = 0;
 
     ComPtr<ID3D12CommandAllocator> allocators[FramesInFlight];
     ComPtr<ID3D12GraphicsCommandList> list;
@@ -177,31 +178,13 @@ struct Gpu
     UINT64 slotFence[FramesInFlight] = {};
     uint64_t frameIndex = 0;
 
-    ComPtr<ID3D12Resource> texture;
-    UINT texWidth = 0;
-    UINT texHeight = 0;
-    bool texReady = false;       // holds a frame worth drawing
-    bool texShaderState = false; // in PIXEL_SHADER_RESOURCE state, else COPY_DEST
-    ComPtr<ID3D12Resource> upload[FramesInFlight];
-    UINT64 uploadSize[FramesInFlight] = {};
+    std::vector<GpuWindow> windows;
+    bool srvUsed[MaxWindows] = {};
 
     bool failed = false;
 } g;
 
 std::mutex g_renderMutex; // Present may come from more than one thread
-
-std::mutex g_frameMutex;
-std::vector<uint8_t> g_pending;
-uint32_t g_pendingWidth = 0;
-uint32_t g_pendingHeight = 0;
-bool g_hasPending = false;
-std::atomic_bool g_dropFrame{false};
-
-std::mutex g_rectMutex;
-PanelRect g_rect;
-
-LARGE_INTEGER g_start{};
-LARGE_INTEGER g_freq{};
 
 bool Fail(const char* aWhat, HRESULT aHr)
 {
@@ -219,6 +202,39 @@ D3D12_RESOURCE_BARRIER Transition(ID3D12Resource* aRes, D3D12_RESOURCE_STATES aF
     b.Transition.StateBefore = aFrom;
     b.Transition.StateAfter = aTo;
     return b;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE SrvCpu(UINT aIndex)
+{
+    auto h = g.srvHeap->GetCPUDescriptorHandleForHeapStart();
+    h.ptr += SIZE_T(aIndex) * g.srvSize;
+    return h;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE SrvGpu(UINT aIndex)
+{
+    auto h = g.srvHeap->GetGPUDescriptorHandleForHeapStart();
+    h.ptr += UINT64(aIndex) * g.srvSize;
+    return h;
+}
+
+void WriteNullSrv(UINT aIndex)
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
+    srv.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv.Texture2D.MipLevels = 1;
+    g.device->CreateShaderResourceView(nullptr, &srv, SrvCpu(aIndex));
+}
+
+void WaitForGpu()
+{
+    if (g.fence && g.fence->GetCompletedValue() < g.fenceValue)
+    {
+        g.fence->SetEventOnCompletion(g.fenceValue, g.fenceEvent);
+        WaitForSingleObject(g.fenceEvent, 1000);
+    }
 }
 
 bool CreatePipeline(DXGI_FORMAT aFormat)
@@ -317,19 +333,14 @@ bool CreateBaseResources()
 
     D3D12_DESCRIPTOR_HEAP_DESC srv{};
     srv.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    srv.NumDescriptors = 1;
+    srv.NumDescriptors = MaxWindows + 1;
     srv.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     hr = g.device->CreateDescriptorHeap(&srv, IID_PPV_ARGS(&g.srvHeap));
     if (FAILED(hr))
         return Fail("CreateDescriptorHeap srv", hr);
-
-    // A null descriptor until the first frame arrives. The shader does not sample it.
-    D3D12_SHADER_RESOURCE_VIEW_DESC nullSrv{};
-    nullSrv.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    nullSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    nullSrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    nullSrv.Texture2D.MipLevels = 1;
-    g.device->CreateShaderResourceView(nullptr, &nullSrv, g.srvHeap->GetCPUDescriptorHandleForHeapStart());
+    g.srvSize = g.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    for (UINT i = 0; i <= MaxWindows; ++i)
+        WriteNullSrv(i);
 
     for (auto& a : g.allocators)
     {
@@ -398,17 +409,58 @@ bool EnsureResources(IDXGISwapChain3* aSwapChain)
     return true;
 }
 
-bool EnsureTexture(UINT aWidth, UINT aHeight)
+// Matches the GPU windows to the registry: frees closed ones, adds new ones.
+void SyncWindows(const std::vector<WindowView>& aViews)
 {
-    if (g.texture && g.texWidth == aWidth && g.texHeight == aHeight)
+    const auto isOpen = [&](uint32_t aId) {
+        return std::any_of(aViews.begin(), aViews.end(), [&](const WindowView& v) { return v.id == aId; });
+    };
+    if (std::any_of(g.windows.begin(), g.windows.end(), [&](const GpuWindow& w) { return !isOpen(w.id); }))
+    {
+        WaitForGpu(); // a closed window's texture may still be in use
+        for (auto it = g.windows.begin(); it != g.windows.end();)
+        {
+            if (isOpen(it->id))
+            {
+                ++it;
+                continue;
+            }
+            g.srvUsed[it->srvIndex] = false;
+            WriteNullSrv(it->srvIndex);
+            it = g.windows.erase(it);
+        }
+    }
+    for (const auto& v : aViews)
+    {
+        if (std::any_of(g.windows.begin(), g.windows.end(), [&](const GpuWindow& w) { return w.id == v.id; }))
+            continue;
+        const auto free = std::find(std::begin(g.srvUsed), std::end(g.srvUsed), false);
+        if (free == std::end(g.srvUsed))
+            continue;
+        GpuWindow w;
+        w.id = v.id;
+        w.srvIndex = UINT(free - std::begin(g.srvUsed));
+        *free = true;
+        g.windows.push_back(std::move(w));
+    }
+}
+
+GpuWindow* FindGpu(uint32_t aId)
+{
+    for (auto& w : g.windows)
+    {
+        if (w.id == aId)
+            return &w;
+    }
+    return nullptr;
+}
+
+bool EnsureTexture(GpuWindow& aWin, UINT aWidth, UINT aHeight)
+{
+    if (aWin.texture && aWin.texWidth == aWidth && aWin.texHeight == aHeight)
         return true;
 
-    // The old texture may still be in use by frames in flight.
-    if (g.fence->GetCompletedValue() < g.fenceValue)
-    {
-        g.fence->SetEventOnCompletion(g.fenceValue, g.fenceEvent);
-        WaitForSingleObject(g.fenceEvent, 1000);
-    }
+    WaitForGpu(); // the old texture may still be in use
 
     D3D12_HEAP_PROPERTIES heap{};
     heap.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -420,49 +472,38 @@ bool EnsureTexture(UINT aWidth, UINT aHeight)
     desc.MipLevels = 1;
     desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     desc.SampleDesc.Count = 1;
-    g.texture.Reset();
+    aWin.texture.Reset();
     HRESULT hr = g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST,
-                                                   nullptr, IID_PPV_ARGS(&g.texture));
+                                                   nullptr, IID_PPV_ARGS(&aWin.texture));
     if (FAILED(hr))
         return Fail("CreateCommittedResource texture", hr);
-    g.texWidth = aWidth;
-    g.texHeight = aHeight;
-    g.texReady = false;
-    g.texShaderState = false; // created in COPY_DEST
+    aWin.texWidth = aWidth;
+    aWin.texHeight = aHeight;
+    aWin.texReady = false;
+    aWin.texShaderState = false; // created in COPY_DEST
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
     srv.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srv.Texture2D.MipLevels = 1;
-    g.device->CreateShaderResourceView(g.texture.Get(), &srv, g.srvHeap->GetCPUDescriptorHandleForHeapStart());
+    g.device->CreateShaderResourceView(aWin.texture.Get(), &srv, SrvCpu(aWin.srvIndex));
     return true;
 }
 
-// Copies the pending frame, if any, into this slot's upload buffer and records the GPU copy.
-void RecordUpload(UINT aSlot)
+// Copies the window's newest frame, if any, into this slot's upload buffer and records the GPU copy.
+void RecordUpload(GpuWindow& aWin, UINT aSlot)
 {
-    std::vector<uint8_t> pixels;
-    uint32_t width = 0, height = 0;
-    {
-        std::scoped_lock lock(g_frameMutex);
-        if (!g_hasPending)
-            return;
-        pixels.swap(g_pending);
-        width = g_pendingWidth;
-        height = g_pendingHeight;
-        g_hasPending = false;
-    }
-
-    if (!EnsureTexture(width, height))
+    WindowFrame frame;
+    if (!TakeFrame(aWin.id, frame) || !EnsureTexture(aWin, frame.width, frame.height))
         return;
 
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
     UINT64 total = 0;
-    const D3D12_RESOURCE_DESC texDesc = g.texture->GetDesc();
+    const D3D12_RESOURCE_DESC texDesc = aWin.texture->GetDesc();
     g.device->GetCopyableFootprints(&texDesc, 0, 1, 0, &footprint, nullptr, nullptr, &total);
 
-    if (!g.upload[aSlot] || g.uploadSize[aSlot] < total)
+    if (!aWin.upload[aSlot] || aWin.uploadSize[aSlot] < total)
     {
         D3D12_HEAP_PROPERTIES heap{};
         heap.Type = D3D12_HEAP_TYPE_UPLOAD;
@@ -474,60 +515,76 @@ void RecordUpload(UINT aSlot)
         buf.MipLevels = 1;
         buf.SampleDesc.Count = 1;
         buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        g.upload[aSlot].Reset();
+        aWin.upload[aSlot].Reset();
         HRESULT hr = g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buf,
                                                        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                                                       IID_PPV_ARGS(&g.upload[aSlot]));
+                                                       IID_PPV_ARGS(&aWin.upload[aSlot]));
         if (FAILED(hr))
         {
             Fail("CreateCommittedResource upload", hr);
             return;
         }
-        g.uploadSize[aSlot] = total;
+        aWin.uploadSize[aSlot] = total;
     }
 
     uint8_t* mapped = nullptr;
     D3D12_RANGE noRead{0, 0};
-    if (FAILED(g.upload[aSlot]->Map(0, &noRead, reinterpret_cast<void**>(&mapped))))
+    if (FAILED(aWin.upload[aSlot]->Map(0, &noRead, reinterpret_cast<void**>(&mapped))))
         return;
-    for (uint32_t row = 0; row < height; ++row)
+    for (uint32_t row = 0; row < frame.height; ++row)
     {
-        std::memcpy(mapped + footprint.Offset + row * footprint.Footprint.RowPitch, pixels.data() + row * width * 4,
-                    width * 4);
+        std::memcpy(mapped + footprint.Offset + row * footprint.Footprint.RowPitch,
+                    frame.pixels.data() + size_t(row) * frame.width * 4, size_t(frame.width) * 4);
     }
-    g.upload[aSlot]->Unmap(0, nullptr);
+    aWin.upload[aSlot]->Unmap(0, nullptr);
 
-    if (g.texShaderState)
+    if (aWin.texShaderState)
     {
-        auto b = Transition(g.texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+        auto b = Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                            D3D12_RESOURCE_STATE_COPY_DEST);
         g.list->ResourceBarrier(1, &b);
     }
     D3D12_TEXTURE_COPY_LOCATION dst{};
-    dst.pResource = g.texture.Get();
+    dst.pResource = aWin.texture.Get();
     dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     D3D12_TEXTURE_COPY_LOCATION src{};
-    src.pResource = g.upload[aSlot].Get();
+    src.pResource = aWin.upload[aSlot].Get();
     src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     src.PlacedFootprint = footprint;
     g.list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-    auto b = Transition(g.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    auto b = Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     g.list->ResourceBarrier(1, &b);
-    g.texShaderState = true;
-    g.texReady = true;
+    aWin.texShaderState = true;
+    aWin.texReady = true;
+}
+
+// Reference-pixel rectangle to NDC: left, top, right, bottom.
+void ToNdc(float aX, float aY, float aW, float aH, float aScale, float aOut[4])
+{
+    aOut[0] = aX * aScale / g.width * 2 - 1;
+    aOut[1] = 1 - aY * aScale / g.height * 2;
+    aOut[2] = (aX + aW) * aScale / g.width * 2 - 1;
+    aOut[3] = 1 - (aY + aH) * aScale / g.height * 2;
 }
 
 void Render(IDXGISwapChain* aSwapChain)
 {
     std::scoped_lock renderLock(g_renderMutex);
-    if (g.failed || GetMode() == Mode::Hidden)
+    if (g.failed)
         return;
 
     ComPtr<IDXGISwapChain3> swapChain;
     if (FAILED(aSwapChain->QueryInterface(IID_PPV_ARGS(&swapChain))) || !EnsureResources(swapChain.Get()))
         return;
 
-    if (g_dropFrame.exchange(false))
-        g.texReady = false; // the texture stays allocated, the placeholder is drawn
+    const float scale = float(g.height) / ReferenceHeight;
+    SetScreen({scale, float(g.width) / scale, ReferenceHeight, float(g.width), float(g.height)});
+
+    const Mode mode = GetMode();
+    const std::vector<WindowView> views = SnapshotWindows();
+    SyncWindows(views);
+    if (mode == Mode::Hidden || (views.empty() && mode != Mode::Interactive))
+        return;
 
     const UINT slot = static_cast<UINT>(g.frameIndex++ % FramesInFlight);
     if (g.fence->GetCompletedValue() < g.slotFence[slot])
@@ -538,7 +595,11 @@ void Render(IDXGISwapChain* aSwapChain)
     g.allocators[slot]->Reset();
     g.list->Reset(g.allocators[slot].Get(), g.pso.Get());
 
-    RecordUpload(slot);
+    for (const auto& v : views)
+    {
+        if (GpuWindow* w = FindGpu(v.id))
+            RecordUpload(*w, slot);
+    }
     if (g.failed)
     {
         g.list->Close();
@@ -556,39 +617,6 @@ void Render(IDXGISwapChain* aSwapChain)
     rtv.ptr += SIZE_T(index) * g.rtvSize;
     g.device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtv);
 
-    // Panel: page pixels scale with the screen height, centered.
-    const float scale = float(g.height) / ReferenceHeight;
-    const UINT pageW = g.texReady ? g.texWidth : PlaceholderWidth;
-    const UINT pageH = g.texReady ? g.texHeight : PlaceholderHeight;
-    PanelRect rect;
-    rect.scale = scale;
-    rect.width = pageW * scale;
-    rect.height = pageH * scale;
-    rect.x = (g.width - rect.width) * 0.5f;
-    rect.y = (g.height - rect.height) * 0.5f;
-    rect.backBufferWidth = float(g.width);
-    rect.backBufferHeight = float(g.height);
-    {
-        std::scoped_lock lock(g_rectMutex);
-        g_rect = rect;
-    }
-
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    Constants c{};
-    c.rect[0] = rect.x / g.width * 2 - 1;
-    c.rect[1] = 1 - rect.y / g.height * 2;
-    c.rect[2] = (rect.x + rect.width) / g.width * 2 - 1;
-    c.rect[3] = 1 - (rect.y + rect.height) / g.height * 2;
-    c.hasTex = g.texReady ? 1.0f : 0.0f;
-    c.mode = g.mode;
-    c.time = float(double(now.QuadPart - g_start.QuadPart) / double(g_freq.QuadPart));
-    c.nits = HdrPaperWhiteNits;
-    GetCursor(c.cursor[0], c.cursor[1]);
-    c.showCursor = GetMode() == Mode::Interactive ? 1.0f : 0.0f;
-    c.pageW = float(pageW);
-    c.pageH = float(pageH);
-
     auto toTarget = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     g.list->ResourceBarrier(1, &toTarget);
 
@@ -600,10 +628,36 @@ void Render(IDXGISwapChain* aSwapChain)
     g.list->SetGraphicsRootSignature(g.rootSig.Get());
     ID3D12DescriptorHeap* heaps[] = {g.srvHeap.Get()};
     g.list->SetDescriptorHeaps(1, heaps);
-    g.list->SetGraphicsRoot32BitConstants(0, sizeof(Constants) / 4, &c, 0);
-    g.list->SetGraphicsRootDescriptorTable(1, g.srvHeap->GetGPUDescriptorHandleForHeapStart());
     g.list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-    g.list->DrawInstanced(4, 1, 0, 0);
+
+    Constants c{};
+    c.mode = g.mode;
+    c.nits = HdrPaperWhiteNits;
+
+    // Windows, back to front. Their size comes from the frame, so a resize shows when the page repaints.
+    for (const auto& v : views)
+    {
+        GpuWindow* w = FindGpu(v.id);
+        if (!w || !w->texReady)
+            continue;
+        ToNdc(v.x, v.y, float(w->texWidth), float(w->texHeight), scale, c.rect);
+        c.kind = 0;
+        g.list->SetGraphicsRoot32BitConstants(0, sizeof(Constants) / 4, &c, 0);
+        g.list->SetGraphicsRootDescriptorTable(1, SrvGpu(w->srvIndex));
+        g.list->DrawInstanced(4, 1, 0, 0);
+    }
+
+    // The cursor, on top of everything.
+    if (mode == Mode::Interactive)
+    {
+        float cx, cy;
+        GetCursor(cx, cy);
+        ToNdc(cx, cy, CursorWidth, CursorHeight, scale, c.rect);
+        c.kind = 1;
+        g.list->SetGraphicsRoot32BitConstants(0, sizeof(Constants) / 4, &c, 0);
+        g.list->SetGraphicsRootDescriptorTable(1, SrvGpu(MaxWindows));
+        g.list->DrawInstanced(4, 1, 0, 0);
+    }
 
     auto toPresent = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     g.list->ResourceBarrier(1, &toPresent);
@@ -677,8 +731,6 @@ bool InstallCompositor(HWND& aWindow)
 
     g.device = data->device;
     g.queue = data->directCommandQueue;
-    QueryPerformanceFrequency(&g_freq);
-    QueryPerformanceCounter(&g_start);
 
     g_vtable = *reinterpret_cast<void***>(swapChain);
     void* old = nullptr;
@@ -706,38 +758,9 @@ void UninstallCompositor()
     g_vtable = nullptr;
 
     std::scoped_lock renderLock(g_renderMutex);
-    if (g.fence && g.fence->GetCompletedValue() < g.fenceValue)
-    {
-        g.fence->SetEventOnCompletion(g.fenceValue, g.fenceEvent);
-        WaitForSingleObject(g.fenceEvent, 1000);
-    }
+    WaitForGpu();
     if (g.fenceEvent)
         CloseHandle(g.fenceEvent);
     g = Gpu{};
-}
-
-void SubmitFrame(uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels)
-{
-    std::scoped_lock lock(g_frameMutex);
-    g_pending = std::move(aPixels);
-    g_pendingWidth = aWidth;
-    g_pendingHeight = aHeight;
-    g_hasPending = true;
-}
-
-void DropFrame()
-{
-    {
-        std::scoped_lock lock(g_frameMutex);
-        g_hasPending = false;
-        g_pending.clear();
-    }
-    g_dropFrame = true;
-}
-
-PanelRect GetPanelRect()
-{
-    std::scoped_lock lock(g_rectMutex);
-    return g_rect;
 }
 } // namespace rednode::overlay::detail

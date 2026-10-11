@@ -1,11 +1,15 @@
 #pragma once
 
-// HTML overlay proof of concept. See docs/overlay.md.
+// HTML overlay. See docs/overlay.md.
 //
-// An out-of-process host (Electron) renders web apps off-screen and streams
-// the frames here over a named pipe. The compositor draws the latest frame on
-// top of the game in a Present hook. The window hook sends input back to the
-// host. Bridge requests from apps run on the game thread.
+// An out-of-process host (Electron) renders overlay apps off-screen, one page
+// per window, and streams the frames here over a named pipe. The plugin owns
+// window placement, focus and dragging, so they keep up with the game. The
+// compositor draws every window and the cursor in a Present hook. Bridge
+// requests from apps run on the game thread.
+//
+// Coordinates: "reference pixels" are screen pixels at 1080p. Page pixels and
+// reference pixels are the same size; both are scaled by back buffer height / 1080.
 
 #include <RED4ext/RED4ext.hpp>
 
@@ -36,40 +40,65 @@ namespace detail
 {
 enum class Mode : int
 {
-    Passive = 0,     // drawn, input goes to the game
-    Interactive = 1, // drawn, input goes to the overlay
-    Hidden = 2       // not drawn
+    Passive = 0,     // windows drawn, input goes to the game
+    Interactive = 1, // windows and cursor drawn, input goes to the windows
+    Hidden = 2       // nothing drawn
 };
 Mode GetMode();
 void SetMode(Mode aMode);
 const char* ModeName(Mode aMode);
 
-// Where the panel is on the back buffer, in back buffer pixels.
-struct PanelRect
+void Log(const char* aFormat, ...);
+
+// The back buffer, published by the compositor every frame.
+struct Screen
 {
-    float x = 0, y = 0, width = 0, height = 0; // panel
-    float scale = 1;                           // back buffer pixels per page pixel
+    float scale = 0;             // back buffer pixels per reference pixel
+    float width = 0, height = 0; // in reference pixels
     float backBufferWidth = 0, backBufferHeight = 0;
 };
-PanelRect GetPanelRect();
-
-void Log(const char* aFormat, ...);
+Screen GetScreen();
+void SetScreen(const Screen& aScreen);
 
 // link.cpp
 void StartLink();
 void StopLink();
 bool IsConnected();
 
+// windows.cpp: the window registry and input routing. Thread safe.
+constexpr uint32_t MaxWindows = 16;
+struct WindowView // what the compositor needs, back to front
+{
+    uint32_t id;
+    float x, y;             // reference pixels, top-left
+    uint32_t width, height; // page pixels
+};
+struct WindowFrame
+{
+    uint32_t width = 0, height = 0;
+    std::vector<uint8_t> pixels; // BGRA, premultiplied
+};
+void HandleWindowCommand(const std::string& aJson); // host -> plugin "cmd" messages
+void SubmitFrame(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels);
+void CloseAllWindows(); // host disconnected
+std::vector<WindowView> SnapshotWindows();
+bool TakeFrame(uint32_t aWindow, WindowFrame& aOut);
+// Input, called from the game window's thread. Positions in reference pixels.
+void OnMouseMove(float aX, float aY);
+void OnMouseButton(bool aDown, const char* aButton);
+void OnWheel(int aDelta);
+void OnKey(bool aDown, UINT aVk);
+void OnChar(wchar_t aChar);
+void OnLeaveInteractive();
+
 // compositor.cpp
 bool InstallCompositor(HWND& aWindow);
 void UninstallCompositor();
-void SubmitFrame(uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels);
-void DropFrame(); // back to the placeholder, e.g. when the host disconnects
 
 // input.cpp
 bool InstallInput(HWND aWindow);
-void GetCursor(float& aX, float& aY); // page pixels
 void UninstallInput();
+void GetCursor(float& aX, float& aY); // reference pixels
 
 // bridge.cpp
 void QueueRequest(std::string aJson);
