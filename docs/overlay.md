@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O2 UI kit built, in-game test pending.** O1 Windows passed in game. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O2 UI kit passed in game.** Next: O3 Apps, which includes the player install. O1 Windows passed earlier. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -212,6 +212,8 @@ The host now opens two apps: **Kit**, a titled window with every widget, and **N
 4. Use the keyboard: Tab between widgets, arrows in the list and menu, Enter to choose.
 5. Click **Open stash**, pick an item: a game-style notification appears. Drag the button by its striped grip.
 6. Kit's **Sound** tab: pick a name and press **Play**. Note which names make a sound; the names are unverified.
+
+**Result, 2026-10-11: passed.** Modded profile with CET, 3840 x 2160 SDR. All widgets, both themes, keyboard use, the native-style button and its notifications worked. Game UI sounds played through `audio.play`, so `AudioSystem.Play` with no entity works for overlay sounds. No errors in the logs.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
