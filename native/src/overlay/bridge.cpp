@@ -3,10 +3,13 @@
 // Request:  {"id": 7, "method": "player.position"}
 // Response: {"id": 7, "result": {...}}  or  {"id": 7, "error": "..."}
 //
-// Methods in the proof of concept:
+// Methods:
 //   game.info        the REDnode frame counter
 //   player.position  V's world position, through GetPlayer and Entity.GetWorldPosition
+//   audio.play       {"params":{"name":"ui_menu_onpress"}}: plays a game sound event
+//                    through AudioSystem.Play with no entity, as UI sounds are played
 
+#include "json.hpp"
 #include "overlay.hpp"
 
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
@@ -96,6 +99,52 @@ std::string PlayerPosition(long long aId)
     return Reply(aId, body);
 }
 
+RED4ext::CBaseFunction* FindStatic(RED4ext::CClass* aClass, const char* aName)
+{
+    for (auto* f : aClass->staticFuncs)
+    {
+        if (f->shortName == RED4ext::CName(aName))
+            return f;
+    }
+    return nullptr;
+}
+
+std::string AudioPlay(long long aId, const std::string& aJson)
+{
+    std::string name;
+    if (!json::String(aJson, "name", name) || name.empty())
+        return Error(aId, "audio.play needs params.name, a sound event name");
+
+    auto* rtti = RED4ext::CRTTISystem::Get();
+    auto* gameClass = rtti->GetClass("ScriptGameInstance");
+    auto* getAudio = gameClass ? FindStatic(gameClass, "GetAudioSystem") : nullptr;
+    if (!getAudio)
+        return Error(aId, "GameInstance.GetAudioSystem not found");
+
+    RED4ext::ScriptGameInstance game;
+    RED4ext::Handle<RED4ext::IScriptable> audio;
+    RED4ext::StackArgs_t args;
+    args.emplace_back(nullptr, &game);
+    if (!RED4ext::ExecuteFunction(static_cast<void*>(nullptr), getAudio, &audio, args) || !audio)
+        return Error(aId, "No audio system");
+
+    auto* play = FindMethod(audio->GetType(), "Play");
+    if (!play)
+        return Error(aId, "AudioSystem.Play not found");
+
+    RED4ext::CName eventName(name.c_str());
+    uint64_t noEntity = 0;     // entEntityID: a single 64-bit hash, 0 for none
+    RED4ext::CName noEmitter;  // None
+    RED4ext::StackArgs_t playArgs;
+    playArgs.emplace_back(nullptr, &eventName);
+    playArgs.emplace_back(nullptr, &noEntity);
+    playArgs.emplace_back(nullptr, &noEmitter);
+    if (!RED4ext::ExecuteFunction(audio.GetPtr(), play, nullptr, playArgs))
+        return Error(aId, "AudioSystem.Play failed");
+
+    return Reply(aId, "\"result\":{\"played\":" + JsonString(name) + "}");
+}
+
 std::string Handle(const std::string& aJson, uint64_t aFrame)
 {
     long long id = 0;
@@ -107,6 +156,8 @@ std::string Handle(const std::string& aJson, uint64_t aFrame)
         return Reply(id, "\"result\":{\"frame\":" + std::to_string(aFrame) + "}");
     if (method == "player.position")
         return PlayerPosition(id);
+    if (method == "audio.play")
+        return AudioPlay(id, aJson);
     return Error(id, ("Unknown method: " + method).c_str());
 }
 } // namespace

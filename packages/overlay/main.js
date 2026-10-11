@@ -5,15 +5,17 @@
 // placement, focus and dragging; the host replays the plugin's input into the
 // right page. Apps call the game through window.rednode (preload.js).
 //
-//   npm run overlay              # off-screen, streams to the game
-//   npm run overlay -- --window  # normal desktop windows, to try apps without the game
+//   npm run overlay                          # off-screen, streams to the game
+//   npm run overlay -- --window              # normal desktop windows, to try apps without the game
+//   npm run overlay -- --apps=demo,signal    # choose which apps to open
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, net: electronNet, protocol } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 // REDNODE_OVERLAY_PIPE lets tests use a private pipe instead of the game's.
 const PIPE = process.env.REDNODE_OVERLAY_PIPE || '\\\\.\\pipe\\rednode-overlay';
@@ -21,14 +23,26 @@ const FPS = 60;
 const TYPE_FRAME = 1;
 const TYPE_JSON = 2;
 
-// Windows to open. O3 replaces this list with app folders and manifests.
+// Apps the host knows. O3 replaces this list with app folders and manifests.
 // Positions are in reference pixels (screen pixels at 1080p); x: null centers the window.
+// Apps with open: false start only when named in --apps.
 const APPS = [
-  { id: 'demo', entry: 'apps/demo/index.html', width: 1024, height: 640, x: null, y: 220 },
-  { id: 'signal', entry: 'apps/signal/index.html', width: 320, height: 320, x: 1480, y: 140 },
+  { id: 'kit', entry: 'apps/kit/index.html', width: 600, height: 620, x: 140, y: 150 },
+  { id: 'native', entry: 'apps/native/index.html', width: 440, height: 380, x: 1420, y: 600 },
+  { id: 'demo', entry: 'apps/demo/index.html', width: 1024, height: 640, x: null, y: 220, open: false },
+  { id: 'signal', entry: 'apps/signal/index.html', width: 320, height: 320, x: 1480, y: 140, open: false },
 ];
 
 const windowed = process.argv.includes('--window');
+const appsArg = process.argv.find((a) => a.startsWith('--apps='));
+const chosen = appsArg ? appsArg.slice(7).split(',') : null;
+const appsToOpen = APPS.filter((a) => (chosen ? chosen.includes(a.id) : a.open !== false));
+
+// The UI kit, served to every app as rednode://ui/rednode-ui.js.
+const UI_DIR = path.join(__dirname, '..', 'ui', 'src');
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'rednode', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 // Page pixels must match frame pixels, whatever the desktop scaling is.
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
@@ -322,8 +336,17 @@ function createWindow(appDef, index) {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('rednode', (request) => {
+    const url = new URL(request.url);
+    const file = path.join(UI_DIR, decodeURIComponent(url.pathname));
+    if (url.host !== 'ui' || !file.startsWith(UI_DIR + path.sep) || !fs.existsSync(file)) {
+      return new Response('Not found', { status: 404 });
+    }
+    return electronNet.fetch(pathToFileURL(file).toString());
+  });
+
   loadPositions();
-  APPS.forEach(createWindow);
+  appsToOpen.forEach(createWindow);
 
   if (!windowed) {
     connect();

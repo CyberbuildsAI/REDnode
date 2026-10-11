@@ -25,7 +25,8 @@ contextBridge.exposeInMainWorld('rednode', {
 
 // Elements marked data-rednode-drag are drag handles: pressing on one moves the
 // window instead of clicking the page. Their rectangles are sent to the plugin
-// whenever the layout changes.
+// whenever the layout changes. Handles inside open shadow roots count too, so
+// components like <rn-window> can provide their own title bar.
 window.addEventListener('DOMContentLoaded', () => {
   let last = '';
   let queued = false;
@@ -33,10 +34,16 @@ window.addEventListener('DOMContentLoaded', () => {
   const report = () => {
     queued = false;
     const regions = [];
-    for (const el of document.querySelectorAll('[data-rednode-drag]')) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) regions.push(r.left, r.top, r.width, r.height);
-    }
+    const collect = (root) => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.hasAttribute('data-rednode-drag')) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) regions.push(r.left, r.top, r.width, r.height);
+        }
+        if (el.shadowRoot) collect(el.shadowRoot);
+      }
+    };
+    collect(document);
     const key = regions.map(Math.round).join(',');
     if (key !== last) {
       last = key;
@@ -64,5 +71,7 @@ window.addEventListener('DOMContentLoaded', () => {
     attributeFilter: ['data-rednode-drag', 'class', 'style', 'hidden'],
   });
   window.addEventListener('resize', schedule);
+  document.fonts?.addEventListener?.('loadingdone', schedule);
+  setInterval(schedule, 1000); // shadow DOM changes are not observed above; this catches them
   watch();
 });

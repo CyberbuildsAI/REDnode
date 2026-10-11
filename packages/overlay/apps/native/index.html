@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode native-style button</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* No window frame at all: only the button, the menu and notifications are
+     drawn. Everything else is transparent and clicks through to the game. */
+  html, body { margin: 0; width: 440px; height: 380px; overflow: hidden; background: transparent; }
+  .dock { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+  rn-menu { width: 240px; }
+  rn-menu[hidden] { display: none; }
+  /* A small grip so the button can be moved without a title bar. */
+  .grip { width: 22px; height: 34px; cursor: move;
+    background: repeating-linear-gradient(0deg, var(--rn-accent) 0 2px, transparent 2px 6px); opacity: .7; }
+  .bar { display: flex; align-items: center; gap: 6px; }
+  #rn-notifications { top: 12px; bottom: auto !important; right: 12px; }
+</style>
+</head>
+<body theme="game">
+  <div class="dock">
+    <rn-menu id="menu" title="Stash" hidden>
+      <rn-menu-item value="sell">Sell junk <span slot="end">12</span></rn-menu-item>
+      <rn-menu-item value="sort">Sort by value</rn-menu-item>
+      <rn-menu-item value="disassemble">Disassemble all</rn-menu-item>
+      <rn-menu-item value="close">Close</rn-menu-item>
+    </rn-menu>
+    <div class="bar">
+      <div class="grip" data-rednode-drag title="Drag to move"></div>
+      <rn-button id="open">Open stash</rn-button>
+    </div>
+  </div>
+<script src="app.js"></script>
+</body>
+</html>

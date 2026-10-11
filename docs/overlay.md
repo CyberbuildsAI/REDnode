@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O1 Windows passed in game.** Next: O2 UI kit. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O2 UI kit built, in-game test pending.** O1 Windows passed in game. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -199,6 +199,19 @@ Built 2026-10-11, REDnode 0.4.0. Window logic is covered by 19 unit tests in `na
 7. Quit the game and the host, start both again: the windows come back where you left them.
 
 **Result, 2026-10-11: passed.** Modded profile with CET, 3840 x 2160 SDR. Every step worked: dragging, front-to-back order and focus, click-through on Signal's transparent middle, Ping, leaving interactive mode by clicking empty screen, and saved positions across a restart of the game and the host. No errors in the logs.
+
+### O2 UI kit: test
+
+Built 2026-10-11, REDnode 0.5.0. The kit is [`packages/ui`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/ui): 12 components as markup, two themes, keyboard navigation, and UI sounds through the new bridge call `audio.play`. Both test apps were checked against a mock of the plugin. Gamepad navigation is left for later, because the game also reads the controller.
+
+The host now opens two apps: **Kit**, a titled window with every widget, and **Native**, a borderless game-style button at the lower right.
+
+1. Start the host and the game. Kit and the red **Open stash** button appear.
+2. **F10**. In Kit, try each tab: press buttons, flip toggles, drag the slider, type a call sign and press Enter, pick list and menu items. Hover **Hover me** for a tooltip.
+3. Flip **Game theme** in Kit's title bar: the window switches to the game look.
+4. Use the keyboard: Tab between widgets, arrows in the list and menu, Enter to choose.
+5. Click **Open stash**, pick an item: a game-style notification appears. Drag the button by its striped grip.
+6. Kit's **Sound** tab: pick a name and press **Play**. Note which names make a sound; the names are unverified.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 

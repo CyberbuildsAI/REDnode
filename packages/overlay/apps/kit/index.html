@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode UI kit</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* The page itself is transparent; rn-window draws the window. */
+  html, body { margin: 0; width: 600px; height: 620px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 6px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  rn-list { --rn-list-height: 176px; }
+  .hint { margin: 0; font-size: 14px; color: var(--rn-dim); }
+  code { font: 12px var(--rn-mono); color: var(--rn-accent); }
+</style>
+</head>
+<body>
+<rn-window id="win" title="UI kit // O2" draggable>
+  <rn-toggle id="theme" slot="status" label="Game theme"></rn-toggle>
+
+  <rn-tabs>
+    <rn-tab label="Controls">
+      <rn-panel title="Buttons">
+        <div class="row">
+          <rn-button id="primary">Primary</rn-button>
+          <rn-button variant="ghost">Ghost</rn-button>
+          <rn-button variant="danger">Danger</rn-button>
+          <rn-button disabled>Disabled</rn-button>
+          <rn-tooltip text="Tooltips show on hover and keyboard focus">
+            <rn-button variant="ghost">Hover me</rn-button>
+          </rn-tooltip>
+        </div>
+      </rn-panel>
+      <rn-panel title="Settings">
+        <rn-toggle label="Freeze time" checked></rn-toggle>
+        <rn-slider id="rain" label="Rain" min="0" max="100" value="35" unit="%"></rn-slider>
+        <rn-input id="name" label="Call sign" placeholder="Type here"></rn-input>
+        <rn-progress id="progress" label="Upload" value="35"></rn-progress>
+      </rn-panel>
+    </rn-tab>
+
+    <rn-tab label="Lists">
+      <div class="grid">
+        <rn-panel title="List">
+          <rn-list id="list">
+            <rn-item value="arasaka" selected>Arasaka <span slot="end">corp</span></rn-item>
+            <rn-item value="militech">Militech <span slot="end">corp</span></rn-item>
+            <rn-item value="valentinos">Valentinos <span slot="end">gang</span></rn-item>
+            <rn-item value="maelstrom">Maelstrom <span slot="end">gang</span></rn-item>
+            <rn-item value="ncpd" disabled>NCPD <span slot="end">locked</span></rn-item>
+            <rn-item value="aldecaldos">Aldecaldos <span slot="end">nomad</span></rn-item>
+          </rn-list>
+        </rn-panel>
+        <rn-menu id="menu" title="Actions">
+          <rn-menu-item value="track">Track <span slot="end">T</span></rn-menu-item>
+          <rn-menu-item value="call">Call <span slot="end">C</span></rn-menu-item>
+          <rn-menu-item value="mark">Mark on map</rn-menu-item>
+          <rn-menu-item value="ignore" disabled>Ignore</rn-menu-item>
+        </rn-menu>
+      </div>
+      <p class="hint">Click an item, or use Tab and the arrow keys, then Enter.</p>
+    </rn-tab>
+
+    <rn-tab label="Sound">
+      <rn-panel title="Play a game UI sound">
+        <p class="hint">Plays a sound event through the game's audio system with <code>audio.play</code>. Which names exist is unverified: pick one or type your own.</p>
+        <rn-list id="sounds">
+          <rn-item>ui_menu_onpress</rn-item>
+          <rn-item>ui_menu_hover</rn-item>
+          <rn-item>ui_menu_tutorial_close</rn-item>
+          <rn-item>ui_loot_take_all</rn-item>
+          <rn-item>ui_menu_item_bought</rn-item>
+          <rn-item>ui_jingle_quest_success</rn-item>
+        </rn-list>
+        <div class="row">
+          <rn-input id="sound" placeholder="sound event name" style="flex: 1"></rn-input>
+          <rn-button id="play">Play</rn-button>
+        </div>
+      </rn-panel>
+    </rn-tab>
+  </rn-tabs>
+</rn-window>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,12 +1,13 @@
 # REDnode overlay host
 
-Status: **phase O1, windows.** The proof of concept works in game (tested 2026-10-11 on 2.31). O1 adds several draggable windows. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O2, UI kit.** The proof of concept and O1 (several draggable windows) work in game. O2 serves the [`@rednode/ui`](../ui/) web components to every app. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and gives apps a `window.rednode` API for talking to the game. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
 ```powershell
-npm run overlay          # from the repo root: off-screen, connects to the game
-npm run overlay:window   # the app in a normal desktop window, without the game
+npm run overlay                          # from the repo root: off-screen, connects to the game
+npm run overlay:window                   # the apps in normal desktop windows, without the game
+npm run overlay -- --apps=demo,signal    # choose which apps to open
 ```
 
 Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev-setup.md), section 10.
@@ -18,10 +19,14 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [main.js](main.js) | The host: off-screen window, the pipe to the game, frame streaming, input replay, the bridge |
 | [preload.js](preload.js) | Defines `window.rednode` for apps |
 | [start.js](start.js) | Starts Electron with a clean environment |
-| [apps/demo/](apps/demo/) | The demo app used in the in-game tests. Start here to learn how an app is built |
+| [apps/kit/](apps/kit/) | Every UI kit widget in one titled window, built from markup. Opens by default |
+| [apps/native/](apps/native/) | A borderless, game-style button and menu. Opens by default |
+| [apps/demo/](apps/demo/) | The proof-of-concept demo, written by hand without the kit |
 | [apps/signal/](apps/signal/) | A small round HUD widget: a borderless window with a transparent middle |
 
-For now the windows to open are listed in `APPS` at the top of [main.js](main.js). Phase O3 replaces that list with app folders and manifests.
+For now the apps are listed in `APPS` at the top of [main.js](main.js); `open: false` ones start only when named in `--apps`. Phase O3 replaces that list with app folders and manifests.
+
+Apps get the UI kit with `<script src="rednode://ui/rednode-ui.js"></script>`. See [packages/ui](../ui/).
 
 ## Writing an overlay app
 
