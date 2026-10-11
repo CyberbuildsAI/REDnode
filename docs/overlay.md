@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O3 Apps built, in-game test pending.** O1 Windows and O2 UI kit passed in game. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O3 Apps passed in game: the player path works.** O1 Windows and O2 UI kit passed earlier. Next: O4 HUD widgets. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -229,6 +229,8 @@ This is the player path: no `npm run overlay`.
 6. Launch the game again. The apps you left on are on, and the ones you switched off stay off.
 
 Logs: the host writes `red4ext/logs/rednode-overlay.log` in the game folder.
+
+**Result, 2026-10-11: passed.** Modded profile with CET. The game started the packaged host by itself (the plugin logged `started the host`); the host found the 5 apps and opened the defaults. The launcher opened Signal and Demo and closed Kit, and the choices were saved. The host closed with the game. The user confirmed the saved choices on the next launch.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
