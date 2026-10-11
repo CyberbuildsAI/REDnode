@@ -147,6 +147,40 @@ menu.addEventListener('select', (e) => {
 
 Any element with `data-rednode-drag` is a drag handle; here, a small striped grip. `<rn-window draggable>` makes its title area the handle.
 
+## A HUD widget
+
+A HUD widget is drawn over the game but never takes input, like the game's own HUD. Set `"kind": "hud"` in the manifest, and list in `"hideWith"` when the game should hide it. From [`apps/coords`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay/apps/coords):
+
+```json
+{
+  "id": "coords",
+  "name": "Coords HUD",
+  "entry": "index.html",
+  "kind": "hud",
+  "hideWith": ["menu", "photo-mode", "scene", "main-menu"],
+  "width": 520,
+  "height": 72,
+  "anchor": "top",
+  "x": 0,
+  "y": 14
+}
+```
+
+| `hideWith` value | Hidden while |
+|---|---|
+| `menu` | A game menu is open: inventory, map, pause and so on |
+| `photo-mode` | Photo mode is on |
+| `scene` | A cinematic scene plays (the game's scene tier 4 or higher; unverified) |
+| `main-menu` | There is no player: the main menu and loading screens |
+
+The REDnode plugin does the hiding, in the same frame the game changes state. To react in the page as well, listen for `ui-state`:
+
+```js
+window.rednode.on((m) => {
+  if (m.event === 'ui-state') console.log(m.menu, m.photoMode, m.scene, m.mainMenu, m.sceneTier);
+});
+```
+
 ## Playing game sounds
 
 Sounds play through the game's own audio system, so they mix with the game and follow its volume settings. The bridge call `audio.play` runs the game's native `AudioSystem.Play` with no entity, the way the game plays its 2D UI sounds.

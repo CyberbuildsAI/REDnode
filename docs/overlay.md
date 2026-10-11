@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O3 Apps passed in game: the player path works.** O1 Windows and O2 UI kit passed earlier. Next: O4 HUD widgets. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O4 HUD widgets built, in-game test pending.** O1 Windows, O2 UI kit and O3 Apps (the player path) passed in game. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -231,6 +231,27 @@ This is the player path: no `npm run overlay`.
 Logs: the host writes `red4ext/logs/rednode-overlay.log` in the game folder.
 
 **Result, 2026-10-11: passed.** Modded profile with CET. The game started the packaged host by itself (the plugin logged `started the host`); the host found the 5 apps and opened the defaults. The launcher opened Signal and Demo and closed Kit, and the choices were saved. The host closed with the game. The user confirmed the saved choices on the next launch.
+
+### O4 HUD widgets: test
+
+Built 2026-10-11, REDnode 0.7.0. Apps can be `"kind": "hud"`: drawn, but never focused and never in the way of a click. `"hideWith"` hides any window while the game shows a menu, photo mode, a scene or the main menu. The plugin reads those states on the game thread a few times a second and hides windows itself, so there is no delay through the host. Apps also get a `ui-state` event. 4 new unit tests cover HUD input and hiding.
+
+| State | Read from |
+|---|---|
+| `menu` | The `UI_System` blackboard, `IsInMenu` |
+| `photo-mode` | `PhotoModeSystem.IsPhotoModeActive()` |
+| `scene` | The player's `PlayerStateMachine` blackboard, `SceneTier` 4 or higher. The threshold is **unverified**: this test calibrates it |
+| `main-menu` | No player: the main menu and loading screens |
+
+Two new apps open: **Coords HUD**, a strip at the top of the screen with V's position, and **Game state**, which shows what the plugin reads.
+
+1. Launch the game. At the main menu, Coords HUD is **not** shown (hidden with `main-menu`); Game state shows *Main menu / loading: yes*.
+2. Load a save. Coords HUD appears at the top and its numbers change as you walk.
+3. **F10**, then click on the Coords HUD: the click goes through it (here, to empty screen, which ends interactive mode).
+4. Open the inventory or map, then the pause menu: Coords HUD hides, Game state shows *Menu open: yes*.
+5. Enter photo mode: Coords HUD hides.
+6. Talk to an NPC, and if you can, trigger a cutscene. Note the **scene tier** Game state shows in each, and whether Coords HUD hid when you think it should have.
+7. **F10** to hidden mode: everything hides, HUD included.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
