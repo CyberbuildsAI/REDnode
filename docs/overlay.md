@@ -129,10 +129,9 @@ Observation: CET windows can be dragged. The REDnode panel cannot, because the p
 | Risk | Status |
 |---|---|
 | Coexisting with CET, which also hooks `Present` and the window procedure | Worked in run 2. REDnode patches the vtable entry and chains to whatever was there, so CET's code hook still runs |
-| Blocking game input | Unverified. If the game polls raw input instead of reading window messages, keys and mouse may still reach the game in interactive mode |
 | Mouse position while the game hides and locks the cursor | Handled by summing raw mouse movement into a virtual cursor. Worked in run 1 |
 | Blocking game input | Worked in runs 1 and 2, with and without CET |
-| Memory | Electron adds a few hundred MB. Unverified for this use |
+| Memory | Electron adds a few hundred MB. Not measured yet |
 | Frame pacing | Uploading a frame costs GPU time on the present path. Only done when the page repaints |
 | Upscalers and frame generation | Unverified. The overlay is drawn on the final back buffer, after them |
 
@@ -143,3 +142,66 @@ Observation: CET windows can be dragged. The REDnode panel cannot, because the p
 | All four steps work, no stutter | Plan the real version: shared GPU textures, multiple apps and windows, an app manifest, and folding the host into the Tier 2 runtime |
 | Drawing works, input does not | Look at how CET blocks input, the deferred CET analysis |
 | Drawing does not work | Fall back to the game's own ink UI, driven by the same bridge |
+
+The result was the first row.
+
+## Plan for the real version
+
+Status: **draft for review.** Phases are numbered O1 to O6 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
+
+### Goal
+
+Overlay apps that can look like part of the game: borderless, any shape, transparent where the app is transparent, either interactive windows or HUD widgets that never take input. They are written as web pages and use the same `rednode` API as Node mods.
+
+### Window model
+
+The plugin owns window placement, so moving a window never waits on Chromium. The host owns rendering, one off-screen page per window.
+
+| Property | Values | Notes |
+|---|---|---|
+| `kind` | `window` or `hud` | A `hud` window is drawn but never focused and never takes input |
+| `frame` | `none` (default) or `hud` | `none` draws nothing but the page. `hud` adds an optional REDnode title bar with close and drag |
+| `size` | page pixels | Scaled with the screen height, like the proof of concept. Later also with the game's UI scale |
+| `anchor` | `center`, `top-left` and so on, plus an offset | Lets HUD widgets sit at a screen edge at any resolution and aspect ratio |
+| `draggable` | yes or no | Drag handles are marked in the page's HTML, for example `data-rednode-drag` |
+| `hideWith` | game UI states | For example `menu`, `photo-mode`, `scene`. The plugin hides the window while that state is on |
+
+Rules that make borderless windows behave:
+
+| Rule | Why |
+|---|---|
+| **Click-through on transparent pixels.** A click where the page's alpha is zero goes to the window below, or to the game | A borderless window's invisible rectangle must not block anything |
+| **Focus follows the click.** Only the focused window gets keyboard input. Clicking the game area gives input back to the game | Matches CET and desktop behavior |
+| **Positions are saved** per app | Windows come back where the player left them |
+
+### Phases
+
+| Phase | Builds | In-game test proves |
+|---|---|---|
+| **O1 Windows** | Several windows, each with its own texture and placement. Drag handles, focus, z-order, click-through on transparent pixels, saved positions. Drag runs in the plugin, at the game's frame rate | Two demo windows can be dragged, overlapped and focused. Clicks pass through transparent parts |
+| **O2 Apps** | App folders with a `rednode-app.json` manifest (id, name, entry page, kind, size, anchor). The host loads every app it finds. A small launcher app opens and closes the others | A third-party style app in its own folder loads without changing the host |
+| **O3 HUD widgets** | The `hud` kind, anchors, and `hideWith`, driven by game UI state events from the bridge. Research which game state shows menus, photo mode and scenes | A HUD widget sits at a screen edge, never takes input, and hides in menus and photo mode |
+| **O4 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
+| **O5 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data | A Node mod and an overlay app use the same API call and get the same answer |
+| **O6 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
+
+O1 to O3 make the feature usable. O4 makes it cheap. O5 joins it to the rest of REDnode. O6 hardens it.
+
+### Looking like the game
+
+| Topic | Approach | Status |
+|---|---|---|
+| Visual effects | CSS and WebGL in the page: glow, scanlines, glitch, chromatic aberration | Standard web techniques |
+| Fonts | The game's fonts cannot be shipped with REDnode. Use close open-source fonts, or load fonts from the player's own install at runtime | Loading from the install is unverified, and needs a licensing check |
+| Colors | Match the game's palette. In HDR, match the game HUD's brightness (O6) | |
+| Sound | Play UI sounds through the game's audio system with a bridge call, so they mix with the game | Unverified |
+
+### Known limits and research items
+
+| Item | Notes |
+|---|---|
+| Always on top | REDnode draws after the game finishes the frame, so its windows sit above everything, including game menus. Drawing under a game menu would need a hook inside the game's own UI rendering. Research item, not planned |
+| Game input while a window is focused | The game is paused for input while an interactive window has focus. This is intended, the same as CET |
+| World-space UI | Labels attached to 3D objects would need the camera through the bridge each frame and would draw over everything. Research item |
+| Steam Deck and Proton | Untested. D3D12 runs through vkd3d-proton there |
+
