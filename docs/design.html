@@ -1,0 +1,393 @@
+<title>REDnode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: single-column HUD console. Sticky status bar, section panels with cut corners, tier diagram as a two-lane grid. */
+:root {
+  --bg: #08090d;
+  --panel: #10131b;
+  --panel-2: #151925;
+  --line: #262c3d;
+  --fg: #e3e6ee;
+  --dim: #8a93a8;
+  --yellow: #fcee0a;
+  --cyan: #19f3ff;
+  --red: #ff2a52;
+  --green: #5dffa1;
+  --display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --body: "Rajdhani", "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", "Consolas", monospace;
+  --cut: 14px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.5;
+  padding-inline: 16px;
+  padding-block: 0 64px;
+  background-image:
+    linear-gradient(rgba(25,243,255,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(25,243,255,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.wrap { max-width: 1040px; margin-inline: auto; }
+a { color: var(--cyan); }
+:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+/* status bar */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: rgba(8,9,13,.92);
+  border-bottom: 1px solid var(--line);
+  margin-inline: -16px; padding: 8px 16px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--dim);
+}
+.bar .wrap { display: flex; gap: 8px 20px; flex-wrap: wrap; align-items: center; }
+.bar b { color: var(--yellow); font-weight: 500; }
+.dot { display: inline-block; width: 8px; height: 8px; background: var(--green); margin-right: 6px; }
+.bar nav { margin-left: auto; display: flex; gap: 14px; flex-wrap: wrap; }
+.bar nav a { color: var(--dim); text-decoration: none; }
+.bar nav a:hover { color: var(--cyan); }
+
+/* hero */
+header.hero { padding-block: 56px 36px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--cyan); }
+h1 {
+  font-family: var(--display); font-weight: 700; text-transform: uppercase;
+  font-size: clamp(34px, 7vw, 68px); line-height: 1; letter-spacing: .02em;
+  margin: 12px 0 16px; text-wrap: balance;
+}
+h1 span { color: var(--yellow); }
+.lede { max-width: 62ch; color: #c3c9d8; font-size: 21px; margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.tag {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 10px; border: 1px solid var(--line); color: var(--dim);
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+}
+.tag.y { color: var(--yellow); border-color: rgba(252,238,10,.5); }
+.tag.c { color: var(--cyan); border-color: rgba(25,243,255,.5); }
+.tag.r { color: var(--red); border-color: rgba(255,42,82,.5); }
+.tag.g { color: var(--green); border-color: rgba(93,255,161,.5); }
+
+/* sections */
+section { margin-top: 44px; scroll-margin-top: 60px; }
+h2 {
+  font-family: var(--display); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  font-size: 26px; margin: 0 0 6px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+h2 .id { font-family: var(--mono); font-size: 13px; color: var(--yellow); letter-spacing: .12em; font-weight: 400; }
+.rule { height: 2px; background: linear-gradient(90deg, var(--yellow) 0 56px, var(--line) 56px); margin-bottom: 20px; }
+h3 { font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: .05em; text-transform: uppercase; color: var(--cyan); margin: 24px 0 8px; }
+p { margin: 0 0 14px; max-width: 72ch; }
+ul { margin: 0 0 14px; padding-left: 20px; max-width: 72ch; }
+li { margin-bottom: 4px; }
+li::marker { color: var(--yellow); }
+code { font-family: var(--mono); font-size: .8em; color: var(--yellow); background: rgba(252,238,10,.08); padding: 1px 5px; }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line); padding: 18px 20px;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+}
+.panel.warn { border-color: rgba(255,42,82,.5); background: linear-gradient(180deg, rgba(255,42,82,.07), var(--panel)); }
+.panel.ok { border-color: rgba(93,255,161,.4); }
+.panel .label { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+.panel.warn .label { color: var(--red); }
+.panel p:last-child, .panel ul:last-child { margin-bottom: 0; }
+
+.grid { display: grid; gap: 14px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+.grid > * { min-width: 0; }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 16px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--yellow); background: var(--panel-2); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.rec { background: rgba(252,238,10,.05); }
+
+/* code */
+pre {
+  margin: 0 0 16px; padding: 16px 18px; overflow-x: auto;
+  background: #0b0d13; border: 1px solid var(--line); border-left: 3px solid var(--cyan);
+  font-family: var(--mono); font-size: 13px; line-height: 1.6; color: #cfd6e6;
+}
+pre .c { color: #5d6780; } pre .k { color: var(--yellow); } pre .s { color: var(--green); } pre .t { color: var(--cyan); }
+.cap { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 18px 0 6px; }
+
+/* tier diagram */
+.diagram { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lane { background: var(--panel); border: 1px solid var(--line); padding: 14px; min-width: 0; }
+.lane h4 { margin: 0 0 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; font-weight: 500; }
+.lane.in { border-color: rgba(252,238,10,.45); } .lane.in h4 { color: var(--yellow); }
+.lane.out { border-color: rgba(25,243,255,.45); } .lane.out h4 { color: var(--cyan); }
+.node { background: var(--panel-2); border: 1px solid var(--line); padding: 8px 12px; margin-bottom: 8px; font-size: 16px; }
+.node small { display: block; color: var(--dim); font-family: var(--mono); font-size: 11px; }
+.node.hot { border-color: var(--yellow); }
+.node.cool { border-color: var(--cyan); }
+.link { grid-column: 1 / -1; text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; color: var(--dim); border: 1px dashed var(--line); padding: 8px; }
+.link b { color: var(--cyan); font-weight: 500; }
+
+/* roadmap */
+.phase { display: grid; grid-template-columns: 76px 1fr; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.phase:last-child { border-bottom: 0; }
+.phase .n { font-family: var(--display); font-weight: 700; font-size: 34px; color: var(--yellow); line-height: 1; }
+.phase .n small { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .16em; color: var(--dim); font-weight: 400; }
+.phase h3 { margin: 0 0 6px; }
+.phase p { margin-bottom: 6px; }
+
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .06em; }
+
+@media (max-width: 640px) {
+  body { font-size: 17px; }
+  .diagram { grid-template-columns: 1fr; }
+  .bar nav { margin-left: 0; }
+  .phase { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+
+<div class="bar"><div class="wrap">
+  <span><span class="dot"></span><b>REDNODE</b> / DESIGN DOC / DRAFT 0.1</span>
+  <span>TARGET: CYBERPUNK 2077 PC</span>
+  <nav>
+    <a href="#goal">Goal</a><a href="#landscape">Landscape</a><a href="#options">Options</a><a href="#hybrid">Hybrid</a><a href="#api">API</a><a href="#safety">Safety</a><a href="#roadmap">Roadmap</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">// Research &amp; architecture</div>
+  <h1>RED<span>node</span></h1>
+  <p class="lede">REDnode is a Node-based API for scripting Cyberpunk 2077, built on the same injection points that RED4ext, Cyber Engine Tweaks and redscript already use. Asynchronous mods run in a normal Node process. A small sandboxed tier runs inside the game for the few cases that must change a value mid-call.</p>
+  <div class="meta">
+    <span class="tag y">Recommended: hybrid B + small A</span>
+    <span class="tag c">Tier 2: Node (out of process)</span>
+    <span class="tag c">Tier 1: sandboxed in-process</span>
+    <span class="tag">Single-player modding</span>
+  </div>
+</header>
+
+<section id="goal">
+  <h2><span class="id">01</span>Goal and scope</h2><div class="rule"></div>
+  <div class="grid g2">
+    <div class="panel"><div class="label">In scope</div>
+      <ul>
+        <li>Let modders write game logic in TypeScript and JavaScript with npm packages.</li>
+        <li>Expose game state, events and commands through a typed API generated from the game's own reflection data.</li>
+        <li>Coexist with CET, RED4ext plugins, redscript and REDmod.</li>
+        <li>Survive game patches without per-patch rewrites of mods.</li>
+      </ul></div>
+    <div class="panel"><div class="label">Out of scope for v1</div>
+      <ul>
+        <li>Multiplayer or anything that touches online services.</li>
+        <li>Full in-process Node with <code>fs</code>, <code>require</code> and a live event loop.</li>
+        <li>Replacing redscript for engine-level changes.</li>
+        <li>Mods that need to run arbitrary game calls from inside a hook.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section id="landscape">
+  <h2><span class="id">02</span>Existing landscape</h2><div class="rule"></div>
+  <p>Checked against the install on this machine. Two independent injection points are already in use, so a new framework can attach to either.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Component</th><th>How it attaches</th><th>Seen on this install</th></tr></thead>
+    <tbody>
+      <tr><td>Ultimate ASI Loader</td><td>Proxy <code>version.dll</code> that loads every <code>.asi</code> in <code>bin/x64/plugins/</code>.</td><td>v6.0.0. Loads <code>cyber_engine_tweaks.asi</code>.</td></tr>
+      <tr><td>RED4ext</td><td>Proxy <code>winmm.dll</code> loads <code>red4ext/RED4ext.dll</code>, which loads <code>red4ext/plugins/*/*.dll</code>.</td><td>v1.30.0. Plugins: ArchiveXL, Codeware, RedData, mod_settings, input_loader.</td></tr>
+      <tr><td>Cyber Engine Tweaks</td><td>In-process Lua runtime with reflection access to game types and an ImGui overlay.</td><td>Closest precedent for an embedded scripting runtime.</td></tr>
+      <tr><td>redscript</td><td>Compiles <code>.reds</code> files into the game's script bytecode at launch. Not a runtime embed.</td><td>Many mods under <code>r6/scripts/</code>.</td></tr>
+      <tr><td>REDmod</td><td>Official CDPR deploy tool for archives, tweaks, scripts and audio. No injection.</td><td><code>redMod.exe</code> present, <code>mods/</code> empty.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>What this teaches</h3>
+  <ul>
+    <li>The game exposes a reflection (RTTI) system. That is what makes a dynamic scripting layer possible, and CET relies on it.</li>
+    <li>Codeware is a native RED4ext plugin that exposes extra functions to redscript. A native bridge exposing a scripting surface is the established pattern.</li>
+    <li>RedData and mod_settings ship a native DLL together with <code>.reds</code> files. Mod authors already expect that packaging shape.</li>
+  </ul>
+</section>
+
+<section id="options">
+  <h2><span class="id">03</span>Options considered</h2><div class="rule"></div>
+  <div class="tw"><table>
+    <thead><tr><th>Plan</th><th>Approach</th><th>Strengths</th><th>Weaknesses</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>Embed Node in a RED4ext plugin or <code>.asi</code>.</td><td>Closest to CET. JS runs inside hooks as plain function calls.</td><td>30 to 80 MB runtime. Event loop and threads inside a DX12 game process. Hard to keep stable.</td></tr>
+      <tr class="rec"><td>B</td><td>Thin native RED4ext plugin plus a separate Node process over IPC.</td><td>Crash isolation. Normal npm tooling. Easy hot reload. Small native surface to maintain.</td><td>No synchronous access from hooks. Round-trip latency on every call.</td></tr>
+      <tr><td>C</td><td>Embed QuickJS only.</td><td>About 1 MB. Fast start. Easy to sandbox.</td><td>Not Node. No npm ecosystem.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>The tradeoff in Plan B</h3>
+  <p>A hook runs inside the game's own function call, on the game thread, and the game waits for it to return. If the logic lives in another process, the hook must block on a round trip. That costs roughly 50 to 200 µs when healthy and much more when Node is busy. A 60 fps frame has about 16 ms, and hooks such as damage or per-frame ticks can fire thousands of times a frame. If the Node process crashes or hangs, the game thread blocks until a timeout.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Pattern</th><th>Plan B</th></tr></thead>
+    <tbody>
+      <tr><td>Notify: "the player took damage"</td><td>Works. The hook enqueues an event and returns.</td></tr>
+      <tr><td>Query: "what is the player's health?"</td><td>Works. Node awaits the answer.</td></tr>
+      <tr><td>Command: "set health to 100"</td><td>Works. Queued and applied on the game thread next tick.</td></tr>
+      <tr><td>Intercept: change a value before the call continues</td><td><b style="color:var(--red)">Does not work well.</b> Needs a synchronous answer while the game waits.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="hybrid">
+  <h2><span class="id">04</span>Recommended design: two tiers</h2><div class="rule"></div>
+  <p>Keep Plan B as the main path. Add a small in-process tier for interceptors only. A mod can ship either tier or both.</p>
+
+  <div class="diagram" role="img" aria-label="Diagram: the game process contains the native plugin with an RTTI bridge and a sandboxed interceptor runner, connected over IPC to a separate Node process hosting async mods.">
+    <div class="lane in">
+      <h4>Game process</h4>
+      <div class="node">Game thread<small>hooks, RTTI, script calls</small></div>
+      <div class="node hot">Tier 1: interceptor runner<small>sandboxed JS, sync, time-limited</small></div>
+      <div class="node">Native plugin (RED4ext)<small>RTTI bridge, event queue, command queue</small></div>
+    </div>
+    <div class="lane out">
+      <h4>Node process</h4>
+      <div class="node cool">Tier 2: async mods<small>full Node, npm, await</small></div>
+      <div class="node">Framework SDK<small>typed proxies, events, queries</small></div>
+      <div class="node">Dev tooling<small>hot reload, logs, type generation</small></div>
+    </div>
+    <div class="link">NATIVE PLUGIN <b>&#8644;</b> NODE &middot; named pipe or local socket &middot; events out, queries and commands in &middot; interceptor parameters pushed ahead of time</div>
+  </div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="panel"><div class="label">Tier 1 &middot; sync interceptors</div>
+      <ul>
+        <li>Runs inside the hook on the game thread.</li>
+        <li>Can change arguments or return values, or cancel a call.</li>
+        <li>No <code>await</code>, no I/O, no <code>require</code>.</li>
+        <li>Hard time budget, for example 100 µs.</li>
+      </ul></div>
+    <div class="panel"><div class="label">Tier 2 &middot; async Node mods</div>
+      <ul>
+        <li>Observe events, query state, send commands.</li>
+        <li>Full Node and npm.</li>
+        <li>Never blocks the game.</li>
+        <li>Can push parameters to Tier 1 interceptors.</li>
+      </ul></div>
+  </div>
+
+  <h3>What runs Tier 1</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Engine</th><th>Size</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Full Node / V8</td><td>30 to 80 MB</td><td>Brings back every problem of Plan A. Not recommended for interceptors.</td></tr>
+      <tr><td>Bare V8 isolate</td><td>10 to 30 MB</td><td>Same JS dialect as Node. Fast. No Node APIs. Heavier to ship.</td></tr>
+      <tr class="rec"><td>QuickJS</td><td>about 1 MB</td><td>Recommended. Small, easy to sandbox and to time-limit. TypeScript is compiled ahead of time. Slower than V8, which is fine for tiny functions.</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:14px">Tier 1 shares TypeScript types with Tier 2 but is not Node. The documentation must say so plainly.</p>
+
+  <div class="panel ok"><div class="label">Cheaper than either: declarative rules</div>
+    <p>For the simplest cases, such as "multiply incoming damage by X", offer a no-code rule that the native plugin applies directly in the hook. It needs no JS engine and no IPC, and it covers a large share of real mods.</p></div>
+</section>
+
+<section id="api">
+  <h2><span class="id">05</span>API sketch</h2><div class="rule"></div>
+  <div class="cap">Tier 1 &middot; interceptor (sync, sandboxed)</div>
+<pre><span class="k">export default</span> <span class="t">defineInterceptor</span>({
+  target: <span class="s">"PlayerPuppet.OnDamageReceived"</span>,
+  run(ctx) {
+    ctx.args.damage *= ctx.params.multiplier;   <span class="c">// pushed from Tier 2</span>
+  }
+});</pre>
+
+  <div class="cap">Tier 2 &middot; async mod (full Node)</div>
+<pre><span class="k">import</span> { game } <span class="k">from</span> <span class="s">"rednode"</span>;
+
+game.<span class="t">on</span>(<span class="s">"PlayerPuppet.OnDamageReceived"</span>, <span class="k">async</span> (e) =&gt; {
+  <span class="k">await</span> db.<span class="t">log</span>(e);                          <span class="c">// fine, the game is not waiting</span>
+  game.player.<span class="t">setHealth</span>(100);              <span class="c">// queued, runs next tick</span>
+});
+
+<span class="k">const</span> hp = <span class="k">await</span> game.player.<span class="t">getHealth</span>();    <span class="c">// async query</span>
+interceptor(<span class="s">"damage-scale"</span>).<span class="t">set</span>(<span class="s">"multiplier"</span>, 0.5);</pre>
+
+  <h3>Native plugin responsibilities</h3>
+  <ul>
+    <li>Enumerate RTTI classes, functions and properties for type generation.</li>
+    <li>Call functions and get or set properties on game objects.</li>
+    <li>Hook functions through RED4ext and the Address Library so mods survive patches.</li>
+    <li>Marshal game types (<code>CName</code>, <code>Vector4</code>, handles, arrays) to and from JSON-like values.</li>
+    <li>Queue all incoming commands and run them on the game thread, because game objects are not thread-safe.</li>
+    <li>Manage object handle lifetime so Node never holds a stale reference.</li>
+  </ul>
+</section>
+
+<section id="safety">
+  <h2><span class="id">06</span>Safety rails for Tier 1</h2><div class="rule"></div>
+  <div class="panel warn"><div class="label">Hard requirement</div>
+    <p>A buggy interceptor must never crash or freeze the game.</p></div>
+  <div class="grid g3" style="margin-top:14px">
+    <div class="panel"><div class="label">Time budget</div><p>Each call is time-limited. On overrun, return to default game behavior.</p></div>
+    <div class="panel"><div class="label">Fault handling</div><p>Catch exceptions, fall back to defaults, and auto-disable an interceptor after repeated failures.</p></div>
+    <div class="panel"><div class="label">Ordering</div><p>Define priority and chaining when several mods hook the same function.</p></div>
+    <div class="panel"><div class="label">Typed writes</div><p>Validate every write to <code>ctx.args</code> against the real parameter types before it reaches the game.</p></div>
+    <div class="panel"><div class="label">Limited host API</div><p>Read-only accessors and shared-memory reads only. No arbitrary game calls from a hook, to avoid reentrancy bugs.</p></div>
+    <div class="panel"><div class="label">Safe reload</div><p>Swap Tier 1 code between frames. Tier 2 reloads freely.</p></div>
+  </div>
+</section>
+
+<section id="risks">
+  <h2><span class="id">07</span>Risks</h2><div class="rule"></div>
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Game patch breaks hooks</td><td>Mods stop working until the plugin updates.</td><td>Use the Address Library and RED4ext hooking. Never hard-code offsets.</td></tr>
+      <tr><td>Conflicts with other plugins</td><td>Double hooks, crashes.</td><td>Use RED4ext's hook API. Do not add a third loader.</td></tr>
+      <tr><td>Thread-safety bugs</td><td>Random crashes.</td><td>All game access goes through the game-thread queue.</td></tr>
+      <tr><td>IPC latency or stalls</td><td>Stutter.</td><td>Async by default. Fast-path rules and shared memory for hot paths.</td></tr>
+      <tr><td>Tier 1 scope creep</td><td>Maintenance load.</td><td>Build it last, only for hooks modders actually need.</td></tr>
+      <tr><td>Modding terms</td><td>Distribution limits.</td><td>Check CD Projekt and Nexus Mods terms before publishing. Single-player only.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="roadmap">
+  <h2><span class="id">08</span>Roadmap</h2><div class="rule"></div>
+  <div class="panel">
+    <div class="phase"><div class="n">P0<small>RESEARCH</small></div><div>
+      <h3>Map the ABI</h3>
+      <p>Read the RED4ext plugin entry points and the imports and exports of an installed plugin. Inspect how <code>cyber_engine_tweaks.asi</code> hooks and resolves addresses.</p></div></div>
+    <div class="phase"><div class="n">P1<small>PROOF</small></div><div>
+      <h3>Hello-world plugin</h3>
+      <p>A RED4ext plugin that logs the RTTI class count. Confirms build, load and logging on the current game version.</p></div></div>
+    <div class="phase"><div class="n">P2<small>TIER 2</small></div><div>
+      <h3>Pipe bridge and Node SDK</h3>
+      <p>Expose one function over a named pipe and call it from Node. Then events, queries, commands and generated types.</p></div></div>
+    <div class="phase"><div class="n">P3<small>RULES</small></div><div>
+      <h3>Declarative rules</h3>
+      <p>Native fast-path rules applied inside hooks with no IPC. Gives synchronous behavior with no engine.</p></div></div>
+    <div class="phase"><div class="n">P4<small>TIER 1</small></div><div>
+      <h3>QuickJS interceptors</h3>
+      <p>Add the sandboxed runner, time limits, ordering and fault handling. Only after P2 and P3 show which hooks need it.</p></div></div>
+  </div>
+</section>
+
+<section id="questions">
+  <h2><span class="id">09</span>Open questions</h2><div class="rule"></div>
+  <ul>
+    <li>Full CET-style reflection access, or a smaller curated API for v1?</li>
+    <li>Which hooks must support Tier 1 interception on day one?</li>
+    <li>Implementation language for the native plugin: C++ with RED4ext.SDK, or Rust with <code>red4ext-rs</code> (Audioware is a Rust precedent)?</li>
+    <li>IPC transport: named pipe, local socket, or shared memory for hot data?</li>
+    <li>Packaging: should a Node mod ship inside the usual <code>red4ext/plugins</code> layout or its own folder?</li>
+  </ul>
+</section>
+
+<footer>SOURCE: LOCAL INSTALL INSPECTION (RED4ext 1.30.0, Ultimate ASI Loader 6.0.0, Node v24.18.0) &middot; THEME BASED ON THE CYBERPUNK 2077 HUD PALETTE</footer>
+
+</div>
