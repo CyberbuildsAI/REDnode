@@ -254,7 +254,7 @@ Two new apps open: **Coords HUD**, a strip at the top of the screen with V's pos
 6. Talk to an NPC, and if you can, trigger a cutscene. Note the **scene tier** Game state shows in each, and whether Coords HUD hid when you think it should have.
 7. **F10** to hidden mode: everything hides, HUD included.
 
-**Result, 2026-10-11: passed, with one open item.** Modded profile with CET. The HUD was hidden at the main menu, showed in gameplay with live coordinates, let clicks through, and hid with the inventory, map, pause menu and photo mode. Hidden mode hid everything.
+**Result, 2026-10-11: passed, with one open item.** Modded profile with CET. The HUD was hidden at the main menu, showed in gameplay with live coordinates, let clicks through, and hid with the inventory, map, pause menu and photo mode. It stayed visible while talking to NPCs, as intended: conversations are normal play, with the dialogue choices shown in the world. Hidden mode hid everything.
 
 **Open: the `scene` threshold.** No cutscene could be triggered in this save, so `SceneTier >= 4` is still unverified. Test it on a fresh playthrough, where the opening has several scenes: watch the scene tier in the Game state app and check that the HUD hides in cutscenes but not in normal conversations.
 
