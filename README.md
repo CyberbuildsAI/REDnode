@@ -4,7 +4,7 @@ A Node.js API for scripting Cyberpunk 2077 (PC, single-player).
 
 REDnode attaches to the game through the same injection points as RED4ext and Cyber Engine Tweaks, and exposes the game's reflection (RTTI) system to TypeScript and JavaScript.
 
-> **Status: design phase.** Nothing here runs yet. See [docs/design.html](docs/design.html) for the full design (open it in a browser) and the roadmap below.
+> **Status: design phase.** Nothing here runs yet. Read the full design at **https://cyberbuildsex.github.io/REDnode/** (source: [docs/design.html](docs/design.html)). The roadmap is below.
 
 ## How it works
 
