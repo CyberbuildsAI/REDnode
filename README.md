@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://cyberbuildsex.github.io/REDnode/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
+  <a href="https://cyberbuildsai.github.io/REDnode/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
   <img src="docs/assets/brand/badges/status.svg" alt="status: design phase">
   <img src="docs/assets/brand/badges/game.svg" alt="game: 2.31">
   <img src="docs/assets/brand/badges/red4ext.svg" alt="RED4ext: 1.30">
@@ -15,7 +15,7 @@ A Node.js API for scripting Cyberpunk 2077 (PC, single-player).
 
 REDnode attaches to the game through the same injection points as RED4ext and Cyber Engine Tweaks, and exposes the game's reflection (RTTI) system to TypeScript and JavaScript.
 
-**[Read the docs](https://cyberbuildsex.github.io/REDnode/)** &middot; [API reference](https://cyberbuildsex.github.io/REDnode/api/) &middot; [Design](https://cyberbuildsex.github.io/REDnode/design.html)
+**[Read the docs](https://cyberbuildsai.github.io/REDnode/)** &middot; [API reference](https://cyberbuildsai.github.io/REDnode/api/) &middot; [Design](https://cyberbuildsai.github.io/REDnode/design.html)
 
 > [!NOTE]
 > **Status: design phase.** The P1 probe plugin builds and is waiting for its in-game test. The `rednode` SDK is a design sketch, so every function throws for now. The roadmap is below.

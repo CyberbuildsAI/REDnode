@@ -58,20 +58,20 @@ The first configure clones RED4ext.SDK at the pinned commit, so it needs network
 ## 3. Repository and GitHub
 
 ```powershell
-git clone https://github.com/CyberbuildsEX/REDnode.git "$env:USERPROFILE\source\repos\REDnode"
+git clone https://github.com/CyberbuildsAI/REDnode.git "$env:USERPROFILE\source\repos\REDnode"
 cd "$env:USERPROFILE\source\repos\REDnode"
 
 # Repo-local identity, so a different global identity is left alone
-git config user.name  "CyberbuildsEX"
-git config user.email "340969962+CyberbuildsEX@users.noreply.github.com"
+git config user.name  "CyberbuildsAI"
+git config user.email "340969962+CyberbuildsAI@users.noreply.github.com"
 
 npm install
 npm run typecheck
 ```
 
-Pushing needs Git Credential Manager signed in as `CyberbuildsEX`. If a push fails with `Permission ... denied to <other account>`, the machine has another GitHub account cached. Remove the `github.com` entry in Windows Credential Manager and push again to get a sign-in prompt.
+Pushing needs Git Credential Manager signed in as `CyberbuildsAI`. If a push fails with `Permission ... denied to <other account>`, the machine has another GitHub account cached. Remove the `github.com` entry in Windows Credential Manager and push again to get a sign-in prompt.
 
-GitHub Pages serves `docs/` from `main`: https://cyberbuildsex.github.io/REDnode/. It is configured in the repository settings, not in code.
+GitHub Pages serves `docs/` from `main`: https://cyberbuildsai.github.io/REDnode/. It is configured in the repository settings, not in code.
 
 ## 4. Game install for testing
 
@@ -111,7 +111,7 @@ git clone --depth 1 https://github.com/WopsS/RED4ext.SDK.git
 
 ## 6. Docs site
 
-The site at https://cyberbuildsex.github.io/REDnode/ is built and deployed by `.github/workflows/pages.yml` on every push to `main`. In the repository settings, **Settings > Pages > Source** must be set to **GitHub Actions**.
+The site at https://cyberbuildsai.github.io/REDnode/ is built and deployed by `.github/workflows/pages.yml` on every push to `main`. In the repository settings, **Settings > Pages > Source** must be set to **GitHub Actions**.
 
 | Tool | Version | Install |
 |---|---|---|

@@ -4,9 +4,9 @@
 # Built and deployed by .github/workflows/pages.yml, which first generates the API reference into docs/api.
 
 title: REDnode
-url: https://cyberbuildsex.github.io
+url: https://cyberbuildsai.github.io
 baseurl: /REDnode
-repo: https://github.com/CyberbuildsEX/REDnode
+repo: https://github.com/CyberbuildsAI/REDnode
 
 markdown: kramdown
 kramdown:

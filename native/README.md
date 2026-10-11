@@ -34,7 +34,7 @@ red4ext/plugins/REDnode/
 
 ## Expected log after loading a save
 
-`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.1.0, author(s): CyberbuildsEX) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
+`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.1.0, author(s): CyberbuildsAI) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
 
 ```
 REDnode 0.1.0 loading (P1 probe)

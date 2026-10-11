@@ -22,4 +22,4 @@ game.on("PlayerPuppet.OnGameAttached", async () => {
 });
 ```
 
-Read the [design document](https://cyberbuildsex.github.io/REDnode/design.html) for the architecture.
+Read the [design document](https://cyberbuildsai.github.io/REDnode/design.html) for the architecture.

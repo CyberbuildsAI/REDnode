@@ -10,12 +10,12 @@
   "customCss": "typedoc/hud.css",
   "lightHighlightTheme": "github-dark",
   "darkHighlightTheme": "github-dark",
-  "titleLink": "https://cyberbuildsex.github.io/REDnode/api/",
+  "titleLink": "https://cyberbuildsai.github.io/REDnode/api/",
   "navigationLinks": {
-    "Docs": "https://cyberbuildsex.github.io/REDnode/",
-    "Design": "https://cyberbuildsex.github.io/REDnode/design.html",
-    "GitHub": "https://github.com/CyberbuildsEX/REDnode"
+    "Docs": "https://cyberbuildsai.github.io/REDnode/",
+    "Design": "https://cyberbuildsai.github.io/REDnode/design.html",
+    "GitHub": "https://github.com/CyberbuildsAI/REDnode"
   },
-  "hostedBaseUrl": "https://cyberbuildsex.github.io/REDnode/api/",
+  "hostedBaseUrl": "https://cyberbuildsai.github.io/REDnode/api/",
   "customFooterHtml": "REDnode &middot; MIT"
 }

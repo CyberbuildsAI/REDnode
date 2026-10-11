@@ -21,13 +21,13 @@ Follow [docs/dev-setup.md](docs/dev-setup.md) top to bottom. Whenever you instal
 ## Conventions
 
 - **Commits:** commit straight to `main` and push, in small logical commits. Agree the plan in chat first. Use a PR only for large or risky changes, and ask before opening one.
-- **Git identity:** set per repo to `CyberbuildsEX` with the GitHub no-reply email (see dev-setup). Never change the global identity.
+- **Git identity:** set per repo to `CyberbuildsAI` with the GitHub no-reply email (see dev-setup). Never change the global identity.
 - **Never commit game files** or data extracted from them (DLLs, archives, RTTI dumps). `.gitignore` covers the common cases.
 - **Writing style:** plain, short sentences. Tables for comparisons and lists of facts. Use the design doc's terms: Tier 1 (sync interceptors, in-process), Tier 2 (async Node mods, out of process), declarative rules, phases P0 to P4, and the `rednode` package name. Mark anything unverified as unverified.
 
 ## Docs site
 
-- `docs/` is published by GitHub Pages at https://cyberbuildsex.github.io/REDnode/. It is the human-facing documentation, so it must look polished.
+- `docs/` is published by GitHub Pages at https://cyberbuildsai.github.io/REDnode/. It is the human-facing documentation, so it must look polished.
 - `.github/workflows/pages.yml` builds and deploys the site on every push to `main`: TypeDoc generates the API reference into `docs/api`, then Jekyll renders `docs/`. Never commit `docs/api`.
 - Give every exported symbol in `packages/rednode/src` a TSDoc comment with an `@example` where it helps. That is the source of the API reference.
 - Write docs as markdown in `docs/`. Jekyll renders them with the HUD layout (`docs/_layouts/default.html`, `docs/assets/css/hud.css`). Add every new page to `nav` in `docs/_config.yml`.

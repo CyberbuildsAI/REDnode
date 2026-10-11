@@ -19,4 +19,4 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | P3 Rules | Not started |
 | P4 Tier 1 | Not started |
 
-Source code and issues: [github.com/CyberbuildsEX/REDnode](https://github.com/CyberbuildsEX/REDnode)
+Source code and issues: [github.com/CyberbuildsAI/REDnode](https://github.com/CyberbuildsAI/REDnode)
