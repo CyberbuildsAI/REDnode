@@ -1,8 +1,11 @@
 # GitHub Pages (Jekyll) settings for the docs site.
 # Every markdown page in docs/ renders with the HUD layout in _layouts/default.html.
 # design.html is a standalone page and is served as-is.
+# Built and deployed by .github/workflows/pages.yml, which first generates the API reference into docs/api.
 
 title: REDnode
+url: https://cyberbuildsex.github.io
+baseurl: /REDnode
 repo: https://github.com/CyberbuildsEX/REDnode
 
 markdown: kramdown
@@ -20,6 +23,8 @@ defaults:
 nav:
   - title: Docs
     url: /
+  - title: API
+    url: /api/
   - title: Design
     url: /design.html
   - title: P0 findings
