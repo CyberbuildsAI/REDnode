@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O4 HUD widgets built, in-game test pending.** O1 Windows, O2 UI kit and O3 Apps (the player path) passed in game. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O4 HUD widgets passed in game**, except the scene threshold, which is still open (see below). O1 to O3 passed earlier. Next: O5 Performance. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -134,6 +134,7 @@ Observation: CET windows can be dragged. The REDnode panel cannot, because the p
 | Memory | Electron adds a few hundred MB. Not measured yet |
 | Frame pacing | Uploading a frame costs GPU time on the present path. Only done when the page repaints |
 | Upscalers and frame generation | Unverified. The overlay is drawn on the final back buffer, after them |
+| Scene detection threshold | `SceneTier >= 4` counts as a scene. Unverified; test on a fresh playthrough (see the O4 result) |
 
 ## Decision after the test
 
@@ -252,6 +253,10 @@ Two new apps open: **Coords HUD**, a strip at the top of the screen with V's pos
 5. Enter photo mode: Coords HUD hides.
 6. Talk to an NPC, and if you can, trigger a cutscene. Note the **scene tier** Game state shows in each, and whether Coords HUD hid when you think it should have.
 7. **F10** to hidden mode: everything hides, HUD included.
+
+**Result, 2026-10-11: passed, with one open item.** Modded profile with CET. The HUD was hidden at the main menu, showed in gameplay with live coordinates, let clicks through, and hid with the inventory, map, pause menu and photo mode. Hidden mode hid everything.
+
+**Open: the `scene` threshold.** No cutscene could be triggered in this save, so `SceneTier >= 4` is still unverified. Test it on a fresh playthrough, where the opening has several scenes: watch the scene tier in the Game state app and check that the HUD hides in cutscenes but not in normal conversations.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
