@@ -115,7 +115,8 @@ Simplifications in the proof of concept, all to revisit if it goes further:
 | Check | Result |
 |---|---|
 | All four steps | **Passed** |
-| Cursor | **Fixed.** Drawn by the plugin, no lag |
+| Frame rate | **Good.** No visible drop with the panel streaming at 60 fps at 4K |
+| Cursor | **Fixed.** Drawn by the plugin, visible and with no lag |
 | Text caret | **Fixed.** The text box shows its focus border and a blinking caret |
 | REDnode and CET overlays drawn together | **Passed.** Both visible at once |
 | Input routing | **Passed.** Input went to whichever overlay was active, and not to the game |
