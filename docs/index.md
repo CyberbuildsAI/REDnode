@@ -1,4 +1,4 @@
-# REDnode docs
+# RED<span class="y">node</span> docs
 
 REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These pages track the design, the research and how to set up a machine to work on it.
 
