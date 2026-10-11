@@ -14,6 +14,8 @@
 //      anchor: top-left, top, top-right, left, center, right, bottom-left, bottom or
 //      bottom-right. x and y are offsets from that point of the screen to the same
 //      point of the window, so "bottom-right" with x -20 puts the window 20 px from the right edge.
+//      "kind":"hud" makes a window that is drawn but never takes input or focus.
+//      "hideWith":["menu","photo-mode","scene","main-menu"] hides it while the game shows those.
 //   {"cmd":"window.drag","window":1,"regions":[x,y,w,h, ...]}   page pixels
 //   {"cmd":"window.close","window":1}
 // Plugin -> host events:
@@ -47,6 +49,8 @@ struct Window
     float anchorX = 0, anchorY = 0;   // 0, 0.5 or 1 across and down
     float offsetX = 0, offsetY = 0;   // from the anchor, reference pixels
     bool placed = false;              // false until the screen size is known
+    bool hud = false;                 // drawn, never takes input or focus
+    uint32_t hideWith = 0;            // StateMenu | StatePhotoMode | ... from gamestate.cpp
     uint32_t width = 0, height = 0;
     bool draggable = true;
     std::vector<DragRegion> dragRegions;
@@ -100,8 +104,8 @@ Hit HitTest(float aX, float aY)
     for (auto it = g_windows.rbegin(); it != g_windows.rend(); ++it)
     {
         Window& w = *it;
-        if (!w.placed)
-            continue;
+        if (!w.placed || w.hud || (w.hideWith & GetUiState()))
+            continue; // HUD widgets and hidden windows never take input
         const float lx = aX - w.x;
         const float ly = aY - w.y;
         if (lx < 0 || ly < 0 || lx >= float(w.width) || ly >= float(w.height))
@@ -265,7 +269,19 @@ void HandleWindowCommand(const std::string& aJson)
             w->offsetY = float(y);
             w->width = uint32_t(width);
             w->height = uint32_t(height);
-            w->draggable = json::Bool(aJson, "draggable", true);
+            w->hud = [&] {
+                std::string kind;
+                return json::String(aJson, "kind", kind) && kind == "hud";
+            }();
+            w->draggable = !w->hud && json::Bool(aJson, "draggable", true);
+            w->hideWith = 0;
+            for (const auto& [name, bit] : {std::pair{"\"menu\"", StateMenu}, std::pair{"\"photo-mode\"", StatePhotoMode},
+                                            std::pair{"\"scene\"", StateScene}, std::pair{"\"main-menu\"", StateMainMenu}})
+            {
+                const auto list = aJson.find("\"hideWith\":");
+                if (list != std::string::npos && aJson.find(name, list) < aJson.find(']', list))
+                    w->hideWith |= bit;
+            }
             w->placed = false;
             Place(*w, GetScreen());
         }
@@ -324,9 +340,10 @@ std::vector<WindowView> SnapshotWindows()
     std::scoped_lock lock(g_mutex);
     std::vector<WindowView> out;
     out.reserve(g_windows.size());
+    const uint32_t state = GetUiState();
     for (const auto& w : g_windows)
     {
-        if (w.placed)
+        if (w.placed && !(w.hideWith & state))
             out.push_back({w.id, w.x, w.y, w.width, w.height});
     }
     return out;

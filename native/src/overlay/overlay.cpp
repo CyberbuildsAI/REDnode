@@ -80,6 +80,7 @@ void Install()
 void Update(uint64_t aFrame)
 {
     detail::RunRequests(aFrame);
+    detail::PollGameState(aFrame);
 }
 
 void Stop()

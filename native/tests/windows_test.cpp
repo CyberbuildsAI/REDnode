@@ -41,6 +41,11 @@ const char* ModeName(Mode)
 void Log(const char*, ...)
 {
 }
+uint32_t g_uiState = 0;
+uint32_t GetUiState()
+{
+    return g_uiState;
+}
 } // namespace detail
 } // namespace rednode::overlay
 
@@ -168,6 +173,23 @@ int main()
     OnMouseButton(true, "left");
     Check(GetMode() == Mode::Passive, "a click on empty screen leaves interactive mode");
     Check(SentContains(R"({"event":"focus","window":0})"), "and clears the focus");
+
+    // HUD widgets: drawn, but clicks go through them; hideWith hides them.
+    SetMode(Mode::Interactive);
+    HandleWindowCommand(
+        R"({"cmd":"window.open","window":3,"kind":"hud","hideWith":["menu","scene"],"x":1000,"y":600,"width":200,"height":100})");
+    SubmitFrame(3, 200, 100, Frame(200, 100));
+    g_sent.clear();
+    OnMouseMove(1050, 650);
+    OnMouseButton(true, "left");
+    Check(!SentContains(R"("window":3)"), "a HUD widget never gets input");
+    Check(GetMode() == Mode::Passive, "a click on a HUD widget passes through, here to empty screen");
+    g_uiState = StateMenu;
+    Check(View(3).id == 0, "hideWith menu hides the widget while a menu is open");
+    g_uiState = StatePhotoMode;
+    Check(View(3).id == 3, "a state not in hideWith leaves it visible");
+    g_uiState = 0;
+    HandleWindowCommand(R"({"cmd":"window.close","window":3})");
 
     // Closing.
     SetMode(Mode::Interactive);

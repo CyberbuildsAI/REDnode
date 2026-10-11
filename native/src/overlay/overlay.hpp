@@ -101,6 +101,18 @@ bool InstallInput(HWND aWindow);
 void UninstallInput();
 void GetCursor(float& aX, float& aY); // reference pixels
 
+// gamestate.cpp: what the game is showing, for hideWith. Bits of GetUiState().
+enum : uint32_t
+{
+    StateMenu = 1,      // a game menu is open
+    StatePhotoMode = 2, // photo mode
+    StateScene = 4,     // a cinematic scene
+    StateMainMenu = 8,  // no player: main menu or loading screen
+};
+void PollGameState(uint64_t aFrame); // game thread
+uint32_t GetUiState();               // any thread
+void ResendGameState();              // send the state again, e.g. to a new host
+
 // host.cpp
 void StartHost(const std::filesystem::path& aPluginDir);
 void StopHost();
