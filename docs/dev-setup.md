@@ -139,5 +139,23 @@ The README banner, the GitHub social preview and the README badges are generated
 | `docs/assets/brand/banner.png` | 2560 x 640 | README header |
 | `docs/assets/brand/social.png` | 1280 x 640 | Uploaded by hand in **Settings > General > Social preview** |
 | `docs/assets/brand/badges/*.svg` | | README badges. Edit the list in `tools/brand/badges.py` |
+| `tools/vscode-theme/images/icon.png` | 256 x 256 | VS Code theme extension icon, from `tools/brand/icon.html` |
 
 Edit `tools/brand/brand.html` to change the banner. Re-run the script after changing version numbers in the badges.
+
+## 8. VS Code theme extension
+
+`tools/vscode-theme/` is a VS Code extension containing the REDnode HUD color theme.
+
+| Tool | Version | Install |
+|---|---|---|
+| @vscode/vsce | 4.0.0 | Root dev dependency, installed by `npm install` |
+
+```powershell
+npm run theme:package   # writes dist/rednode-hud-theme-<version>.vsix (ignored by git)
+code --install-extension dist/rednode-hud-theme-0.1.0.vsix
+```
+
+npm 12 blocks the install script of `@vscode/vsce-sign`, which downloads a signing binary. Packaging does not need it. Only publishing to the Marketplace would, and that also needs a publisher account named `cyberbuildsai`.
+
+Bump `version` in `tools/vscode-theme/package.json` and add a `CHANGELOG.md` entry before packaging a new release.
