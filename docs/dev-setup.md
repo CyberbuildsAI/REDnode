@@ -125,3 +125,19 @@ npm run docs:api   # writes docs/api (ignored by git), open docs/api/index.html
 ```
 
 Previewing the Jekyll pages locally needs Ruby and Jekyll, which are not installed on the reference machine. Push to `main` and check the deployed site instead.
+
+## 7. Brand images
+
+The README banner, the GitHub social preview and the README badges are generated, then committed.
+
+```powershell
+.\tools\brand\render.ps1   # needs Chrome or Edge, Python, and network access for the web fonts
+```
+
+| Output | Size | Used by |
+|---|---|---|
+| `docs/assets/brand/banner.png` | 2560 x 640 | README header |
+| `docs/assets/brand/social.png` | 1280 x 640 | Uploaded by hand in **Settings > General > Social preview** |
+| `docs/assets/brand/badges/*.svg` | | README badges. Edit the list in `tools/brand/badges.py` |
+
+Edit `tools/brand/brand.html` to change the banner. Re-run the script after changing version numbers in the badges.
