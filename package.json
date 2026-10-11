@@ -8,6 +8,10 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "docs:api": "npm run docs --workspace rednode"
+    "docs:api": "npm run docs --workspace rednode",
+    "theme:package": "node -e \"require('fs').mkdirSync('dist',{recursive:true})\" && cd tools/vscode-theme && vsce package --no-dependencies --out ../../dist/"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0"
   }
 }
