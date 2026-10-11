@@ -86,6 +86,17 @@ GitHub Pages serves `docs/` from `main`: https://cyberbuildsex.github.io/REDnode
 
 Default Steam path: `C:\Program Files (x86)\Steam\steamapps\common\Cyberpunk 2077`. Mods on the reference machine are managed by Vortex.
 
+On a new machine, install the two required mods before testing, through a mod manager or by hand from their official releases:
+
+- RED4ext: https://github.com/WopsS/RED4ext/releases (also on Nexus Mods)
+- redscript: https://github.com/jac3km4/redscript/releases (also on Nexus Mods)
+
+Match their versions to the installed game version. Check that RED4ext works by launching the game once and looking for `red4ext/logs/red4ext-*.log`.
+
+If the game is not at the default path, pass it to the deploy script: `.\tools\deploy-native.ps1 -GameDir 'D:\Games\Cyberpunk 2077'`.
+
+The game needs about 12 to 16 GB of RAM. On a 16 GB machine, close other apps before testing.
+
 ## 5. Reference sources
 
 Read-only clones used for research. They live outside the repo and are never committed.
