@@ -1,0 +1,696 @@
+// Draws the overlay panel on the game's back buffer, just before Present.
+//
+// Uses the game's own D3D12 device and direct queue from the RED4ext SDK.
+// Present is hooked by patching the swapchain vtable, so other hooks on the
+// Present code (CET, Steam) keep running: we call whatever the vtable held.
+// Back buffers are fetched per frame and never held, so resizes stay safe.
+
+#include "overlay.hpp"
+
+#include <RED4ext/GpuApi/DeviceData.hpp>
+
+#include <d3d12.h>
+#include <d3dcompiler.h>
+#include <dxgi1_6.h>
+#include <wrl/client.h>
+
+#include <atomic>
+#include <cstring>
+#include <mutex>
+
+using Microsoft::WRL::ComPtr;
+
+namespace rednode::overlay::detail
+{
+namespace
+{
+constexpr UINT FramesInFlight = 3;
+constexpr UINT MaxBackBuffers = 8;
+constexpr UINT PlaceholderWidth = 1024; // panel size before the host sends a frame
+constexpr UINT PlaceholderHeight = 640;
+constexpr float ReferenceHeight = 1080.0f; // page pixels map 1:1 at 1080p
+constexpr float HdrPaperWhiteNits = 200.0f;  // unverified guess
+
+constexpr char ShaderSource[] = R"(
+cbuffer Panel : register(b0) { float4 rect; float hasTex; float mode; float time; float nits; };
+Texture2D tex : register(t0);
+SamplerState smp : register(s0);
+struct V { float4 pos : SV_Position; float2 uv : TEXCOORD0; };
+
+V vs(uint id : SV_VertexID)
+{
+    float2 uv = float2(id & 1, id >> 1);
+    V o;
+    o.uv = uv;
+    o.pos = float4(lerp(rect.x, rect.z, uv.x), lerp(rect.y, rect.w, uv.y), 0, 1);
+    return o;
+}
+
+float3 ToLinear(float3 c) { return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4); }
+
+float3 ToPQ(float3 n)
+{
+    float3 y = pow(saturate(n / 10000.0), 0.1593017578125);
+    return pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), 78.84375);
+}
+
+float4 ps(V i) : SV_Target
+{
+    float4 c;
+    if (hasTex > 0.5)
+    {
+        c = tex.Sample(smp, i.uv); // premultiplied, from Chromium
+    }
+    else
+    {
+        // Placeholder until the host connects: dark glass, yellow frame, moving cyan line.
+        float edge = min(min(i.uv.x, 1 - i.uv.x), min(i.uv.y, 1 - i.uv.y));
+        float3 col = float3(0.03, 0.035, 0.05);
+        float a = 0.8;
+        if (edge < 0.004) { col = float3(0.99, 0.93, 0.04); a = 1; }
+        if (abs(i.uv.y - frac(time * 0.25)) < 0.003) { col = float3(0.1, 0.95, 1.0); a = 1; }
+        c = float4(col * a, a);
+    }
+
+    if (mode > 0.5)
+    {
+        // HDR back buffer. Colors are sRGB and premultiplied.
+        float3 lin = c.a > 0 ? ToLinear(saturate(c.rgb / c.a)) : 0;
+        if (mode < 1.5)
+        {
+            c.rgb = lin * (nits / 80.0) * c.a; // scRGB: 1.0 is 80 nits
+        }
+        else
+        {
+            float3x3 toRec2020 = float3x3(0.6274, 0.3293, 0.0433, 0.0691, 0.9195, 0.0114, 0.0164, 0.0880, 0.8956);
+            c.rgb = ToPQ(mul(toRec2020, lin) * nits) * c.a; // HDR10 PQ
+        }
+    }
+    return c;
+}
+)";
+
+struct Constants
+{
+    float rect[4];
+    float hasTex;
+    float mode;
+    float time;
+    float nits;
+};
+
+using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
+using Present1Fn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
+constexpr size_t PresentSlot = 8;   // IDXGISwapChain::Present
+constexpr size_t Present1Slot = 22; // IDXGISwapChain1::Present1
+
+void** g_vtable = nullptr;
+PresentFn g_origPresent = nullptr;
+Present1Fn g_origPresent1 = nullptr;
+
+struct Gpu
+{
+    ComPtr<ID3D12Device> device;
+    ComPtr<ID3D12CommandQueue> queue;
+
+    IDXGISwapChain* swapChain = nullptr;
+    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    UINT width = 0;
+    UINT height = 0;
+    float mode = 0; // 0 SDR, 1 scRGB, 2 PQ
+
+    ComPtr<ID3D12RootSignature> rootSig;
+    ComPtr<ID3D12PipelineState> pso;
+    DXGI_FORMAT psoFormat = DXGI_FORMAT_UNKNOWN;
+    ComPtr<ID3D12DescriptorHeap> rtvHeap;
+    ComPtr<ID3D12DescriptorHeap> srvHeap;
+    UINT rtvSize = 0;
+
+    ComPtr<ID3D12CommandAllocator> allocators[FramesInFlight];
+    ComPtr<ID3D12GraphicsCommandList> list;
+    ComPtr<ID3D12Fence> fence;
+    HANDLE fenceEvent = nullptr;
+    UINT64 fenceValue = 0;
+    UINT64 slotFence[FramesInFlight] = {};
+    uint64_t frameIndex = 0;
+
+    ComPtr<ID3D12Resource> texture;
+    UINT texWidth = 0;
+    UINT texHeight = 0;
+    bool texReady = false;       // holds a frame worth drawing
+    bool texShaderState = false; // in PIXEL_SHADER_RESOURCE state, else COPY_DEST
+    ComPtr<ID3D12Resource> upload[FramesInFlight];
+    UINT64 uploadSize[FramesInFlight] = {};
+
+    bool failed = false;
+} g;
+
+std::mutex g_renderMutex; // Present may come from more than one thread
+
+std::mutex g_frameMutex;
+std::vector<uint8_t> g_pending;
+uint32_t g_pendingWidth = 0;
+uint32_t g_pendingHeight = 0;
+bool g_hasPending = false;
+std::atomic_bool g_dropFrame{false};
+
+std::mutex g_rectMutex;
+PanelRect g_rect;
+
+LARGE_INTEGER g_start{};
+LARGE_INTEGER g_freq{};
+
+bool Fail(const char* aWhat, HRESULT aHr)
+{
+    Log("Overlay: %s failed (0x%08lX). Overlay drawing disabled.", aWhat, static_cast<unsigned long>(aHr));
+    g.failed = true;
+    return false;
+}
+
+D3D12_RESOURCE_BARRIER Transition(ID3D12Resource* aRes, D3D12_RESOURCE_STATES aFrom, D3D12_RESOURCE_STATES aTo)
+{
+    D3D12_RESOURCE_BARRIER b{};
+    b.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    b.Transition.pResource = aRes;
+    b.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    b.Transition.StateBefore = aFrom;
+    b.Transition.StateAfter = aTo;
+    return b;
+}
+
+bool CreatePipeline(DXGI_FORMAT aFormat)
+{
+    if (!g.rootSig)
+    {
+        D3D12_ROOT_PARAMETER params[2]{};
+        params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+        params[0].Constants.Num32BitValues = sizeof(Constants) / 4;
+        params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        D3D12_DESCRIPTOR_RANGE range{};
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        range.NumDescriptors = 1;
+        params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        params[1].DescriptorTable.NumDescriptorRanges = 1;
+        params[1].DescriptorTable.pDescriptorRanges = &range;
+        params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        D3D12_STATIC_SAMPLER_DESC sampler{};
+        sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        sampler.MaxLOD = D3D12_FLOAT32_MAX;
+        sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        D3D12_ROOT_SIGNATURE_DESC desc{};
+        desc.NumParameters = 2;
+        desc.pParameters = params;
+        desc.NumStaticSamplers = 1;
+        desc.pStaticSamplers = &sampler;
+
+        ComPtr<ID3DBlob> blob, error;
+        HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error);
+        if (FAILED(hr))
+            return Fail("D3D12SerializeRootSignature", hr);
+        hr = g.device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&g.rootSig));
+        if (FAILED(hr))
+            return Fail("CreateRootSignature", hr);
+    }
+
+    ComPtr<ID3DBlob> vs, ps, error;
+    HRESULT hr = D3DCompile(ShaderSource, sizeof(ShaderSource) - 1, "rednode-overlay", nullptr, nullptr, "vs", "vs_5_0",
+                            0, 0, &vs, &error);
+    if (FAILED(hr))
+    {
+        Log("Overlay: vertex shader: %s", error ? static_cast<const char*>(error->GetBufferPointer()) : "?");
+        return Fail("D3DCompile vs", hr);
+    }
+    hr = D3DCompile(ShaderSource, sizeof(ShaderSource) - 1, "rednode-overlay", nullptr, nullptr, "ps", "ps_5_0", 0, 0,
+                    &ps, &error);
+    if (FAILED(hr))
+    {
+        Log("Overlay: pixel shader: %s", error ? static_cast<const char*>(error->GetBufferPointer()) : "?");
+        return Fail("D3DCompile ps", hr);
+    }
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+    pso.pRootSignature = g.rootSig.Get();
+    pso.VS = {vs->GetBufferPointer(), vs->GetBufferSize()};
+    pso.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
+    auto& rt = pso.BlendState.RenderTarget[0];
+    rt.BlendEnable = TRUE;
+    rt.SrcBlend = D3D12_BLEND_ONE; // premultiplied alpha
+    rt.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    rt.BlendOp = D3D12_BLEND_OP_ADD;
+    rt.SrcBlendAlpha = D3D12_BLEND_ONE;
+    rt.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+    rt.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    rt.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    pso.SampleMask = UINT_MAX;
+    pso.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+    pso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    pso.RasterizerState.DepthClipEnable = TRUE;
+    pso.DepthStencilState.DepthEnable = FALSE;
+    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    pso.NumRenderTargets = 1;
+    pso.RTVFormats[0] = aFormat;
+    pso.SampleDesc.Count = 1;
+
+    g.pso.Reset();
+    hr = g.device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&g.pso));
+    if (FAILED(hr))
+        return Fail("CreateGraphicsPipelineState", hr);
+    g.psoFormat = aFormat;
+    return true;
+}
+
+bool CreateBaseResources()
+{
+    D3D12_DESCRIPTOR_HEAP_DESC rtv{};
+    rtv.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtv.NumDescriptors = MaxBackBuffers;
+    HRESULT hr = g.device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&g.rtvHeap));
+    if (FAILED(hr))
+        return Fail("CreateDescriptorHeap rtv", hr);
+    g.rtvSize = g.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+    D3D12_DESCRIPTOR_HEAP_DESC srv{};
+    srv.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srv.NumDescriptors = 1;
+    srv.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    hr = g.device->CreateDescriptorHeap(&srv, IID_PPV_ARGS(&g.srvHeap));
+    if (FAILED(hr))
+        return Fail("CreateDescriptorHeap srv", hr);
+
+    // A null descriptor until the first frame arrives. The shader does not sample it.
+    D3D12_SHADER_RESOURCE_VIEW_DESC nullSrv{};
+    nullSrv.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    nullSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    nullSrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    nullSrv.Texture2D.MipLevels = 1;
+    g.device->CreateShaderResourceView(nullptr, &nullSrv, g.srvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    for (auto& a : g.allocators)
+    {
+        hr = g.device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&a));
+        if (FAILED(hr))
+            return Fail("CreateCommandAllocator", hr);
+    }
+    hr = g.device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g.allocators[0].Get(), nullptr,
+                                     IID_PPV_ARGS(&g.list));
+    if (FAILED(hr))
+        return Fail("CreateCommandList", hr);
+    g.list->Close();
+
+    hr = g.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g.fence));
+    if (FAILED(hr))
+        return Fail("CreateFence", hr);
+    g.fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    return true;
+}
+
+float HdrModeFor(IDXGISwapChain* aSwapChain, DXGI_FORMAT aFormat)
+{
+    if (auto* data = RED4ext::GpuApi::GetDeviceData())
+    {
+        for (uint32_t id = 1; id <= 32; ++id)
+        {
+            if (data->swapChains.IsUsedID(id) && data->swapChains.GetData(id).swapChain.Get() == aSwapChain)
+            {
+                switch (data->swapChains.GetData(id).startupHdrMode)
+                {
+                case RED4ext::GpuApi::HDRMode::PQ:
+                    return 2;
+                case RED4ext::GpuApi::HDRMode::scRGB:
+                    return 1;
+                default:
+                    return 0;
+                }
+            }
+        }
+    }
+    return aFormat == DXGI_FORMAT_R16G16B16A16_FLOAT ? 1.0f : 0.0f;
+}
+
+bool EnsureResources(IDXGISwapChain3* aSwapChain)
+{
+    if (!g.rtvHeap && !CreateBaseResources())
+        return false;
+
+    DXGI_SWAP_CHAIN_DESC1 desc{};
+    if (FAILED(aSwapChain->GetDesc1(&desc)) || desc.BufferCount > MaxBackBuffers)
+        return false;
+
+    if (g.swapChain != aSwapChain || desc.Format != g.format)
+    {
+        g.mode = HdrModeFor(aSwapChain, desc.Format);
+        Log("Overlay: drawing on a %u x %u swapchain, format %d, %s", desc.Width, desc.Height,
+            static_cast<int>(desc.Format), g.mode == 0 ? "SDR" : (g.mode == 1 ? "HDR scRGB" : "HDR PQ"));
+    }
+    g.swapChain = aSwapChain;
+    g.format = desc.Format;
+    g.width = desc.Width;
+    g.height = desc.Height;
+
+    if (g.psoFormat != desc.Format && !CreatePipeline(desc.Format))
+        return false;
+    return true;
+}
+
+bool EnsureTexture(UINT aWidth, UINT aHeight)
+{
+    if (g.texture && g.texWidth == aWidth && g.texHeight == aHeight)
+        return true;
+
+    // The old texture may still be in use by frames in flight.
+    if (g.fence->GetCompletedValue() < g.fenceValue)
+    {
+        g.fence->SetEventOnCompletion(g.fenceValue, g.fenceEvent);
+        WaitForSingleObject(g.fenceEvent, 1000);
+    }
+
+    D3D12_HEAP_PROPERTIES heap{};
+    heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+    D3D12_RESOURCE_DESC desc{};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Width = aWidth;
+    desc.Height = aHeight;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    g.texture.Reset();
+    HRESULT hr = g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g.texture));
+    if (FAILED(hr))
+        return Fail("CreateCommittedResource texture", hr);
+    g.texWidth = aWidth;
+    g.texHeight = aHeight;
+    g.texReady = false;
+    g.texShaderState = false; // created in COPY_DEST
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
+    srv.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv.Texture2D.MipLevels = 1;
+    g.device->CreateShaderResourceView(g.texture.Get(), &srv, g.srvHeap->GetCPUDescriptorHandleForHeapStart());
+    return true;
+}
+
+// Copies the pending frame, if any, into this slot's upload buffer and records the GPU copy.
+void RecordUpload(UINT aSlot)
+{
+    std::vector<uint8_t> pixels;
+    uint32_t width = 0, height = 0;
+    {
+        std::scoped_lock lock(g_frameMutex);
+        if (!g_hasPending)
+            return;
+        pixels.swap(g_pending);
+        width = g_pendingWidth;
+        height = g_pendingHeight;
+        g_hasPending = false;
+    }
+
+    if (!EnsureTexture(width, height))
+        return;
+
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+    UINT64 total = 0;
+    const D3D12_RESOURCE_DESC texDesc = g.texture->GetDesc();
+    g.device->GetCopyableFootprints(&texDesc, 0, 1, 0, &footprint, nullptr, nullptr, &total);
+
+    if (!g.upload[aSlot] || g.uploadSize[aSlot] < total)
+    {
+        D3D12_HEAP_PROPERTIES heap{};
+        heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+        D3D12_RESOURCE_DESC buf{};
+        buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buf.Width = total;
+        buf.Height = 1;
+        buf.DepthOrArraySize = 1;
+        buf.MipLevels = 1;
+        buf.SampleDesc.Count = 1;
+        buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        g.upload[aSlot].Reset();
+        HRESULT hr = g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buf,
+                                                       D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                                       IID_PPV_ARGS(&g.upload[aSlot]));
+        if (FAILED(hr))
+        {
+            Fail("CreateCommittedResource upload", hr);
+            return;
+        }
+        g.uploadSize[aSlot] = total;
+    }
+
+    uint8_t* mapped = nullptr;
+    D3D12_RANGE noRead{0, 0};
+    if (FAILED(g.upload[aSlot]->Map(0, &noRead, reinterpret_cast<void**>(&mapped))))
+        return;
+    for (uint32_t row = 0; row < height; ++row)
+    {
+        std::memcpy(mapped + footprint.Offset + row * footprint.Footprint.RowPitch, pixels.data() + row * width * 4,
+                    width * 4);
+    }
+    g.upload[aSlot]->Unmap(0, nullptr);
+
+    if (g.texShaderState)
+    {
+        auto b = Transition(g.texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+        g.list->ResourceBarrier(1, &b);
+    }
+    D3D12_TEXTURE_COPY_LOCATION dst{};
+    dst.pResource = g.texture.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    D3D12_TEXTURE_COPY_LOCATION src{};
+    src.pResource = g.upload[aSlot].Get();
+    src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint = footprint;
+    g.list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    auto b = Transition(g.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    g.list->ResourceBarrier(1, &b);
+    g.texShaderState = true;
+    g.texReady = true;
+}
+
+void Render(IDXGISwapChain* aSwapChain)
+{
+    std::scoped_lock renderLock(g_renderMutex);
+    if (g.failed || GetMode() == Mode::Hidden)
+        return;
+
+    ComPtr<IDXGISwapChain3> swapChain;
+    if (FAILED(aSwapChain->QueryInterface(IID_PPV_ARGS(&swapChain))) || !EnsureResources(swapChain.Get()))
+        return;
+
+    if (g_dropFrame.exchange(false))
+        g.texReady = false; // the texture stays allocated, the placeholder is drawn
+
+    const UINT slot = static_cast<UINT>(g.frameIndex++ % FramesInFlight);
+    if (g.fence->GetCompletedValue() < g.slotFence[slot])
+    {
+        g.fence->SetEventOnCompletion(g.slotFence[slot], g.fenceEvent);
+        WaitForSingleObject(g.fenceEvent, 100);
+    }
+    g.allocators[slot]->Reset();
+    g.list->Reset(g.allocators[slot].Get(), g.pso.Get());
+
+    RecordUpload(slot);
+    if (g.failed)
+    {
+        g.list->Close();
+        return;
+    }
+
+    ComPtr<ID3D12Resource> backBuffer;
+    const UINT index = swapChain->GetCurrentBackBufferIndex();
+    if (FAILED(swapChain->GetBuffer(index, IID_PPV_ARGS(&backBuffer))))
+    {
+        g.list->Close();
+        return;
+    }
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv = g.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+    rtv.ptr += SIZE_T(index) * g.rtvSize;
+    g.device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtv);
+
+    // Panel: page pixels scale with the screen height, centered.
+    const float scale = float(g.height) / ReferenceHeight;
+    const UINT pageW = g.texReady ? g.texWidth : PlaceholderWidth;
+    const UINT pageH = g.texReady ? g.texHeight : PlaceholderHeight;
+    PanelRect rect;
+    rect.scale = scale;
+    rect.width = pageW * scale;
+    rect.height = pageH * scale;
+    rect.x = (g.width - rect.width) * 0.5f;
+    rect.y = (g.height - rect.height) * 0.5f;
+    rect.backBufferWidth = float(g.width);
+    rect.backBufferHeight = float(g.height);
+    {
+        std::scoped_lock lock(g_rectMutex);
+        g_rect = rect;
+    }
+
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    Constants c{};
+    c.rect[0] = rect.x / g.width * 2 - 1;
+    c.rect[1] = 1 - rect.y / g.height * 2;
+    c.rect[2] = (rect.x + rect.width) / g.width * 2 - 1;
+    c.rect[3] = 1 - (rect.y + rect.height) / g.height * 2;
+    c.hasTex = g.texReady ? 1.0f : 0.0f;
+    c.mode = g.mode;
+    c.time = float(double(now.QuadPart - g_start.QuadPart) / double(g_freq.QuadPart));
+    c.nits = HdrPaperWhiteNits;
+
+    auto toTarget = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    g.list->ResourceBarrier(1, &toTarget);
+
+    D3D12_VIEWPORT viewport{0, 0, float(g.width), float(g.height), 0, 1};
+    D3D12_RECT scissor{0, 0, LONG(g.width), LONG(g.height)};
+    g.list->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    g.list->RSSetViewports(1, &viewport);
+    g.list->RSSetScissorRects(1, &scissor);
+    g.list->SetGraphicsRootSignature(g.rootSig.Get());
+    ID3D12DescriptorHeap* heaps[] = {g.srvHeap.Get()};
+    g.list->SetDescriptorHeaps(1, heaps);
+    g.list->SetGraphicsRoot32BitConstants(0, sizeof(Constants) / 4, &c, 0);
+    g.list->SetGraphicsRootDescriptorTable(1, g.srvHeap->GetGPUDescriptorHandleForHeapStart());
+    g.list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    g.list->DrawInstanced(4, 1, 0, 0);
+
+    auto toPresent = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    g.list->ResourceBarrier(1, &toPresent);
+
+    if (FAILED(g.list->Close()))
+    {
+        Fail("Close command list", E_FAIL);
+        return;
+    }
+    ID3D12CommandList* lists[] = {g.list.Get()};
+    g.queue->ExecuteCommandLists(1, lists);
+    g.queue->Signal(g.fence.Get(), ++g.fenceValue);
+    g.slotFence[slot] = g.fenceValue;
+}
+
+HRESULT STDMETHODCALLTYPE HookPresent(IDXGISwapChain* aSwapChain, UINT aSync, UINT aFlags)
+{
+    if (!(aFlags & DXGI_PRESENT_TEST))
+        Render(aSwapChain);
+    return g_origPresent(aSwapChain, aSync, aFlags);
+}
+
+HRESULT STDMETHODCALLTYPE HookPresent1(IDXGISwapChain1* aSwapChain, UINT aSync, UINT aFlags,
+                                       const DXGI_PRESENT_PARAMETERS* aParams)
+{
+    if (!(aFlags & DXGI_PRESENT_TEST))
+        Render(aSwapChain);
+    return g_origPresent1(aSwapChain, aSync, aFlags, aParams);
+}
+
+bool PatchSlot(size_t aSlot, void* aValue, void** aOld)
+{
+    DWORD protect = 0;
+    if (!VirtualProtect(&g_vtable[aSlot], sizeof(void*), PAGE_READWRITE, &protect))
+        return false;
+    if (aOld)
+        *aOld = g_vtable[aSlot];
+    g_vtable[aSlot] = aValue;
+    VirtualProtect(&g_vtable[aSlot], sizeof(void*), protect, &protect);
+    FlushInstructionCache(GetCurrentProcess(), &g_vtable[aSlot], sizeof(void*));
+    return true;
+}
+} // namespace
+
+bool InstallCompositor(HWND& aWindow)
+{
+    if (g_vtable)
+        return true;
+
+    auto* data = RED4ext::GpuApi::GetDeviceData();
+    if (!data || !data->device || !data->directCommandQueue)
+    {
+        Log("Overlay: the game's D3D12 device is not ready");
+        return false;
+    }
+
+    IDXGISwapChain4* swapChain = nullptr;
+    for (uint32_t id = 1; id <= 32 && !swapChain; ++id)
+    {
+        if (data->swapChains.IsUsedID(id) && data->swapChains.GetData(id).swapChain)
+        {
+            swapChain = data->swapChains.GetData(id).swapChain.Get();
+            aWindow = data->swapChains.GetData(id).windowHandle;
+        }
+    }
+    if (!swapChain)
+    {
+        Log("Overlay: no swapchain found");
+        return false;
+    }
+
+    g.device = data->device;
+    g.queue = data->directCommandQueue;
+    QueryPerformanceFrequency(&g_freq);
+    QueryPerformanceCounter(&g_start);
+
+    g_vtable = *reinterpret_cast<void***>(swapChain);
+    void* old = nullptr;
+    if (!PatchSlot(PresentSlot, reinterpret_cast<void*>(&HookPresent), &old))
+    {
+        Log("Overlay: could not patch Present");
+        g_vtable = nullptr;
+        return false;
+    }
+    g_origPresent = reinterpret_cast<PresentFn>(old);
+    if (PatchSlot(Present1Slot, reinterpret_cast<void*>(&HookPresent1), &old))
+        g_origPresent1 = reinterpret_cast<Present1Fn>(old);
+
+    Log("Overlay: Present hooked. F10 cycles passive, interactive and hidden.");
+    return true;
+}
+
+void UninstallCompositor()
+{
+    if (!g_vtable)
+        return;
+    PatchSlot(PresentSlot, reinterpret_cast<void*>(g_origPresent), nullptr);
+    if (g_origPresent1)
+        PatchSlot(Present1Slot, reinterpret_cast<void*>(g_origPresent1), nullptr);
+    g_vtable = nullptr;
+
+    std::scoped_lock renderLock(g_renderMutex);
+    if (g.fence && g.fence->GetCompletedValue() < g.fenceValue)
+    {
+        g.fence->SetEventOnCompletion(g.fenceValue, g.fenceEvent);
+        WaitForSingleObject(g.fenceEvent, 1000);
+    }
+    if (g.fenceEvent)
+        CloseHandle(g.fenceEvent);
+    g = Gpu{};
+}
+
+void SubmitFrame(uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels)
+{
+    std::scoped_lock lock(g_frameMutex);
+    g_pending = std::move(aPixels);
+    g_pendingWidth = aWidth;
+    g_pendingHeight = aHeight;
+    g_hasPending = true;
+}
+
+void DropFrame()
+{
+    {
+        std::scoped_lock lock(g_frameMutex);
+        g_hasPending = false;
+        g_pending.clear();
+    }
+    g_dropFrame = true;
+}
+
+PanelRect GetPanelRect()
+{
+    std::scoped_lock lock(g_rectMutex);
+    return g_rect;
+}
+} // namespace rednode::overlay::detail

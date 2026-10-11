@@ -9,8 +9,11 @@
 //
 // Also dumps the game's RTTI for the game API reference when the file
 // dump.request sits next to the DLL. See dump.cpp.
+//
+// And runs the HTML overlay proof of concept. See overlay/ and docs/overlay.md.
 
 #include "dump.hpp"
+#include "overlay/overlay.hpp"
 
 #include <RED4ext/RED4ext.hpp>
 
@@ -135,6 +138,7 @@ bool OnRunningEnter(RED4ext::CGameApplication* aApp)
 
     g_sdk->logger->Info(g_handle, "Game thread pump started");
     DumpIfRequested();
+    rednode::overlay::Install();
     return true;
 }
 
@@ -153,7 +157,12 @@ bool OnRunningUpdate(RED4ext::CGameApplication* aApp)
     for (const auto& [name, value] : events)
     {
         g_sdk->logger->InfoF(g_handle, "Event drained on frame %llu: %s = %d", g_frames, name.c_str(), value);
+        rednode::overlay::SendJson("{\"event\":\"game\",\"name\":" + rednode::overlay::JsonString(name) +
+                                   ",\"value\":" + std::to_string(value) + ",\"frame\":" + std::to_string(g_frames) +
+                                   "}");
     }
+
+    rednode::overlay::Update(g_frames);
 
     if (g_frames % HeartbeatFrames == 0)
     {
@@ -182,7 +191,7 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
         g_handle = aHandle;
         g_sdk = aSdk;
 
-        aSdk->logger->Info(aHandle, "REDnode 0.2.0 loading (P1 probe)");
+        aSdk->logger->Info(aHandle, "REDnode 0.3.0 loading (P1 probe, overlay proof of concept)");
 
         RED4ext::CRTTISystem::Get()->AddPostRegisterCallback(PostRegisterTypes);
 
@@ -191,6 +200,8 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
         {
             aSdk->logger->Error(aHandle, "Could not add the Running game state");
         }
+
+        rednode::overlay::Start(aHandle, aSdk);
 
         const auto scripts = GetPluginDir() / L"Scripts";
         if (!aSdk->scripts->Add(aHandle, scripts.c_str()))
@@ -201,6 +212,7 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
     }
     case RED4ext::v1::EMainReason::Unload:
     {
+        rednode::overlay::Stop();
         break;
     }
     }
@@ -212,7 +224,7 @@ RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::v1::PluginInfo* aInfo)
 {
     aInfo->name = L"REDnode";
     aInfo->author = L"CyberbuildsAI";
-    aInfo->version = RED4EXT_V1_SEMVER(0, 2, 0);
+    aInfo->version = RED4EXT_V1_SEMVER(0, 3, 0);
     aInfo->runtime = RED4EXT_V1_RUNTIME_VERSION_LATEST;
     aInfo->sdk = RED4EXT_V1_SDK_VERSION_CURRENT;
 }
