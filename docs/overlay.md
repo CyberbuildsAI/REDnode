@@ -180,7 +180,7 @@ Rules that make borderless windows behave:
 |---|---|---|
 | **O1 Windows** | Several windows, each with its own texture and placement. Drag handles, focus, z-order, click-through on transparent pixels, saved positions. Drag runs in the plugin, at the game's frame rate | Two demo windows can be dragged, overlapped and focused. Clicks pass through transparent parts |
 | **O2 UI kit** | `@rednode/ui`: web components with the `rednode` and `game` themes, keyboard and gamepad navigation, UI sounds through the game. See [UI kit](#ui-kit) | A titled window with widgets, and a borderless native-style button, both built from markup only |
-| **O3 Apps** | App folders with a `rednode-app.json` manifest (id, name, entry page, kind, size, anchor). The host loads every app it finds. A launcher app, built with the UI kit, opens and closes the others | A third-party style app in its own folder loads without changing the host |
+| **O3 Apps** | App folders with a `rednode-app.json` manifest (id, name, entry page, kind, size, anchor). The host loads every app it finds. A launcher app, built with the UI kit, opens and closes the others. **Player install:** the host packaged as a standalone app and started by the plugin (see [Player install](#player-install)) | A packaged build copied into the game folder starts on its own with the game, and a third-party style app in its own folder loads without changing the host |
 | **O4 HUD widgets** | The `hud` kind, anchors, and `hideWith`, driven by game UI state events from the bridge. Research which game state shows menus, photo mode and scenes | A HUD widget sits at a screen edge, never takes input, and hides in menus and photo mode |
 | **O5 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
 | **O6 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data. Node mods get the UI builder | A Node mod and an overlay app use the same API call and get the same answer. A Node mod opens a window without writing HTML |
@@ -254,6 +254,25 @@ Every REDnode kernel reaches the same widgets, because only the overlay host can
 | Overlay app (HTML and JavaScript) | Uses the components in its markup |
 | Tier 2 Node mod | A builder that produces the same components, for example `rednode.ui.window({ title, children: [button('Apply')] })`. No HTML needed. Arrives in O6 |
 | Tier 1 and declarative rules | Ask through the bridge for a ready-made piece of UI, such as a notification. The host renders it with the kit |
+
+### Player install
+
+Running `npm run overlay` by hand is the developer setup. Players should install from Nexus Mods or with Vortex and have it work, like CET. Planned for O3:
+
+| Piece | How |
+|---|---|
+| Packaged host | Build the Electron host into a standalone app with its own Node (for example with electron-builder). No Node, npm or repo needed. Ships inside the REDnode mod, for example `red4ext/plugins/REDnode/host/`. About 100 MB unpacked |
+| Auto-start | The plugin starts the host when the game starts. The host exits when the pipe closes, so it never outlives the game |
+| Apps as separate mods | Overlay apps, and later Tier 2 Node mods, install into a REDnode apps folder, each with its manifest. On Nexus they list REDnode as a requirement, like CET mods list CET |
+| Player settings | Enabled apps, the hotkey (F10 today) and similar, held by the launcher app |
+
+The player's path then is: install RED4ext and REDnode, add any REDnode apps, launch the game.
+
+| Risk | Note |
+|---|---|
+| Antivirus | A game plugin that starts a program may cause false alarms. Code signing helps. Unverified |
+| Size | About 100 MB is large for a mod, but fine for Nexus |
+| Vortex | The archive layout must let Vortex deploy REDnode as a normal mod |
 
 ### Looking like the game
 
