@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+
+# native build output
+native/build/
+native/out/
+*.obj
+*.pdb
+*.ilk
+
+# never commit game files or data extracted from them
+*.archive
+*.dll
+*.exe
+rtti-dump*
