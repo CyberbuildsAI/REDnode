@@ -2,7 +2,7 @@
 
 The RED4ext plugin. C++20, built with CMake against [RED4ext.SDK](https://github.com/WopsS/RED4ext.SDK) (MIT), which CMake fetches at a pinned revision.
 
-Current state: **P1 probe.** See [docs/p0-findings.md](../docs/p0-findings.md) for the hypotheses it tests.
+Current state: **P1 probe, passed in game** on 2026-10-11. See [docs/p0-findings.md](../docs/p0-findings.md) for the hypotheses it tests and [docs/p1-results.md](../docs/p1-results.md) for the results.
 
 ## What the probe does
 

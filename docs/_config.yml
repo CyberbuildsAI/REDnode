@@ -29,5 +29,7 @@ nav:
     url: /design.html
   - title: P0 findings
     url: /p0-findings.html
+  - title: P1 results
+    url: /p1-results.html
   - title: Dev setup
     url: /dev-setup.html

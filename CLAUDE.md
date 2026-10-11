@@ -5,12 +5,10 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). Read 
 ## Current status and next step
 
 - **P0 Research:** RED4ext side done. Cyber Engine Tweaks analysis deferred.
-- **P1 Proof:** the probe plugin in `native/` builds. **Next step: the in-game test.**
-  1. Build: `.\tools\build-native.ps1`
-  2. Deploy: `.\tools\deploy-native.ps1` (add `-GameDir '<path>'` if the game is not at the default Steam path). Ask the user first, because it changes their game folder.
-  3. The user launches the game from Steam, loads a save, plays about two minutes, and quits to desktop through the menu.
-  4. Read `red4ext/logs/red4ext-*.log` (and any REDnode log beside it) plus `r6/logs/` for redscript errors. Success is `Event drained on frame N: PlayerPuppet.OnGameAttached REDnode_Ping(21) = 42`. The full list of expected lines is in [native/README.md](native/README.md).
-  5. Write the results into `docs/p0-findings.md` (or a new `docs/p1-results.md`) and update the roadmap table in `docs/index.md`.
+- **P1 Proof:** passed in game on 2026-10-11. See [docs/p1-results.md](docs/p1-results.md). `OnGameAttached` fired twice in one session, cause unverified. **Next step: the ordered retest (runs A to E) in that page.**
+  - Deploy with `.\tools\deploy-native.ps1` (add `-GameDir '<path>'` if the game is not at the default Steam path). Ask the user first, because it changes their game folder. Build first with `.\tools\build-native.ps1` if `native/` changed.
+  - After a run, read `red4ext/logs/rednode-*.log` and `red4ext/logs/red4ext-*.log`, plus `r6/logs/redscript_rCURRENT.log` for script errors. Wait for the game process to exit first, or the logs may be empty. The expected lines are in [native/README.md](native/README.md).
+  - Record results in `docs/p1-results.md` and keep the roadmap table in `docs/index.md` current.
 
 The game needs about 12 to 16 GB of RAM. On a 16 GB machine, ask the user to close other apps before testing.
 
