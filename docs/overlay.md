@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O1 Windows built, in-game test pending.** The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O1 Windows passed in game.** Next: O2 UI kit. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -197,6 +197,8 @@ Built 2026-10-11, REDnode 0.4.0. Window logic is covered by 19 unit tests in `na
 5. Click **Ping** on Signal: it shows the game frame.
 6. Click empty screen, away from both windows: interactive mode ends and the game gets input back.
 7. Quit the game and the host, start both again: the windows come back where you left them.
+
+**Result, 2026-10-11: passed.** Modded profile with CET, 3840 x 2160 SDR. Every step worked: dragging, front-to-back order and focus, click-through on Signal's transparent middle, Ping, leaving interactive mode by clicking empty screen, and saved positions across a restart of the game and the host. No errors in the logs.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
