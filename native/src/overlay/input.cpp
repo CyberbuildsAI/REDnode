@@ -24,8 +24,10 @@ HWND g_window = nullptr;
 WNDPROC g_origProc = nullptr;
 std::atomic_int g_mode{static_cast<int>(Mode::Passive)};
 
-float g_cursorX = 0;
-float g_cursorY = 0;
+// Virtual cursor in page pixels. Written by the window thread, read by the
+// compositor, which draws it every frame.
+std::atomic<float> g_cursorX{0};
+std::atomic<float> g_cursorY{0};
 bool g_rawMouse = false;    // raw mouse input seen: use it, ignore WM_MOUSEMOVE and buttons
 bool g_rawKeyboard = false; // raw keyboard input seen: use it, ignore WM_KEYDOWN and WM_CHAR
 
@@ -40,7 +42,7 @@ void SendMouse(const char* aType, const char* aButton = nullptr, int aDelta = 0)
 {
     std::string json = "{\"event\":\"input\",\"type\":\"";
     json += aType;
-    json += "\",\"x\":" + std::to_string(int(g_cursorX)) + ",\"y\":" + std::to_string(int(g_cursorY));
+    json += "\",\"x\":" + std::to_string(int(g_cursorX.load())) + ",\"y\":" + std::to_string(int(g_cursorY.load()));
     if (aButton)
         json += std::string(",\"button\":\"") + aButton + "\"";
     if (aDelta)
@@ -65,8 +67,8 @@ void MoveCursorBy(float aDx, float aDy)
 {
     float w, h;
     PageSize(w, h);
-    g_cursorX = std::clamp(g_cursorX + aDx, 0.0f, std::max(0.0f, w - 1));
-    g_cursorY = std::clamp(g_cursorY + aDy, 0.0f, std::max(0.0f, h - 1));
+    g_cursorX = std::clamp(g_cursorX.load() + aDx, 0.0f, std::max(0.0f, w - 1));
+    g_cursorY = std::clamp(g_cursorY.load() + aDy, 0.0f, std::max(0.0f, h - 1));
     SendMouse("mouseMove");
 }
 
@@ -308,6 +310,12 @@ const char* ModeName(Mode aMode)
     default:
         return "passive";
     }
+}
+
+void GetCursor(float& aX, float& aY)
+{
+    aX = g_cursorX.load();
+    aY = g_cursorY.load();
 }
 
 bool InstallInput(HWND aWindow)

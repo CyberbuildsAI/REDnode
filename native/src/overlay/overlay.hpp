@@ -68,6 +68,7 @@ void DropFrame(); // back to the placeholder, e.g. when the host disconnects
 
 // input.cpp
 bool InstallInput(HWND aWindow);
+void GetCursor(float& aX, float& aY); // page pixels
 void UninstallInput();
 
 // bridge.cpp

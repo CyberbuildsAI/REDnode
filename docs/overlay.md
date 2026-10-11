@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **proposal, proof of concept in progress.** Nothing here is tested in game yet unless marked as tested.
+Status: **proof of concept works in game.** All four steps passed on 2026-10-11, in a clean setup without CET. Two usability issues found in the test are fixed but not retested in game yet. See [Test results](#test-results).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -77,8 +77,32 @@ Simplifications in the proof of concept, all to revisit if it goes further:
 - **CPU frame copy.** Frames travel through the pipe as raw BGRA pixels and are uploaded each time the page repaints. The real version would share a GPU texture with Chromium.
 - **One fixed panel** of 1024 x 640 pixels, scaled with the screen height. No window management.
 - **One app**, loaded by the host at start.
-- **The page draws its own cursor**, because off-screen Chromium does not paint one.
+- **The plugin draws the cursor** in its shader, from the position it tracks. Off-screen Chromium does not paint one, and a page-drawn cursor lags (see the test results).
 - **HDR:** the shader converts for scRGB and PQ output, but the brightness level is a guess.
+
+## Test results
+
+### Run 1: 2026-10-11, clean setup
+
+| Item | Value |
+|---|---|
+| Game | 2.31, Vortex `vanilla` profile: RED4ext, redscript and REDnode 0.3.0 only. No CET |
+| Display | 3840 x 2160 swapchain, format 28 (`R8G8B8A8_UNORM`), SDR. The panel is drawn at 2x |
+| Host | Electron 44.7.0, 30 frames a second |
+
+| Step | Result |
+|---|---|
+| 1. Compositor | **Passed.** The panel was drawn at the main menu and in gameplay |
+| 2. Live HTML | **Passed.** The clock ticked and the bar moved |
+| 3. Input | **Passed**, with two usability issues below. Clicks and typing reached the page |
+| 4. Bridge | **Passed.** `player.position` returned V's position. `OnGameAttached` events reached the page at the main menu and on load |
+| F10 modes | **Passed.** Three full cycles of passive, interactive and hidden |
+| Logs | No errors or warnings. redscript compiled cleanly |
+
+| Issue | Cause | Fix (not yet retested in game) |
+|---|---|---|
+| The cursor lagged | The page drew it. Each move went through the pipe, a Chromium repaint at 30 fps and a 2.6 MB frame back | The plugin draws the cursor in its shader. The host now runs at 60 fps |
+| No text caret in the text box | Off-screen Chromium did not treat the page as focused. Typing still worked | The host calls `focusOnWebView()` in interactive mode. It focuses the page without taking OS focus from the game. `webContents.focus()` did not work, and showing the window would take OS focus |
 
 ## Risks and open questions
 
@@ -86,7 +110,8 @@ Simplifications in the proof of concept, all to revisit if it goes further:
 |---|---|
 | Coexisting with CET, which also hooks `Present` and the window procedure | Unverified. REDnode patches the vtable entry and chains to whatever was there, so CET's code hook still runs |
 | Blocking game input | Unverified. If the game polls raw input instead of reading window messages, keys and mouse may still reach the game in interactive mode |
-| Mouse position while the game hides and locks the cursor | Handled by summing raw mouse movement into a virtual cursor. Unverified |
+| Mouse position while the game hides and locks the cursor | Handled by summing raw mouse movement into a virtual cursor. Worked in run 1 |
+| Blocking game input in a clean setup | Worked in run 1: input reached the page. Not yet tested with CET |
 | Memory | Electron adds a few hundred MB. Unverified for this use |
 | Frame pacing | Uploading a frame costs GPU time on the present path. Only done when the page repaints |
 | Upscalers and frame generation | Unverified. The overlay is drawn on the final back buffer, after them |

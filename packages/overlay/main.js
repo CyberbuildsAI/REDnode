@@ -16,7 +16,7 @@ const path = require('node:path');
 const PIPE = '\\\\.\\pipe\\rednode-overlay';
 const WIDTH = 1024;
 const HEIGHT = 640;
-const FPS = 30;
+const FPS = 60;
 const TYPE_FRAME = 1;
 const TYPE_JSON = 2;
 
@@ -181,6 +181,9 @@ function onGameMessage(m) {
   }
   if (m.event === 'overlay' || m.event === 'hello') {
     mode = m.mode;
+    // Chromium only draws the text caret and :focus styles in a focused page.
+    // focusOnWebView focuses the page without taking OS focus from the game.
+    if (mode === 'interactive') win.focusOnWebView();
     log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
   }
   toPage(m);
@@ -209,7 +212,7 @@ app.whenReady().then(() => {
   win = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
-    show: windowed,
+    show: windowed, // never show the off-screen window: that would take OS focus from the game
     frame: windowed,
     transparent: !windowed,
     backgroundColor: windowed ? '#08090d' : '#00000000',

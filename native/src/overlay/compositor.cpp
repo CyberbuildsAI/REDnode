@@ -32,7 +32,13 @@ constexpr float ReferenceHeight = 1080.0f; // page pixels map 1:1 at 1080p
 constexpr float HdrPaperWhiteNits = 200.0f;  // unverified guess
 
 constexpr char ShaderSource[] = R"(
-cbuffer Panel : register(b0) { float4 rect; float hasTex; float mode; float time; float nits; };
+cbuffer Panel : register(b0)
+{
+    float4 rect;
+    float hasTex; float mode; float time; float nits;
+    float2 cursor; float showCursor; float pageW;
+    float pageH; float3 pad;
+};
 Texture2D tex : register(t0);
 SamplerState smp : register(s0);
 struct V { float4 pos : SV_Position; float2 uv : TEXCOORD0; };
@@ -54,6 +60,30 @@ float3 ToPQ(float3 n)
     return pow((0.8359375 + 18.8515625 * y) / (1.0 + 18.6875 * y), 78.84375);
 }
 
+// The cursor arrow, in page pixels with the tip at (0, 0).
+static const float2 Arrow[7] = {
+    float2(0, 0), float2(0, 18), float2(5, 13.5), float2(8.5, 21), float2(11.5, 19.6), float2(8, 12.4), float2(15, 12.4)
+};
+
+// 0 outside, 1 outline, 2 fill.
+float CursorHit(float2 p)
+{
+    bool inside = false;
+    float d = 1e9;
+    [unroll] for (int k = 0, j = 6; k < 7; j = k++)
+    {
+        float2 a = Arrow[k], b = Arrow[j];
+        float dy = b.y - a.y;
+        if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (abs(dy) < 1e-4 ? 1e-4 : dy) + a.x)
+            inside = !inside;
+        float2 ab = b - a;
+        float t = saturate(dot(p - a, ab) / dot(ab, ab));
+        d = min(d, length(p - (a + ab * t)));
+    }
+    if (inside) return d < 1.3 ? 1 : 2;
+    return d < 1.3 ? 1 : 0;
+}
+
 float4 ps(V i) : SV_Target
 {
     float4 c;
@@ -70,6 +100,14 @@ float4 ps(V i) : SV_Target
         if (edge < 0.004) { col = float3(0.99, 0.93, 0.04); a = 1; }
         if (abs(i.uv.y - frac(time * 0.25)) < 0.003) { col = float3(0.1, 0.95, 1.0); a = 1; }
         c = float4(col * a, a);
+    }
+
+    if (showCursor > 0.5)
+    {
+        // Drawn here, not by the page, so it moves at the game's frame rate.
+        float hit = CursorHit(i.uv * float2(pageW, pageH) - cursor);
+        if (hit > 1.5) c = float4(0.99, 0.93, 0.04, 1);
+        else if (hit > 0.5) c = float4(0.03, 0.035, 0.05, 1);
     }
 
     if (mode > 0.5)
@@ -97,6 +135,11 @@ struct Constants
     float mode;
     float time;
     float nits;
+    float cursor[2];
+    float showCursor;
+    float pageW;
+    float pageH;
+    float pad[3];
 };
 
 using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
@@ -541,6 +584,10 @@ void Render(IDXGISwapChain* aSwapChain)
     c.mode = g.mode;
     c.time = float(double(now.QuadPart - g_start.QuadPart) / double(g_freq.QuadPart));
     c.nits = HdrPaperWhiteNits;
+    GetCursor(c.cursor[0], c.cursor[1]);
+    c.showCursor = GetMode() == Mode::Interactive ? 1.0f : 0.0f;
+    c.pageW = float(pageW);
+    c.pageH = float(pageH);
 
     auto toTarget = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     g.list->ResourceBarrier(1, &toTarget);
