@@ -14,7 +14,14 @@ Reference machine: Windows 11 Home (build 26200), 16 GB RAM.
 | Node.js | 24.18.0, npm 12.0.1 | The `rednode` SDK package | `nvm install 24` then `nvm use 24` |
 | Python | 3.14.6 | Small analysis scripts in `tools/`. Standard library only | Any Python 3.10 or later, for example from python.org |
 
-`gh` (GitHub CLI) is **not** installed. Optional, but it makes repository settings scriptable: `winget install --id GitHub.cli -e`.
+`gh` (GitHub CLI) 2.102.0 is optional. It makes repository settings scriptable and shows Pages deploy runs:
+
+```powershell
+winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements
+gh auth login   # interactive: GitHub.com, HTTPS, sign in in the browser as CyberbuildsAI
+```
+
+Open a new terminal after installing so `gh` is on PATH.
 
 ## 2. C++ toolchain for the native plugin
 
