@@ -256,7 +256,7 @@ Two new apps open: **Coords HUD**, a strip at the top of the screen with V's pos
 
 **Result, 2026-10-11: passed, with one open item.** Modded profile with CET. The HUD was hidden at the main menu, showed in gameplay with live coordinates, let clicks through, and hid with the inventory, map, pause menu and photo mode. It stayed visible while talking to NPCs, as intended: conversations are normal play, with the dialogue choices shown in the world. Hidden mode hid everything.
 
-**Open: the `scene` threshold.** No cutscene could be triggered in this save, so `SceneTier >= 4` is still unverified. Test it on a fresh playthrough, where the opening has several scenes: watch the scene tier in the Game state app and check that the HUD hides in cutscenes but not in normal conversations.
+**Open: the `scene` threshold.** A conversation with an NPC is scene tier 2, so the threshold must be above 2, and at 4 the HUD correctly stays up in conversations. No cutscene could be triggered in this save, so whether cutscenes are tier 4 or 5, and what tier 3 is, is still unverified. Test it on a fresh playthrough, where the opening has several scenes: watch the scene tier in the Game state app and check that the HUD hides in cutscenes but not in normal conversations.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
