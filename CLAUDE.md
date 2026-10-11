@@ -5,10 +5,13 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). Read 
 ## Current status and next step
 
 - **P0 Research:** RED4ext side done. Cyber Engine Tweaks analysis deferred.
-- **P1 Proof:** passed in game on 2026-10-11. See [docs/p1-results.md](docs/p1-results.md). `OnGameAttached` fired twice in one session, cause unverified. **Next step: the ordered retest (runs A to E) in that page.**
+- **P1 Proof:** done. Passed in game on 2026-10-11. See [docs/p1-results.md](docs/p1-results.md). `OnGameAttached` fires at the main menu and on every save load, not once per session.
+- **Next step:** not chosen yet. Candidates are in the "Next" section of the P1 results page. Agree it with the user before starting.
+- **In-game tests:**
   - Deploy with `.\tools\deploy-native.ps1` (add `-GameDir '<path>'` if the game is not at the default Steam path). Ask the user first, because it changes their game folder. Build first with `.\tools\build-native.ps1` if `native/` changed.
   - After a run, read `red4ext/logs/rednode-*.log` and `red4ext/logs/red4ext-*.log`, plus `r6/logs/redscript_rCURRENT.log` for script errors. Wait for the game process to exit first, or the logs may be empty. The expected lines are in [native/README.md](native/README.md).
-  - Record results in `docs/p1-results.md` and keep the roadmap table in `docs/index.md` current.
+  - To tie log lines to player actions, give the user a fixed order of steps with a 30-second pause after each, timed on a phone stopwatch. The user's clock shows only hours and minutes, so don't ask for clock times.
+  - Record results in a results page for the phase (like `docs/p1-results.md`) and keep the roadmap table in `docs/index.md` current.
 
 The game needs about 12 to 16 GB of RAM. On a 16 GB machine, ask the user to close other apps before testing.
 

@@ -1,6 +1,6 @@
 # P1 results: in-game probe test
 
-Status: **passed.** The probe plugin loads, both tier paths work, and the game-thread pump runs and stops cleanly. One detail is not explained yet: the probe event fired twice in one session. A follow-up test is planned below.
+Status: **passed.** The probe plugin loads, both tier paths work, and the game-thread pump runs and stops cleanly. A second session explained why the probe event fired more than once: `PlayerPuppet.OnGameAttached` runs at the main menu and again on every save load.
 
 ## Setup
 
@@ -13,17 +13,7 @@ Status: **passed.** The probe plugin loads, both tier paths work, and the game-t
 | Other mods | ArchiveXL, Codeware, TweakXL, audioware, CET and about 10 more, managed by Vortex |
 | REDnode | 0.1.0, the P1 probe from [native/](https://github.com/CyberbuildsAI/REDnode/tree/main/native), built with MSVC 14.44 |
 
-The probe was deployed by hand with `tools/deploy-native.ps1`, not through Vortex.
-
-## What the player did
-
-1. Launched the game from Steam. Steam was still syncing saves from the cloud.
-2. Tried to load a save a couple of times. Loading had to wait until the cloud sync finished.
-3. Loaded a save and played for about two minutes.
-4. Saved the game once.
-5. Quit to desktop through the menu.
-
-The exact time of each action was not recorded.
+The probe was deployed by hand with `tools/deploy-native.ps1`, not through Vortex. Both sessions used the same build.
 
 ## Results
 
@@ -33,11 +23,29 @@ The exact time of each action was not recorded.
 | Script compiles | No redscript errors | Passed: `REDnode.reds` compiled with all other mods, `Compilation complete` |
 | RTTI access | Type and function counts | Passed: 12,039 types, 716 global functions |
 | Tier 1 path | Synchronous call returns its value to the script | Passed: `REDnode_Ping(21) = 42` |
-| Tier 2 path | Queued event handled on the game thread | Passed: drained by the pump on frame 80 |
-| Pump | Starts, logs heartbeats, stops | Passed: 6 heartbeats, stopped after 23,782 frames |
+| Tier 2 path | Queued event handled on the game thread | Passed: every event was drained by the pump |
+| Pump | Starts, logs heartbeats, stops | Passed in both sessions |
 | Shutdown | Plugin unloads | Passed: `REDnode has been unloaded` |
 
-## Log
+## When `OnGameAttached` fires
+
+| Player action | Fires the event |
+|---|---|
+| Game reaches the main menu | Yes, once, about 2 seconds after the pump starts |
+| Open the load-save list and back out | No |
+| Load a save from the main menu | Yes, once |
+| Save the game | No |
+| Load a save from the pause menu | Yes, once |
+
+This comes from session 2, which ran the actions in a fixed order with 30-second pauses between them. Events were matched to actions by their order and the gaps between them, not by clock times.
+
+Why the main menu attaches a `PlayerPuppet` is **unverified**. The menu may load a small world with a puppet in it.
+
+**For later phases:** mods must not assume `OnGameAttached` runs once per session, or that it means a save is loaded. The rednode API should expose a clear "session started" event that ignores the main menu. How to tell the two apart is not worked out yet.
+
+## Session 1: first run
+
+The player launched the game while Steam was still syncing saves from the cloud. They tried to load a save a couple of times, loaded one once the sync finished, played about two minutes, saved once and quit through the menu. Times were not recorded.
 
 `red4ext/logs/rednode-2026-10-11-10-57-20.log`, complete:
 
@@ -56,56 +64,62 @@ The exact time of each action was not recorded.
 11:01:19.332  Game thread pump stopped after 23782 frames
 ```
 
-RED4ext started at 10:57:16 and logged the unload at 11:01:45. The game process took several more seconds to exit after the player quit.
+Two events fired. Session 2 showed that frame 80 was the main menu and frame 9,608 was the save load.
 
-## Observations
+RED4ext logged the unload at 11:01:45. The game process took several more seconds to exit after the player quit, and the log files were empty until it did.
 
-### The probe event fired twice
+## Session 2: ordered retest
 
-`PlayerPuppet.OnGameAttached` ran on frame 80 and again on frame 9,608, about 38 seconds apart. The probe only reacts to that callback, so the game attached a player puppet twice.
+The player did these steps in one session, waiting for the cloud sync before starting and pausing about 30 seconds (phone stopwatch) after each step:
 
-The cause is **unverified**. Possible reasons:
-
-| Hypothesis | Notes |
+| Step | Action |
 |---|---|
-| The main menu attaches a player puppet | Frame 80 is 2 seconds after the pump started. That is likely before the cloud sync finished and before any save could load |
-| Each save load attaches the player again | The player tried to load more than once. Only one load is known to have completed |
-| Opening the load-save list attaches a puppet | Not expected, but not ruled out |
-| Saving the game attaches a puppet | Not expected, but not ruled out |
+| A | Launch and wait on the main menu |
+| B | Open the load-save list, back out, twice |
+| C | Load a save |
+| D | Save the game |
+| E | Load a different save from the pause menu |
+| | Quit to desktop through the menu |
 
-Either way the probe behaved correctly. Each call returned 42 and was drained on the game thread. For later phases this matters: mods must not assume `OnGameAttached` runs once per session.
+`red4ext/logs/rednode-2026-10-11-11-14-32.log`, complete, with the matched step:
 
-### Pump frame rate varies a lot
+```
+11:14:32.206  REDnode 0.1.0 loading (P1 probe)
+11:14:32.564  RTTI ready: 12039 types, 716 global functions
+11:14:49.761  Game thread pump started
+11:14:51.785  Event drained on frame 77: ... = 42          <- A: main menu
+11:15:07.548  Pump heartbeat: 3600 frames
+11:15:20.973  Pump heartbeat: 7200 frames
+11:15:34.531  Pump heartbeat: 10800 frames
+11:15:49.014  Pump heartbeat: 14400 frames                  (B: no event)
+11:16:03.559  Pump heartbeat: 18000 frames
+11:16:17.826  Pump heartbeat: 21600 frames
+11:16:31.075  Pump heartbeat: 25200 frames
+11:16:44.365  Pump heartbeat: 28800 frames
+11:16:51.643  Event drained on frame 31010: ... = 42        <- C: load save
+11:17:23.831  Pump heartbeat: 32400 frames                  (D: no event)
+11:17:57.073  Pump heartbeat: 36000 frames
+11:18:40.765  Event drained on frame 39200: ... = 42        <- E: load from pause menu
+11:18:43.433  Pump heartbeat: 39600 frames
+11:19:19.858  Game thread pump stopped after 41364 frames  <- quit, 39 s after E
+```
 
-A "frame" here is one call of the pump's `OnUpdate` in the `Running` game state. Rates worked out from the heartbeat times:
+Each event line reads `PlayerPuppet.OnGameAttached REDnode_Ping(21) = 42` in full.
 
-| Interval | Frames | Seconds | About fps |
-|---|---|---|---|
-| Start to 3,600 | 3,600 | 17.6 | 204 |
-| 3,600 to 7,200 | 3,600 | 14.0 | 258 |
-| 7,200 to 10,800 | 3,600 | 26.2 | 137 |
-| 10,800 to 14,400 | 3,600 | 103.5 | 35 |
-| 14,400 to 18,000 | 3,600 | 29.6 | 122 |
-| 18,000 to 21,600 | 3,600 | 12.4 | 289 |
-| 21,600 to stop | 2,182 | 15.4 | 141 |
+The two minutes between A and C cover the sync wait, the A pause and step B, and contain no event. The 1 minute 49 seconds between C and E cover the C pause, step D with its pause, and the load in step E, and also contain no event.
 
-High rates fit menus and loading screens, and the 35 fps stretch fits gameplay. This is **unverified** because the actions were not timed. The heartbeat counts pump updates, not seconds, so it is not a clock.
+## Pump frame rate
 
-## Follow-up: ordered retest
+A "frame" here is one call of the pump's `OnUpdate` in the `Running` game state. The heartbeat counts pump updates, not seconds, so it is not a clock.
 
-Goal: tie each `OnGameAttached` event to a specific player action. Do one run per row. Start each run from a closed game. Wait for Steam cloud sync to finish before doing anything in the menu. Write down the clock time of each action, to the second if possible.
-
-| Run | Actions, in order | Answers |
+| Session | Main menu | Gameplay |
 |---|---|---|
-| A | Launch. Stay on the main menu for 60 seconds without touching anything. Quit | Does the main menu fire the event? |
-| B | Launch. Open the load-save list, back out. Repeat once. Quit | Does browsing saves fire it? |
-| C | Launch. Load one save. Play 60 seconds. Quit | One event per load? |
-| D | Launch. Load a save. Save the game. Wait 30 seconds. Quit | Does saving fire it? |
-| E | Launch. Load save 1. Play 30 seconds. Load save 2 from the pause menu. Play 30 seconds. Quit | Does loading in-game fire it again? |
+| 1 | About 200 to 290 fps | As low as about 35 fps |
+| 2 | About 265 fps | About 110 fps |
 
-After each run, read `red4ext/logs/rednode-*.log` and match event times to the written times.
+Session 1 ran while Steam was syncing saves from the cloud, which may explain its lower gameplay rate. That is **unverified**.
 
 ## Next
 
-- Run the ordered retest above.
 - Decide the Tier 2 IPC transport (see the open decisions in [native/README.md](https://github.com/CyberbuildsAI/REDnode/blob/main/native/README.md)). That starts P2.
+- Work out how to tell a real session start from the main-menu attach.
