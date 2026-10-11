@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **proof of concept works in game.** All four steps passed on 2026-10-11, in a clean setup without CET. Two usability issues found in the test are fixed but not retested in game yet. See [Test results](#test-results).
+Status: **proof of concept passed.** All four steps work in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results). The next step is planning the real version.
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -99,19 +99,38 @@ Simplifications in the proof of concept, all to revisit if it goes further:
 | F10 modes | **Passed.** Three full cycles of passive, interactive and hidden |
 | Logs | No errors or warnings. redscript compiled cleanly |
 
-| Issue | Cause | Fix (not yet retested in game) |
+| Issue | Cause | Fix (confirmed in run 2) |
 |---|---|---|
 | The cursor lagged | The page drew it. Each move went through the pipe, a Chromium repaint at 30 fps and a 2.6 MB frame back | The plugin draws the cursor in its shader. The host now runs at 60 fps |
 | No text caret in the text box | Off-screen Chromium did not treat the page as focused. Typing still worked | The host calls `focusOnWebView()` in interactive mode. It focuses the page without taking OS focus from the game. `webContents.focus()` did not work, and showing the window would take OS focus |
+
+### Run 2: 2026-10-11, with CET and other mods
+
+| Item | Value |
+|---|---|
+| Game | 2.31, the user's modded profile: CET, redscript, REDnode 0.3.0 and 10 other RED4ext plugins (ArchiveXL, Codeware, TweakXL, audioware, Mod Settings and more) |
+| Display | Same as run 1: 3840 x 2160, SDR |
+| Host | Electron 44.7.0, 60 frames a second |
+
+| Check | Result |
+|---|---|
+| All four steps | **Passed** |
+| Cursor | **Fixed.** Drawn by the plugin, no lag |
+| Text caret | **Fixed.** The text box shows its focus border and a blinking caret |
+| REDnode and CET overlays drawn together | **Passed.** Both visible at once |
+| Input routing | **Passed.** Input went to whichever overlay was active, and not to the game |
+| Stability | No flicker, stutter or crash reported. No errors in the REDnode, RED4ext, redscript or CET logs. CET logged its own D3D12 and window hooks as successful |
+
+Observation: CET windows can be dragged. The REDnode panel cannot, because the proof of concept has one fixed panel. Window management belongs in the real version.
 
 ## Risks and open questions
 
 | Risk | Status |
 |---|---|
-| Coexisting with CET, which also hooks `Present` and the window procedure | Unverified. REDnode patches the vtable entry and chains to whatever was there, so CET's code hook still runs |
+| Coexisting with CET, which also hooks `Present` and the window procedure | Worked in run 2. REDnode patches the vtable entry and chains to whatever was there, so CET's code hook still runs |
 | Blocking game input | Unverified. If the game polls raw input instead of reading window messages, keys and mouse may still reach the game in interactive mode |
 | Mouse position while the game hides and locks the cursor | Handled by summing raw mouse movement into a virtual cursor. Worked in run 1 |
-| Blocking game input in a clean setup | Worked in run 1: input reached the page. Not yet tested with CET |
+| Blocking game input | Worked in runs 1 and 2, with and without CET |
 | Memory | Electron adds a few hundred MB. Unverified for this use |
 | Frame pacing | Uploading a frame costs GPU time on the present path. Only done when the page repaints |
 | Upscalers and frame generation | Unverified. The overlay is drawn on the final back buffer, after them |
