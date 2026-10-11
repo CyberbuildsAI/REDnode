@@ -26,6 +26,7 @@ Follow [docs/dev-setup.md](docs/dev-setup.md) top to bottom. Whenever you instal
 - **Git identity:** set per repo to `CyberbuildsAI` with the GitHub no-reply email (see dev-setup). Never change the global identity.
 - **Never commit game files** or data extracted from them: DLLs, archives, scripts, assets, TweakDB, raw RTTI dumps (`rtti-dump*`). `.gitignore` covers the common cases.
   - **One exception, agreed with the user on 2026-10-11:** `gameapi/<game version>/rtti.json` holds base-game type signatures (names, types, flags, enum values) for the published game API reference, like NativeDB. Produce it only with the REDnode dumper on a base-game run and import it with `npm run gameapi:import`. Nothing else from the game goes in.
+- **Shared theme:** `tools/vscode-theme` is the same `cyberbuildsai.rednode-hud-theme` extension as `extensions/rednode-hud-theme` in [REDcode](https://github.com/CyberbuildsAI/REDcode), which uses it as its default theme. Until one copy is made canonical, apply every theme change to both repos with the same version number.
 - **Writing style:** plain, short sentences. Tables for comparisons and lists of facts. Use the design doc's terms: Tier 1 (sync interceptors, in-process), Tier 2 (async Node mods, out of process), declarative rules, phases P0 to P4, and the `rednode` package name. Mark anything unverified as unverified.
 
 ## Docs site
