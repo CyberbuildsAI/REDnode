@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode overlay demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="panel">
+  <header>
+    <div class="brand"><span class="dot"></span><b>REDNODE</b> // OVERLAY <span class="dim">PROOF OF CONCEPT</span></div>
+    <div class="status">
+      <span id="link" class="pill off">NO GAME</span>
+      <span id="mode" class="pill">PASSIVE</span>
+    </div>
+  </header>
+
+  <section class="grid">
+    <article>
+      <h2><span>01</span> Compositor + live HTML</h2>
+      <p class="big mono" id="clock">--:--:--.---</p>
+      <div class="bar"><i id="sweep"></i></div>
+      <p class="dim">Page frames: <b id="raf">0</b>. If the clock ticks and the bar moves in game, steps 1 and 2 work.</p>
+    </article>
+
+    <article>
+      <h2><span>02</span> Input</h2>
+      <div class="row">
+        <button id="click">Click me</button>
+        <span class="mono">Clicks: <b id="clicks">0</b></span>
+      </div>
+      <input id="text" type="text" placeholder="Type here" autocomplete="off" spellcheck="false">
+      <p class="dim">Last key: <b id="key" class="mono">none</b>. The camera should not move while you do this.</p>
+    </article>
+
+    <article>
+      <h2><span>03</span> Bridge to the game</h2>
+      <div class="row">
+        <button id="pos">Read player position</button>
+        <button id="info" class="ghost">Game frame</button>
+      </div>
+      <p class="mono result" id="result">No call yet.</p>
+      <p class="dim">Runs <code>GetPlayer</code> and <code>GetWorldPosition</code> on the game thread. Walk, then read again.</p>
+    </article>
+
+    <article>
+      <h2><span>04</span> Events from the game</h2>
+      <ol id="events" class="mono"><li class="dim">Waiting. Load a save to see OnGameAttached.</li></ol>
+    </article>
+  </section>
+
+  <footer class="mono">
+    <span><b>F10</b> passive / interactive / hidden</span>
+    <span><b>ESC</b> leave interactive</span>
+    <span id="windowed" hidden>WINDOW MODE: NOT CONNECTED TO THE GAME BY DESIGN</span>
+  </footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

@@ -35,6 +35,8 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1 # the overlay host is not needed to build the docs
 
       - name: Generate API reference
         run: npm run docs:api

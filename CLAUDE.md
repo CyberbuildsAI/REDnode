@@ -6,7 +6,8 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). Read 
 
 - **P0 Research:** RED4ext side done. Cyber Engine Tweaks analysis deferred.
 - **P1 Proof:** done. Passed in game on 2026-10-11. See [docs/p1-results.md](docs/p1-results.md). `OnGameAttached` fires at the main menu and on every save load, not once per session.
-- **Next step:** not chosen yet. Candidates are in the "Next" section of the P1 results page. Agree it with the user before starting.
+- **HTML overlay:** proof of concept built, in-game test pending. Design and test steps: [docs/overlay.md](docs/overlay.md). Plugin side in `native/src/overlay/`, host in `packages/overlay/`. The user sees it as a key piece, so record the test results in that page and decide next steps from its "Decision after the test" table.
+- **Other candidates** for after the overlay: the Tier 2 transport, and telling a real session start from the main-menu attach (see the P1 results page). Agree with the user before starting.
 - **In-game tests:**
   - Deploy with `.\tools\deploy-native.ps1` (add `-GameDir '<path>'` if the game is not at the default Steam path). Ask the user first, because it changes their game folder. Build first with `.\tools\build-native.ps1` if `native/` changed.
   - After a run, read `red4ext/logs/rednode-*.log` and `red4ext/logs/red4ext-*.log`, plus `r6/logs/redscript_rCURRENT.log` for script errors. Wait for the game process to exit first, or the logs may be empty. The expected lines are in [native/README.md](native/README.md).

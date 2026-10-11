@@ -7,6 +7,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | [API reference](api/) | The `rednode` package: every function, interface and type, generated from the source |
 | [Game API](game/) | Every class, struct, enum and global function in the base game (2.31), with REDnode's notes |
 | [Design](design.html) | Architecture: the two tiers, the native bridge, the API sketch, safety rails, risks and roadmap |
+| [HTML overlay](overlay.md) | Proposal and proof of concept: overlay apps in HTML and JavaScript, drawn in the game, talking to the `rednode` API |
 | [P0 findings](p0-findings.md) | How RED4ext loads plugins, the plugin entry points, and what that means for the bridge |
 | [P1 results](p1-results.md) | The in-game probe test: what passed, the logs, and when `OnGameAttached` fires |
 | [Dev setup](dev-setup.md) | Every tool and step needed to build and test REDnode on a new machine |

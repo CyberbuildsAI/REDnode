@@ -206,3 +206,28 @@ Do this once per game patch. The dump must contain only the base game, so every 
    ```
 
 7. Set `ignored = []` back in `red4ext/config.ini`, and switch Vortex back to your normal profile.
+
+## 10. HTML overlay proof of concept
+
+`packages/overlay` is the overlay host from [the overlay design](overlay.md): an Electron app that renders overlay apps off-screen and streams them to the REDnode plugin in the game.
+
+| Tool | Version | Install |
+|---|---|---|
+| Electron | 44.7.0 | Dev dependency of `packages/overlay`, installed by `npm install` |
+
+On the reference machine `npm install` did not run Electron's install script, so the Electron binary was missing. Download it by hand once:
+
+```powershell
+node node_modules/electron/install.js   # puts electron.exe in node_modules/electron/dist (about 370 MB)
+```
+
+Run the host:
+
+```powershell
+npm run overlay          # off-screen, waits for the game on \.\pipe\rednode-overlay
+npm run overlay:window   # the demo app in a normal window, without the game
+```
+
+The host clears `ELECTRON_RUN_AS_NODE` before starting Electron, because VS Code sets it for processes it starts and it turns Electron into plain Node.
+
+CI skips the Electron download with `ELECTRON_SKIP_BINARY_DOWNLOAD=1`, because the docs build does not need it.

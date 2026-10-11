@@ -1,0 +1,15 @@
+{
+  "name": "@rednode/overlay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "REDnode HTML overlay host, proof of concept. See docs/overlay.md.",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "node start.js",
+    "window": "node start.js --window"
+  },
+  "devDependencies": {
+    "electron": "44.7.0"
+  }
+}
