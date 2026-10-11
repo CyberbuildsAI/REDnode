@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coords HUD</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* A HUD widget: kind "hud" in the manifest, so it never takes input.
+     The REDnode plugin hides it with the game's menus, photo mode and scenes. */
+  html, body { margin: 0; width: 520px; height: 72px; overflow: hidden; background: transparent; }
+  .strip { position: absolute; left: 50%; top: 6px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 18px; padding: 6px 18px;
+    background: linear-gradient(90deg, transparent, var(--rn-bg) 12%, var(--rn-bg) 88%, transparent);
+    font: 600 15px var(--rn-mono); letter-spacing: .06em; color: var(--rn-fg); white-space: nowrap; }
+  .axis { color: var(--rn-accent); margin-right: 6px; font-size: 12px; }
+  .tick { width: 1px; height: 18px; background: var(--rn-line); }
+  .label { font: 600 10px var(--rn-mono); letter-spacing: .18em; color: var(--rn-dim); }
+</style>
+</head>
+<body theme="game">
+  <div class="strip">
+    <span class="label">REDNODE</span>
+    <span class="tick"></span>
+    <span><span class="axis">X</span><span id="x">----.-</span></span>
+    <span><span class="axis">Y</span><span id="y">----.-</span></span>
+    <span><span class="axis">Z</span><span id="z">---.-</span></span>
+  </div>
+<script>
+  'use strict';
+  const set = (id, v) => (document.getElementById(id).textContent = v);
+  async function update() {
+    try {
+      const p = await window.rednode.call('player.position');
+      set('x', p.x.toFixed(1));
+      set('y', p.y.toFixed(1));
+      set('z', p.z.toFixed(1));
+    } catch {
+      // No player yet (main menu, loading): the plugin hides this widget then anyway.
+    }
+  }
+  setInterval(update, 500);
+  update();
+</script>
+</body>
+</html>

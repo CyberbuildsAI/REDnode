@@ -1,0 +1,16 @@
+{
+  "id": "coords",
+  "name": "Coords HUD",
+  "version": "0.1.0",
+  "author": "CyberbuildsAI",
+  "description": "A HUD widget at the top of the screen with V's position. Never takes input; hides in menus, photo mode, scenes and the main menu.",
+  "entry": "index.html",
+  "kind": "hud",
+  "hideWith": ["menu", "photo-mode", "scene", "main-menu"],
+  "width": 520,
+  "height": 72,
+  "anchor": "top",
+  "x": 0,
+  "y": 14,
+  "open": true
+}

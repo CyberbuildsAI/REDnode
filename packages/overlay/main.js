@@ -122,6 +122,8 @@ let settings = { apps: {} }; // apps: { [id]: { open: boolean } }
 // ---------- app discovery ----------
 
 const ANCHORS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bottom-left', 'bottom', 'bottom-right'];
+// Game states a window can hide with (manifest hideWith). The plugin reads them from the game.
+const HIDE_WITH = ['menu', 'photo-mode', 'scene', 'main-menu'];
 
 function readManifest(dir) {
   const file = path.join(dir, 'rednode-app.json');
@@ -140,6 +142,9 @@ function readManifest(dir) {
   }
   if (m.anchor !== undefined && !ANCHORS.includes(m.anchor)) problems.push(`anchor must be one of ${ANCHORS.join(', ')}`);
   if (m.kind !== undefined && !['window', 'hud'].includes(m.kind)) problems.push('kind must be window or hud');
+  if (m.hideWith !== undefined && (!Array.isArray(m.hideWith) || m.hideWith.some((h) => !HIDE_WITH.includes(h)))) {
+    problems.push(`hideWith must be a list of ${HIDE_WITH.join(', ')}`);
+  }
   if (problems.length) throw new Error(`${file}: ${problems.join('; ')}`);
   return {
     id: m.id,
@@ -154,6 +159,7 @@ function readManifest(dir) {
     anchor: m.anchor ?? 'top-left',
     x: Number(m.x) || 0,
     y: Number(m.y) || 0,
+    hideWith: m.hideWith ?? [],
     open: m.open !== false,
   };
 }
@@ -241,7 +247,16 @@ function openInGame(w) {
   const m = w.app.manifest;
   const saved = positions[m.id];
   const place = saved ? { anchor: 'top-left', x: saved.x, y: saved.y } : { anchor: m.anchor, x: m.x, y: m.y };
-  sendJson({ cmd: 'window.open', window: w.id, ...place, width: m.width, height: m.height, draggable: true });
+  sendJson({
+    cmd: 'window.open',
+    window: w.id,
+    ...place,
+    width: m.width,
+    height: m.height,
+    kind: m.kind,
+    hideWith: m.hideWith,
+    draggable: m.kind !== 'hud',
+  });
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
   w.win.webContents.invalidate(); // send a full frame now
 }

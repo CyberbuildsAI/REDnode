@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Game state</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  html, body { margin: 0; width: 320px; height: 300px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 4px; }
+  table { width: 100%; border-collapse: collapse; font: 13px var(--rn-mono); }
+  td { padding: 4px 0; border-bottom: 1px solid var(--rn-line); }
+  td:last-child { text-align: right; }
+  .on { color: var(--rn-accent); }
+  .off { color: var(--rn-dim); }
+  ol { margin: 0; padding: 0; list-style: none; font: 11px var(--rn-mono); color: var(--rn-dim); max-height: 84px; overflow: hidden; }
+  ol li b { color: var(--rn-fg); font-weight: 500; }
+</style>
+</head>
+<body>
+<rn-window title="Game state" draggable>
+  <table>
+    <tr><td>Menu open</td><td id="menu" class="off">no</td></tr>
+    <tr><td>Photo mode</td><td id="photoMode" class="off">no</td></tr>
+    <tr><td>Scene (tier 4+)</td><td id="scene" class="off">no</td></tr>
+    <tr><td>Scene tier</td><td id="tier" class="off">-</td></tr>
+    <tr><td>Main menu / loading</td><td id="mainMenu" class="off">no</td></tr>
+  </table>
+  <ol id="log"></ol>
+</rn-window>
+<script>
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  let last = null;
+  window.rednode.on((m) => {
+    if (m.event !== 'ui-state') return;
+    for (const k of ['menu', 'photoMode', 'scene', 'mainMenu']) {
+      $(k).textContent = m[k] ? 'yes' : 'no';
+      $(k).className = m[k] ? 'on' : 'off';
+    }
+    $('tier').textContent = m.sceneTier < 0 ? '-' : m.sceneTier;
+    $('tier').className = m.sceneTier >= 2 ? 'on' : 'off';
+    // A short log of changes, to match scene tiers to what is on screen.
+    const now = new Date().toTimeString().slice(0, 8);
+    const what = ['menu', 'photoMode', 'scene', 'mainMenu'].filter((k) => m[k]).join(', ') || 'gameplay';
+    const line = `${what}, tier ${m.sceneTier}`;
+    if (line !== last) {
+      last = line;
+      const li = document.createElement('li');
+      li.innerHTML = `${now} <b>${line}</b>`;
+      $('log').prepend(li);
+      while ($('log').children.length > 6) $('log').lastElementChild.remove();
+    }
+  });
+</script>
+</body>
+</html>

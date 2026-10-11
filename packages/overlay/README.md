@@ -1,6 +1,6 @@
 # REDnode overlay host
 
-Status: **phase O3, apps.** The proof of concept, O1 (windows) and O2 (UI kit) work in game. O3 adds app manifests, the launcher, and a packaged host that the game starts by itself. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O4, HUD widgets.** The proof of concept and O1 to O3 work in game, including the player install. O4 adds HUD widgets and hiding with the game's UI. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and gives apps a `window.rednode` API for talking to the game. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
@@ -24,7 +24,9 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [apps/kit/](apps/kit/) | Every UI kit widget in one titled window, built from markup. Opens by default |
 | [apps/native/](apps/native/) | A borderless, game-style button and menu. Opens by default |
 | [apps/demo/](apps/demo/) | The proof-of-concept demo, written by hand without the kit |
-| [apps/signal/](apps/signal/) | A small round HUD widget: a borderless window with a transparent middle |
+| [apps/signal/](apps/signal/) | A small round widget: a borderless window with a transparent middle |
+| [apps/coords/](apps/coords/) | A real HUD widget: V's position at the top of the screen, hidden in menus, photo mode and scenes |
+| [apps/state/](apps/state/) | Shows the game state REDnode reads for `hideWith` |
 
 ## Apps and manifests
 
@@ -56,7 +58,8 @@ Every folder in the apps folder with a `rednode-app.json` is an app. In the repo
 | `width`, `height` | Window size in page pixels, 1 to 4096 |
 | `anchor` | `top-left` (default), `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom` or `bottom-right` |
 | `x`, `y` | Offset from the anchor in reference pixels (1080p). `bottom-right` with x -40 is 40 px from the right edge |
-| `kind` | `window`. `hud` is planned for phase O4 |
+| `kind` | `window` (default) or `hud`: drawn, but never takes input or focus, and cannot be dragged |
+| `hideWith` | Game states that hide the window: `menu`, `photo-mode`, `scene`, `main-menu` |
 | `open` | Whether the app starts open, until the player changes it in the launcher |
 
 A window the player has dragged keeps its saved position instead of the anchor. The launcher remembers which apps are on. Both are kept in the host's user data folder, `%APPDATA%\@rednode\overlay`.
@@ -121,6 +124,7 @@ Messages from the game:
 | `hello` | `plugin`, `mode` | Right after connecting |
 | `overlay` | `mode`: `passive`, `interactive` or `hidden` | The player presses F10 or Esc, or clicks empty screen |
 | `focus` | `focused`: `true` or `false` | This window gained or lost keyboard focus. Use it to dim your title bar |
+| `ui-state` | `menu`, `photoMode`, `scene`, `mainMenu` (booleans), `sceneTier` (number, -1 without a player) | The game's UI state changed |
 | `game` | `name`, `value`, `frame` | A redscript event, from the Tier 1 path (the P1 probe's `OnGameAttached`) |
 
 ### How the demo is built
