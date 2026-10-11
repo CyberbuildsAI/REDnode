@@ -29,7 +29,7 @@ An overlay app is a plain web page. Anything that works in Chrome works here.
 
 | Rule | Why |
 |---|---|
-| Design for **1024 x 640** page pixels | The panel is that size. The game scales it with the screen height: 1:1 at 1080p, 2x at 4K |
+| Design for your window's **fixed size** in page pixels | Set in `APPS` for now (the demo is 1024 x 640, Signal 320 x 320). The game scales windows with the screen height: 1:1 at 1080p, 2x at 4K |
 | Leave the page **background transparent** | Transparent pixels show the game through. The demo draws its own panel with a semi-transparent background |
 | **Don't draw a cursor** | The REDnode plugin draws it in the game, at the game's frame rate |
 | Mark drag handles with **`data-rednode-drag`** | Pressing on such an element moves the window instead of clicking the page. The plugin does the dragging |
