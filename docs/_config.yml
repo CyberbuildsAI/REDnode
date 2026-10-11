@@ -1,0 +1,28 @@
+# GitHub Pages (Jekyll) settings for the docs site.
+# Every markdown page in docs/ renders with the HUD layout in _layouts/default.html.
+# design.html is a standalone page and is served as-is.
+
+title: REDnode
+repo: https://github.com/CyberbuildsEX/REDnode
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+# Status bar links, in order.
+nav:
+  - title: Docs
+    url: /
+  - title: Design
+    url: /design.html
+  - title: P0 findings
+    url: /p0-findings.html
+  - title: Dev setup
+    url: /dev-setup.html
