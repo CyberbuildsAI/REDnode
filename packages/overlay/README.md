@@ -1,6 +1,6 @@
 # REDnode overlay host
 
-Status: **phase O6a, one runtime.** O1 to O5 work in game, including the player install and GPU sharing. O6a makes the host the Tier 2 runtime: Node mods run in it beside overlay apps, and both use the `rednode` package. Its in-game test is pending. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O6b, the game API.** O1 to O6a work in game, including the player install, GPU sharing, and Node mods beside overlay apps. O6b adds the generic game API (`rtti.call`, and `api` in the `rednode` package); its in-game test is pending. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and runs Node mods in mod processes. Apps and mods reach the game through the same `rednode` package. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
@@ -40,6 +40,8 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [apps/hello-mod/](apps/hello-mod/) | A Node mod with a window built by the ui builder: V's position, a sound button, a toggle |
 | [apps/ticker-mod/](apps/ticker-mod/) | A Node mod with no window: logs V's position, game events and state changes |
 | [apps/crash-mod/](apps/crash-mod/) | A Node mod that breaks on purpose in four ways, to test isolation. Off by default |
+| [apps/vitals/](apps/vitals/) | A HUD widget with V's health, level and money, read through the generic game API from a web page |
+| [apps/api-mod/](apps/api-mod/) | The same values from a Node mod, plus a change (100 eddies), a refused wrong argument and a stale reference |
 
 ## Apps, mods and manifests
 
@@ -153,6 +155,9 @@ Bridge methods:
 | `player.position` | `{ x, y, z }`: V's world position. Fails at the main menu, where there is no player |
 | `audio.play` | `{ played }`: plays the game sound event `params.name` |
 | `game.info` | `{ frame }`: the REDnode frame counter |
+| `rtti.call` | `{ fn, class?, self?, args }`: any game function. Use `api` from the `rednode` package instead of calling it directly |
+| `rtti.get` | `{ self, prop }`: a game object's property |
+| `rtti.release` | `{ refs }`: drops object references, once for each time one was received |
 
 Messages from the game:
 

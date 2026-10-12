@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vitals</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<script type="importmap">{ "imports": { "rednode": "rednode://sdk/index.js" } }</script>
+<style>
+  /* A HUD widget: V's health, level and money, read through the generic game API.
+     The Game API mod reads the same values from Node; both should agree. */
+  html, body { margin: 0; width: 300px; height: 64px; overflow: hidden; background: transparent; }
+  .strip { position: absolute; inset: 6px 0 auto 0; display: flex; justify-content: center; gap: 16px; padding: 6px 14px;
+    background: linear-gradient(90deg, transparent, var(--rn-bg) 12%, var(--rn-bg) 88%, transparent);
+    font: 600 15px var(--rn-mono); letter-spacing: .05em; color: var(--rn-fg); white-space: nowrap; }
+  .k { color: var(--rn-accent); font-size: 11px; margin-right: 6px; letter-spacing: .14em; }
+</style>
+</head>
+<body theme="game">
+  <div class="strip">
+    <span><span class="k">HP</span><span id="hp">-</span></span>
+    <span><span class="k">LVL</span><span id="lvl">-</span></span>
+    <span><span class="k">€$</span><span id="money">-</span></span>
+  </div>
+<script type="module">
+  import { api, game } from 'rednode';
+
+  const set = (id, v) => (document.getElementById(id).textContent = v);
+
+  async function refresh() {
+    try {
+      const player = await api.GetPlayer(game.instance);
+      if (!player) return;
+      const statsId = await api.$call('Cast;EntityID;StatsObjectID', await player.GetEntityID());
+      const pools = await api.GameInstance.GetStatPoolsSystem(game.instance);
+      const stats = await api.GameInstance.GetStatsSystem(game.instance);
+      const shop = await api.GameInstance.GetTransactionSystem(game.instance);
+      set('hp', Math.round(await pools.GetStatPoolValue(statsId, 'Health', false)));
+      set('lvl', await stats.GetStatValue(statsId, 'Level'));
+      set('money', await shop.GetItemQuantity(player, await api.MarketSystem.Money()));
+    } catch {
+      // no player yet: the plugin hides this widget at the main menu anyway
+    }
+  }
+  setInterval(refresh, 1000);
+  refresh();
+</script>
+</body>
+</html>

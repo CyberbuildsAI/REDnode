@@ -1,0 +1,16 @@
+{
+  "id": "vitals",
+  "name": "Vitals",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A HUD widget with V's health, level and money, read through the generic game API from a web page. The Game API mod reads the same from Node.",
+  "entry": "index.html",
+  "kind": "hud",
+  "hideWith": ["menu", "photo-mode", "scene", "main-menu"],
+  "width": 300,
+  "height": 64,
+  "anchor": "top",
+  "x": 0,
+  "y": 80,
+  "open": true
+}

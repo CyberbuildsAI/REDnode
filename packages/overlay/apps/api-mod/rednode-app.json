@@ -1,0 +1,9 @@
+{
+  "id": "api-mod",
+  "name": "Game API mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "Reads V's health, level and money through the generic game API, gives eddies, and shows how a wrong argument and an old reference fail.",
+  "main": "mod.mjs",
+  "open": true
+}
