@@ -296,11 +296,13 @@ Logs: the plugin logs `GPU sharing failed` if it had to give up, and the host lo
 | GPU sharing removes the pixel traffic | 110 MB/s through the pipe and 55 MB/s of uploads go to zero, and the host uses about 170 MB less memory. This is what lets many animated apps run together |
 | The overlay's GPU cost is tiny | Under 0.1 ms per frame on both paths |
 | No visible effect on the game's frame rate | The game ran at about 30 fps in gameplay on both paths, which is too slow to show a cost of about 1 ms. Measure again in a lighter scene |
-| Overlay CPU time in gameplay | About 0.7 to 1.0 ms per game frame even without Stress, against about 0.15 ms at the main menu. 3% of a frame at 30 fps, about 14% at 144 fps. A likely cause is opening every shared texture handle again each frame. To trim later |
-| Unanswered shared frames at startup and while hidden | The plugin skips its work before Present is hooked and in hidden mode, so the host's one-second release frees those textures. The plugin could acknowledge them at once. To fix later |
+| Overlay CPU time in gameplay | About 0.7 to 1.0 ms per game frame even without Stress, against about 0.15 ms at the main menu. 3% of a frame at 30 fps, about 14% at 144 fps. A likely cause is opening every shared texture handle again each frame. To fix in O6 and check in its test |
+| Unanswered shared frames at startup and while hidden | The plugin skips its work before Present is hooked and in hidden mode, so the host's one-second release frees those textures. The plugin could acknowledge them at once. To fix in O6 and check in its test |
 | Focus bug found and fixed | Clicking the window that had focus before leaving interactive mode did not refocus it (seen with Signal). Fixed in `2b94a6b` with two unit tests, confirmed in the retest |
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
+
+Order agreed on 2026-10-12: [REDclaude](https://github.com/Edgemodders/REDclaude), an in-game Claude assistant built as an overlay app, comes right after O6. O7 follows it.
 
 ### UI kit
 
