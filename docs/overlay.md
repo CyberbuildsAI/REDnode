@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6b Game API built, in-game test pending.** O1 to O6a have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. O6b adds `api`: any game function, typed. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6 One runtime passed in game.** O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDclaude, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -427,6 +427,20 @@ In the game, do these in order, with a 30-second pause after each:
 12. Quit the game.
 
 What I read afterwards: `rednode-mods.log` (the mod's calls and errors), the plugin log (any `rtti.call` crash lines), and `rednode-overlay.log` (no "Released ... shared frame(s)" lines while hidden, and no interactive mode ending by itself).
+
+**Result, 2026-10-12: passed**, after two fixes in the first run. Modded profile with CET, 3840 x 2160 SDR, plugin 0.10.0, host 0.3.0, GPU sharing on. All 12 steps worked: Vitals and the Game API mod showed the same health, level and money as the game; **Give 100 eddies** added 100 to both, twice; the wrong argument was refused with "argument 1 (objID, gameStatsObjectID): gameStatsObjectID needs an object of its properties"; the player reference was still valid in the same save and "no longer exists" after loading another; sounds played through the generic API; the three themes switched live; and the plugin logged no crash inside a game call.
+
+| Finding | Notes |
+|---|---|
+| `GetPlayer` returned null through the generic API | A `GameInstance` argument built from the type data has no game in it. **Fixed:** the plugin fills it in with the running game (`37ade5d`). See the [ScriptGameInstance note](game/t/ScriptGameInstance.html) |
+| The launcher and Coords did not show until repainted | Frames that arrive before Present is hooked are given back undrawn, and a page that does not repaint never showed. **Fixed:** once it starts drawing, the plugin asks the host to repaint every window (`37ade5d`) |
+| The sample's "player from before" was already invalid | It kept a reference polled during the load, just before the plugin dropped every reference. **Fixed** in the sample by hot reload, with the game running (`00fdc6d`): take references after `PlayerPuppet.OnGameAttached` |
+| O6a's cursor fix holds | Clicking around Crash mod's window right after it opened kept interactive mode. Mode changed only on purpose (F10, Esc, clicks on empty screen) |
+| O6a's hidden-mode fix holds | No shared frame waited for the host's sweep while hidden, including 23 seconds at 16:25. The few left fall in loading screens and at game exit, when the game stops presenting |
+| Overlay CPU time | 0.11 to 0.15 ms per game frame in gameplay with every app open, as in O6a |
+| Not tested in game | `game.player.setHealth` (`RequestSettingStatPoolValue`), out parameters, and `rtti.get`. **Unverified** |
+
+O6 One runtime is done: Node mods run beside overlay apps, both use the `rednode` package, and `api` reaches any game function. Next: [REDclaude](https://github.com/Edgemodders/REDclaude), then O7 Display.
 
 ### UI kit
 

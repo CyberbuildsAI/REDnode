@@ -1,6 +1,6 @@
 # REDnode overlay host
 
-Status: **phase O6b, the game API.** O1 to O6a work in game, including the player install, GPU sharing, and Node mods beside overlay apps. O6b adds the generic game API (`rtti.call`, and `api` in the `rednode` package); its in-game test is pending. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O6 done.** O1 to O6 work in game: the player install, GPU sharing, Node mods beside overlay apps, and the generic game API (`rtti.call`, and `api` in the `rednode` package). The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and runs Node mods in mod processes. Apps and mods reach the game through the same `rednode` package. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 

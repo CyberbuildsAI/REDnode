@@ -2,7 +2,7 @@
 
 The REDnode SDK: a Node.js API for scripting Cyberpunk 2077 (PC, single-player).
 
-> **Status: overlay phase O6b.** `game` and `ui` work in the REDnode overlay host, for Node mods and overlay apps alike, tested in game. `api`, the generic game API (any game function, typed from the game's data), is built; its in-game test is pending. Tier 1 interceptors are still a design, and their functions throw.
+> **Status: overlay phase O6 done.** `game`, `ui` and `api`, the generic game API (any game function, typed from the game's data), work in the REDnode overlay host for Node mods and overlay apps alike, tested in game on 2026-10-12. Tier 1 interceptors are still a design, and their functions throw.
 
 ## Two tiers
 
