@@ -429,9 +429,12 @@ function onGameMessage(m) {
       }
       return;
     }
-    case 'perf':
-      toAllPages({ event: 'perf', game: m, host: hostPerf() });
+    case 'perf': {
+      const host = hostPerf();
+      toAllPages({ event: 'perf', game: m, host });
+      logPerf(m, host);
       return;
+    }
     case 'frame-done':
       for (const fid of m.frames ?? []) {
         const f = sharedFrames.get(fid);
@@ -509,6 +512,22 @@ function setRenderPath(path, save = true) {
 }
 
 // ---------- what the host costs ----------
+
+// Writes a perf line to the log every 5 seconds, so a test run can be compared
+// afterwards without reading numbers off the screen.
+let perfLogAt = 0;
+function logPerf(game, host) {
+  if (Date.now() - perfLogAt < 5000) return;
+  perfLogAt = Date.now();
+  const open = [...windows.values()].map((w) => w.app.manifest.id);
+  log(
+    `Perf ${host.renderPath}${open.includes('stress') ? ' +stress' : ''}: game ${game.fps.toFixed(0)} fps; ` +
+      `overlay CPU ${game.cpuMs.toFixed(2)} ms (worst ${game.cpuMsMax.toFixed(2)}), ` +
+      `GPU ${game.gpuMs.toFixed(2)} ms (worst ${game.gpuMsMax.toFixed(2)}); ` +
+      `uploads ${game.uploadMBps.toFixed(1)} MB/s, shared ${(game.sharedPerSec ?? 0).toFixed(0)}/s; ` +
+      `host ${host.memoryMB} MB in ${host.processes} processes, CPU ${host.cpuPercent}%, sent ${host.sentMBps.toFixed(1)} MB/s`,
+  );
+}
 
 let lastPerfAt = Date.now();
 function takeBytes() {
