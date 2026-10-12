@@ -28,6 +28,7 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [preload.js](preload.js) | Defines `window.rednode` for apps |
 | [start.js](start.js) | Starts Electron with a clean environment (developer runs only) |
 | [launcher/](launcher/) | The built-in launcher: a REDNODE tab that lists apps and mods, opens or closes them, and shows each mod's state and memory |
+| [modlog/](modlog/) | The built-in Mod log: every line Node mods print, live, with a filter per mod, errors only, pause and Copy. Off by default; open it from the launcher |
 | [apps/kit/](apps/kit/) | Every UI kit widget in one titled window, built from markup. Opens by default |
 | [apps/native/](apps/native/) | A borderless, game-style button and menu. Opens by default |
 | [apps/demo/](apps/demo/) | The proof-of-concept demo, written by hand without the kit |
@@ -85,7 +86,7 @@ A window the player has dragged keeps its saved position instead of the anchor. 
 | Where a mod runs | A worker thread in a mod process, outside the game and outside the host's main process |
 | Process per mod or shared | Each mod gets its own process by default (about 80 MB each, measured against the mock). The launcher's **Shared process** switch moves mods into one shared process (three mods in about 92 MB). A thrown error, an endless loop or `process.exit()` stops only that mod in both cases. A native crash or running out of memory ends the whole process: in the shared group, every mod in it. The host restarts a crashed process up to 3 times a minute |
 | Hangs | A mod that does not answer for 10 seconds shows **NOT RESPONDING**. **Restart** stops it even inside an endless loop |
-| Output | Everything a mod prints goes to `rednode-mods.log`, next to the host log, each line tagged with the mod id. The launcher shows the last lines and the last error |
+| Output | Everything a mod prints goes to `rednode-mods.log`, next to the host log, each line tagged with the mod id. The **Mod log** app shows it live in game, and its **Copy** button puts the lines shown on the clipboard. The launcher shows each mod's last lines and last error. Built-in apps (the launcher and Mod log) may use host-only calls; other apps cannot read mod output |
 | Hot reload | When a package's files change, the host restarts the mod and reloads the app's page. On for developers; for players a launcher switch, off by default |
 | The API | `import { game, ui } from "rednode"`. See the [Overlay apps guide](../../docs/overlay-apps.md#node-mods) |
 

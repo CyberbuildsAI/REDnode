@@ -98,7 +98,9 @@ function makeRow(item) {
     root,
     update(it) {
       const kind = it.app && it.mod ? 'App + Node mod' : it.mod ? 'Node mod' : it.kind === 'hud' ? 'HUD widget' : 'App';
-      meta.textContent = [kind, it.version && `v${it.version}`, it.author].filter(Boolean).join(' · ');
+      meta.textContent = it.builtin
+        ? `${kind} · built into REDnode`
+        : [kind, it.version && `v${it.version}`, it.author].filter(Boolean).join(' · ');
       open.checked = it.open;
       update?.(it);
     },

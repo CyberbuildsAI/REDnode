@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld('rednode', {
     /** Gets hot reload, or turns it on or off. */
     hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
   },
+  /** The mod log, for apps built into REDnode. Other apps get an error. New lines arrive as {event: 'mod-log', entries}. */
+  logs: {
+    recent: () => ipcRenderer.invoke('rednode:logs:recent'),
+    copy: (text) => ipcRenderer.invoke('rednode:logs:copy', text),
+  },
   /** For the host's builder page, which shows windows built by Node mods. Other pages get an error. */
   builder: {
     spec: () => ipcRenderer.invoke('rednode:builder:spec'),

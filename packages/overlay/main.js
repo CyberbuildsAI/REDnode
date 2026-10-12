@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain, protocol, utilityProcess } = require('electron');
+const { app, BrowserWindow, clipboard, ipcMain, protocol, utilityProcess } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -45,10 +45,12 @@ const logFile = arg('log') ?? null;
 // --render overrides the setting saved by the launcher.
 const renderArg = arg('render');
 
-// Where apps are found: the launcher built into the host, then the apps folder.
+// Where apps are found: the apps built into the host, then the apps folder.
 // Packaged, the plugin passes the game's apps folder; in the repo it is ./apps.
+// Built-in apps may use host-only calls. The launcher is pinned: always open, not listed.
 const APP_ROOTS = [
-  { dir: path.join(__dirname, 'launcher'), single: true, builtin: true },
+  { dir: path.join(__dirname, 'launcher'), single: true, builtin: true, pinned: true },
+  { dir: path.join(__dirname, 'modlog'), single: true, builtin: true },
   { dir: arg('apps-dir') ?? path.join(__dirname, 'apps') },
 ];
 // The UI kit, served to every app as rednode://ui/rednode-ui.js.
@@ -123,7 +125,7 @@ const built = new Map();
 let hotReload = false;
 const watchers = new Map(); // package id -> fs.FSWatcher
 
-/** Installed apps by id: { manifest, dir, builtin } */
+/** Installed apps by id: { manifest, dir, builtin, pinned } */
 const apps = new Map();
 /** Open windows by window id: { id, app, win, dragRegions } */
 const windows = new Map();
@@ -236,7 +238,7 @@ function discoverApps() {
           log(`Skipped ${dir}: app id "${manifest.id}" is already used by ${apps.get(manifest.id).dir}`);
           continue;
         }
-        apps.set(manifest.id, { manifest, dir, builtin: !!root.builtin });
+        apps.set(manifest.id, { manifest, dir, builtin: !!root.builtin, pinned: !!root.pinned });
       } catch (err) {
         log(`Skipped an app: ${err.message}`);
       }
@@ -246,7 +248,7 @@ function discoverApps() {
 }
 
 function shouldOpen(entry) {
-  if (entry.builtin) return true;
+  if (entry.pinned) return true;
   if (chosenApps) return chosenApps.includes(entry.manifest.id);
   return settings.apps[entry.manifest.id]?.open ?? entry.manifest.open;
 }
@@ -647,6 +649,10 @@ function bridgeCall(method, params) {
   });
 }
 
+function modLogFile() {
+  return logFile ? path.join(path.dirname(logFile), 'rednode-mods.log') : dataFile('rednode-mods.log');
+}
+
 function hostState() {
   return { connected, mode, windowed, version: VERSION, game: gameState() };
 }
@@ -667,7 +673,7 @@ ipcMain.on('rednode:drag-regions', (event, regions) => {
 
 function fromLauncher(event) {
   const w = windowFor(event.sender);
-  if (!w?.app.builtin) throw new Error('Only the REDnode launcher can manage apps');
+  if (!w?.app.pinned) throw new Error('Only the REDnode launcher can manage apps');
 }
 
 function isEnabled(entry) {
@@ -678,7 +684,7 @@ function isEnabled(entry) {
 function appList() {
   const metrics = app.getAppMetrics();
   return [...apps.values()]
-    .filter((a) => !a.builtin)
+    .filter((a) => !a.pinned)
     .map((entry) => {
       const m = entry.manifest;
       return {
@@ -688,6 +694,7 @@ function appList() {
         author: m.author,
         description: m.description,
         kind: m.kind,
+        builtin: entry.builtin,
         app: !!m.entry,
         open: isEnabled(entry),
         mod: m.main ? mods.info(m.id, metrics) : null,
@@ -703,7 +710,7 @@ ipcMain.handle('rednode:apps:list', (event) => {
 ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   fromLauncher(event);
   const entry = apps.get(id);
-  if (!entry || entry.builtin) throw new Error(`No app "${id}"`);
+  if (!entry || entry.pinned) throw new Error(`No app "${id}"`);
   settings.apps[id] = { ...settings.apps[id], open: !!open };
   writeJson('settings.json', settings);
   if (entry.manifest.entry) {
@@ -752,9 +759,39 @@ function notifyLauncher() {
   launcherQueued = true;
   setImmediate(() => {
     launcherQueued = false;
-    for (const w of windows.values()) if (w.app.builtin) toPage(w, { event: 'apps' });
+    for (const w of windows.values()) if (w.app.pinned) toPage(w, { event: 'apps' });
   });
 }
+
+// ---------- the mod log feed (built-in apps only) ----------
+
+function fromBuiltin(event) {
+  const w = windowFor(event.sender);
+  if (!w?.app.builtin) throw new Error('Only apps built into REDnode can read the mod log');
+}
+
+// New lines go to built-in pages in batches, so a chatty mod cannot flood them.
+let logBatch = [];
+function onModLog(entry) {
+  logBatch.push(entry);
+  if (logBatch.length > 1) return;
+  setTimeout(() => {
+    const entries = logBatch;
+    logBatch = [];
+    for (const w of windows.values()) if (w.app.builtin) toPage(w, { event: 'mod-log', entries });
+  }, 100);
+}
+
+ipcMain.handle('rednode:logs:recent', (event) => {
+  fromBuiltin(event);
+  return { entries: mods.recentLog(), file: modLogFile() };
+});
+
+ipcMain.handle('rednode:logs:copy', (event, text) => {
+  fromBuiltin(event);
+  clipboard.writeText(String(text));
+  return true;
+});
 
 // ---------- windows built by Node mods (rednode's ui builder) ----------
 
@@ -962,13 +999,14 @@ app.whenReady().then(() => {
     app,
     utilityProcess,
     log,
-    logFile: logFile ? path.join(path.dirname(logFile), 'rednode-mods.log') : dataFile('rednode-mods.log'),
+    logFile: modLogFile(),
     runner: path.join(RUNTIME_DIR, 'runner.js'),
     sdk: path.join(SDK_DIR, 'index.js'),
     call: bridgeCall,
     state: hostState,
     ui,
     changed: notifyLauncher,
+    onLog: onModLog,
   });
   if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {
     log(`The rednode package is missing at ${SDK_DIR}. Build it with: npm run build --workspace rednode`);

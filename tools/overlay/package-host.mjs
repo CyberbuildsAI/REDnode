@@ -31,12 +31,12 @@ console.log('Building the rednode package...');
 const build = spawnSync('npm run build --workspace rednode', { cwd: repo, stdio: 'inherit', shell: true });
 if (build.status !== 0) throw new Error('Building the rednode package failed');
 
-// 2. Stage the app: host code, the built-in launcher, the builder page and the UI kit.
+// 2. Stage the app: host code, the built-in launcher and Mod log, the builder page and the UI kit.
 // Apps and mods go to the game separately.
 rmSync(work, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 for (const f of ['main.js', 'preload.js', 'mods.js']) cpSync(join(overlay, f), join(stage, f));
-for (const d of ['launcher', 'builder']) cpSync(join(overlay, d), join(stage, d), { recursive: true });
+for (const d of ['launcher', 'modlog', 'builder']) cpSync(join(overlay, d), join(stage, d), { recursive: true });
 cpSync(join(repo, 'packages', 'ui', 'src'), join(stage, 'ui'), { recursive: true });
 
 // The SDK and the mod runtime go outside app.asar, into resources/, so mod

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mod log</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  html, body { margin: 0; width: 640px; height: 380px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 0; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .chip { font: 600 11px var(--rn-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+    padding: 4px 8px; color: var(--rn-dim); border: 1px solid var(--rn-line); background: transparent; }
+  .chip:hover { color: var(--rn-fg); }
+  .chip.on { color: var(--rn-on-accent); background: var(--rn-accent); border-color: var(--rn-accent); }
+  .spacer { flex: 1; }
+  .tools { display: flex; align-items: center; gap: 8px; }
+  #lines { flex: 1; min-height: 120px; overflow-y: auto; padding: 6px 8px; background: var(--rn-panel);
+    border: 1px solid var(--rn-line); font: 12px/1.45 var(--rn-mono); white-space: pre-wrap; word-break: break-word; }
+  .line .t { color: var(--rn-dim); }
+  .line .id { color: var(--rn-accent-2); }
+  .line.error, .line.error .id { color: var(--rn-danger); }
+  .empty { color: var(--rn-dim); }
+  .status { font: 11px var(--rn-mono); letter-spacing: .08em; color: var(--rn-dim); }
+  .file { padding: 6px 14px 8px; font: 10px var(--rn-mono); color: var(--rn-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+  <rn-window title="Mod log" draggable>
+    <span class="status" slot="status" id="count">0 LINES</span>
+    <div class="bar" id="mods"></div>
+    <div id="lines"><div class="empty">No mod has printed anything yet.</div></div>
+    <div class="tools">
+      <rn-toggle id="errors" label="Errors only"></rn-toggle>
+      <span class="spacer"></span>
+      <rn-button id="pause" variant="ghost">Pause</rn-button>
+      <rn-button id="clear" variant="ghost">Clear</rn-button>
+      <rn-button id="copy">Copy</rn-button>
+    </div>
+    <div class="file" slot="footer" id="file"></div>
+  </rn-window>
+<script src="app.js"></script>
+</body>
+</html>

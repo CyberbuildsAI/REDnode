@@ -1,0 +1,15 @@
+{
+  "id": "modlog",
+  "name": "Mod log",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "What every Node mod prints, live: errors in red, a filter per mod, and Copy to paste the lines anywhere.",
+  "entry": "index.html",
+  "kind": "window",
+  "width": 640,
+  "height": 380,
+  "anchor": "bottom-right",
+  "x": -16,
+  "y": -16,
+  "open": false
+}

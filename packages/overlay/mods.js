@@ -16,6 +16,7 @@ const path = require('node:path');
 
 const SHARED = 'shared';
 const LOG_LINES = 200; // kept per mod for the launcher
+const RECENT_LINES = 500; // kept for the Mod log app, all mods together
 const RESTARTS = 3; // a mod process that crashes more often than this in a minute is left stopped
 
 /**
@@ -30,12 +31,16 @@ const RESTARTS = 3; // a mod process that crashes more often than this in a minu
  * @param {() => object} host.state                         what game.state() answers
  * @param {object} host.ui                                  open(modId, win, spec), update(modId, win, node, props), close(modId, win), closeAll(modId)
  * @param {() => void} host.changed                         a mod's status changed: refresh the launcher
+ * @param {(entry: object) => void} host.onLog               a mod printed a line: { time, id, level, text }
  */
 function createMods(host) {
   /** Mods by id: { entry, enabled, status, error, log: string[], process: key | null, restartedAt } */
   const mods = new Map();
   /** Mod processes by key ('shared' or 'own:<id>'): { proc, mods: Set<id>, crashes: number[], stopping } */
   const processes = new Map();
+  /** The newest lines of every mod, oldest first, for the Mod log app. */
+  const recent = [];
+  let logSeq = 0; // numbers every line, so a page that also gets the history can skip repeats
 
   // ---------- the mod log ----------
 
@@ -47,7 +52,12 @@ function createMods(host) {
   }
 
   function modLog(id, level, text) {
-    const line = `${new Date().toISOString().slice(11, 19)} [${id}]${level === 'error' ? ' ERROR' : ''} ${text}`;
+    const time = new Date().toISOString().slice(11, 19);
+    const line = `${time} [${id}]${level === 'error' ? ' ERROR' : ''} ${text}`;
+    const entry = { seq: ++logSeq, time, id, level, text };
+    recent.push(entry);
+    if (recent.length > RECENT_LINES) recent.shift();
+    host.onLog(entry);
     const m = mods.get(id);
     if (m) {
       m.log.push(line);
@@ -59,6 +69,16 @@ function createMods(host) {
       // best effort
     }
     if (!host.app.isPackaged) console.log(line);
+  }
+
+  // Keeps a crash's message and the stack lines in the mod's own code. Frames
+  // inside Node, the mod runtime and the rednode package say nothing to the author.
+  function modFrames(error) {
+    const [message, ...stack] = String(error).split('\n');
+    const own = stack.filter(
+      (l) => !/node:internal|[\\/]runtime[\\/]worker\.js|[\\/](rednode[\\/]dist|sdk)[\\/]/.test(l),
+    );
+    return [message, ...own].join('\n');
   }
 
   // ---------- grouping ----------
@@ -99,6 +119,7 @@ function createMods(host) {
       if (!m) continue;
       m.process = null;
       host.ui.closeAll(id);
+      modLog(id, 'error', `crashed: ${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
       setStatus(id, 'crashed', `${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
     }
     if (recent.length > RESTARTS) {
@@ -137,7 +158,7 @@ function createMods(host) {
       p.mods.delete(msg.id);
       if (m.process === p.key) m.process = null;
       host.ui.closeAll(msg.id);
-      if (msg.status === 'crashed') modLog(msg.id, 'error', `crashed: ${msg.error}`);
+      if (msg.status === 'crashed') modLog(msg.id, 'error', `crashed: ${modFrames(msg.error)}`);
       // An own process with no mod left is not needed any more.
       if (!p.mods.size && p.key !== SHARED) stopProcess(p);
       if (m.pendingStart) {
@@ -253,6 +274,9 @@ function createMods(host) {
     has: (id) => mods.has(id),
 
     isEnabled: (id) => !!mods.get(id)?.enabled,
+
+    /** The newest lines of every mod, oldest first. */
+    recentLog: () => recent.slice(),
 
     setEnabled(id, enabled) {
       const m = mods.get(id);
