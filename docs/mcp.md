@@ -2,7 +2,7 @@
 
 The REDnode host can serve its tools to AI agents over [MCP](https://modelcontextprotocol.io), the Model Context Protocol. With it, Claude Code on your PC can read your mods' logs, see your overlay windows, look up game types and call the game while it runs. [REDagent](https://github.com/Edgemodders/REDagent), the assistant inside the game, will use the same tools.
 
-Status: **REDagent phase C1, built; in-game test pending.** Tested against a stand-in for the game, packaged and unpackaged, with GPU sharing on and off.
+Status: **REDagent phase C1, passed in game on 2026-10-12.** Claude Code on the desktop used every tool while the game ran.
 
 ## Set it up
 
@@ -51,6 +51,8 @@ In the game, in this order. Claude Code runs on the same PC; switch to it with *
    5. "Close the Coords HUD, then open it again." Watch it go and come back in the game.
    6. "Give V 50 eddies." Claude Code should ask first; allow it, and check the money in Vitals.
 5. Quit the game. In Claude Code, `claude mcp list` now shows `rednode` as failing to connect, which is expected while the game is closed.
+
+**Result, 2026-10-12: passed.** Modded profile with CET, 3840 x 2160, host 0.4.0. `claude mcp list` showed `rednode: http://127.0.0.1:41820/mcp (HTTP) - ✔ Connected`. In a new Claude Code session, every question worked: V's health, level and money through `gameapi_lookup` and `api_call`; the Crash mod's error from `logs`; a description of the Hello mod window from `window_image`; the game state and the overlay's cost, in gameplay and with the inventory open; Coords closed and opened again through `apps` (the host log shows both, two seconds apart); and 50 eddies given after Claude Code asked. The host logged no failed MCP request, and the plugin no crash inside a game call.
 
 ## For developers
 
