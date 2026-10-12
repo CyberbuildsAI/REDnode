@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6 One runtime passed in game.** O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDclaude, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6 One runtime passed in game.** O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDagent, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -302,11 +302,11 @@ Logs: the plugin logs `GPU sharing failed` if it had to give up, and the host lo
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
-Order agreed on 2026-10-12: [REDclaude](https://github.com/Edgemodders/REDclaude), an in-game Claude assistant built as an overlay app, comes right after O6. O7 follows it.
+Order agreed on 2026-10-12: [REDagent](https://github.com/Edgemodders/REDagent) (first named REDclaude), an in-game assistant powered by Claude, built as a REDnode package, comes right after O6. O7 follows it.
 
 ### O6 One runtime: plan
 
-Agreed 2026-10-12. Node mods and overlay apps run in the same host, use the same `rednode` package and get the same answers. This also covers most of P2 (the pipe bridge and the Node SDK), and builds what [REDclaude](https://github.com/Edgemodders/REDclaude) needs: live game queries, mod logs and hot reload. O6 has two test gates, O6a and O6b.
+Agreed 2026-10-12. Node mods and overlay apps run in the same host, use the same `rednode` package and get the same answers. This also covers most of P2 (the pipe bridge and the Node SDK), and builds what [REDagent](https://github.com/Edgemodders/REDagent) needs: live game queries, mod logs and hot reload. O6 has two test gates, O6a and O6b.
 
 **O6a Runtime**
 
@@ -440,7 +440,7 @@ What I read afterwards: `rednode-mods.log` (the mod's calls and errors), the plu
 | Overlay CPU time | 0.11 to 0.15 ms per game frame in gameplay with every app open, as in O6a |
 | Not tested in game | `game.player.setHealth` (`RequestSettingStatPoolValue`), out parameters, and `rtti.get`. **Unverified** |
 
-O6 One runtime is done: Node mods run beside overlay apps, both use the `rednode` package, and `api` reaches any game function. Next: [REDclaude](https://github.com/Edgemodders/REDclaude), then O7 Display.
+O6 One runtime is done: Node mods run beside overlay apps, both use the `rednode` package, and `api` reaches any game function. Next: [REDagent](https://github.com/Edgemodders/REDagent), then O7 Display.
 
 ### UI kit
 
