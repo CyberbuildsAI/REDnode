@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O5 Performance built, in-game test pending.** O1 to O4 passed in game; the O4 scene threshold is still open (see the O4 result). To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O5 Performance passed in game.** O1 to O5 have all passed; the O4 scene threshold is still open (see the O4 result). Next: O6 One runtime. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -278,6 +278,27 @@ The launcher has a **GPU sharing** switch at the bottom to compare the two paths
 6. Switch GPU sharing back on and Stress off.
 
 Logs: the plugin logs `GPU sharing failed` if it had to give up, and the host logs `Released ... shared frame(s) the game did not answer` if frames were not acknowledged.
+
+**Result, 2026-10-12: passed.** Modded profile with CET, 3840 x 2160 SDR, REDnode 0.8.0. GPU sharing ran the whole session without falling back. All windows looked right, click-through worked through Signal's transparent middle on the GPU path, and the GPU sharing switch reopened every window on the other path and back. The host logged a perf line every 5 seconds; these are the 30-second stretches with Stress open:
+
+| With Stress open | GPU sharing | CPU path |
+|---|---|---|
+| Game frame rate (gameplay) | 29 to 31 fps | 29 to 31 fps |
+| Overlay CPU time per game frame | about 1.0 ms (worst 1.7 to 2.5) | about 1.0 ms (worst 1.2 to 1.6) |
+| Overlay GPU time per game frame | 0.06 to 0.10 ms | 0.03 ms |
+| Pixels uploaded in the game | 0 MB/s | 55 MB/s |
+| Sent through the pipe | 0 MB/s | 110 MB/s |
+| Host memory | about 910 MB | about 1,080 MB |
+| Host CPU | 1% | 2% |
+
+| Finding | Notes |
+|---|---|
+| GPU sharing removes the pixel traffic | 110 MB/s through the pipe and 55 MB/s of uploads go to zero, and the host uses about 170 MB less memory. This is what lets many animated apps run together |
+| The overlay's GPU cost is tiny | Under 0.1 ms per frame on both paths |
+| No visible effect on the game's frame rate | The game ran at about 30 fps in gameplay on both paths, which is too slow to show a cost of about 1 ms. Measure again in a lighter scene |
+| Overlay CPU time in gameplay | About 0.7 to 1.0 ms per game frame even without Stress, against about 0.15 ms at the main menu. 3% of a frame at 30 fps, about 14% at 144 fps. A likely cause is opening every shared texture handle again each frame. To trim later |
+| Unanswered shared frames at startup and while hidden | The plugin skips its work before Present is hooked and in hidden mode, so the host's one-second release frees those textures. The plugin could acknowledge them at once. To fix later |
+| Focus bug found and fixed | Clicking the window that had focus before leaving interactive mode did not refocus it (seen with Signal). Fixed in `2b94a6b` with two unit tests, confirmed in the retest |
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
