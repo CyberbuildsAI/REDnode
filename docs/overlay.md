@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O4 HUD widgets passed in game**, except the scene threshold, which is still open (see below). O1 to O3 passed earlier. Next: O5 Performance. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O5 Performance built, in-game test pending.** O1 to O4 passed in game; the O4 scene threshold is still open (see the O4 result). To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -257,6 +257,27 @@ Two new apps open: **Coords HUD**, a strip at the top of the screen with V's pos
 **Result, 2026-10-11: passed, with one open item.** Modded profile with CET. The HUD was hidden at the main menu, showed in gameplay with live coordinates, let clicks through, and hid with the inventory, map, pause menu and photo mode. It stayed visible while talking to NPCs, as intended: conversations are normal play, with the dialogue choices shown in the world. Hidden mode hid everything.
 
 **Open: the `scene` threshold.** A conversation with an NPC is scene tier 2, so the threshold must be above 2, and at 4 the HUD correctly stays up in conversations. No cutscene could be triggered in this save, so whether cutscenes are tier 4 or 5, and what tier 3 is, is still unverified. Test it on a fresh playthrough, where the opening has several scenes: watch the scene tier in the Game state app and check that the HUD hides in cutscenes but not in normal conversations.
+
+### O5 Performance: test
+
+Built 2026-10-11, REDnode 0.8.0. Three changes, each measurable in the new **Perf** app:
+
+| Change | What it does | Checked before the game |
+|---|---|---|
+| Measurement | The plugin times its own CPU work and its GPU work (timestamp queries) on every game frame, and counts the game's frame rate. The host adds its memory and CPU use. Reported once a second as a `perf` event | Builds; the Perf app shows the numbers |
+| Changed areas | On the CPU path only the changed rectangle of a window is sent and uploaded | 5 unit tests; with normal apps the mock saw 20% less data. Animated apps change almost everything, so the saving is small for them |
+| GPU sharing | Chromium renders into a shared GPU texture; the plugin copies it on the GPU, with no pixels through the pipe. Click-through reads each window's alpha back from the GPU up to 5 times a second. On any failure the host falls back to the CPU path | Electron 44 streamed shared textures at about 56 fps on this machine; against the mock, handles flowed and were released, and the fallback switched paths. The GPU copy itself is **untested until the game runs it** |
+
+The launcher has a **GPU sharing** switch at the bottom to compare the two paths. The host's memory is about 60 to 100 MB per open window, because every window is its own Chromium process: 786 MB with 6 windows in the mock run.
+
+1. Launch the game. The **Perf** window is at the top right. It should say *Render path: GPU sharing*, with *GPU-shared frames* counting up.
+2. Check that every window looks right: no garbage, flicker, tearing or stale frames. Switch **Signal** on in the launcher: its ring should animate smoothly.
+3. In interactive mode, click through Signal's transparent middle: click-through must still work on the GPU path.
+4. Switch **Stress** on. Note the game's frame rate, the overlay's CPU and GPU times, and the host's memory and CPU.
+5. Switch **GPU sharing** off at the bottom of the launcher. The windows reopen on the CPU path. Note the same numbers with Stress still on.
+6. Switch GPU sharing back on and Stress off.
+
+Logs: the plugin logs `GPU sharing failed` if it had to give up, and the host logs `Released ... shared frame(s) the game did not answer` if frames were not acknowledged.
 
 O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of REDnode. O7 hardens it.
 
