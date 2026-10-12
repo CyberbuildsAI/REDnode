@@ -10,8 +10,10 @@
  *     <rn-button sound="ui_menu_onpress">Apply</rn-button>
  *   </rn-window>
  *
- * Themes: put theme="rednode" (the default) or theme="game" on any element;
- * everything inside it follows. Themes are CSS custom properties named --rn-*.
+ * Themes: put theme="rednode" (the default), theme="game" or theme="yellow" on
+ * any element; everything inside it follows. Themes are CSS custom properties
+ * named --rn-*. The player picks a theme for every window in the launcher; an
+ * app's own theme attribute wins inside its element.
  *
  * Every component uses an open shadow root, so app CSS cannot break it, and the
  * overlay host can find drag handles inside it. See packages/ui/README.md.
@@ -41,6 +43,16 @@
   --rn-cut: 12px;
   --rn-glow: none;
   --rn-title-case: uppercase;
+  /* Window title bars: a tint of the accent, normal text. */
+  --rn-title-bg: linear-gradient(90deg, color-mix(in srgb, var(--rn-accent) 14%, transparent), transparent 60%);
+  --rn-title-bg-dim: var(--rn-title-bg);
+  --rn-title-fg: var(--rn-fg);
+  --rn-title-dim: var(--rn-dim);
+  --rn-title-ok: var(--rn-ok);
+  --rn-title-mark: var(--rn-accent);
+  --rn-title-line: var(--rn-line);
+  --rn-title-hover-bg: var(--rn-accent);
+  --rn-title-hover-fg: var(--rn-on-accent);
 }
 [theme="game"] {
   --rn-bg: rgba(12, 6, 8, .86);
@@ -60,6 +72,45 @@
   --rn-cut: 8px;
   --rn-glow: 0 0 12px rgba(255, 97, 88, .45);
   --rn-title-case: uppercase;
+  /* Window title bars: a tint of the accent, normal text. */
+  --rn-title-bg: linear-gradient(90deg, color-mix(in srgb, var(--rn-accent) 14%, transparent), transparent 60%);
+  --rn-title-bg-dim: var(--rn-title-bg);
+  --rn-title-fg: var(--rn-fg);
+  --rn-title-dim: var(--rn-dim);
+  --rn-title-ok: var(--rn-ok);
+  --rn-title-mark: var(--rn-accent);
+  --rn-title-line: var(--rn-line);
+  --rn-title-hover-bg: var(--rn-accent);
+  --rn-title-hover-fg: var(--rn-on-accent);
+}
+[theme="yellow"] {
+  --rn-bg: rgba(8, 9, 13, .9);
+  --rn-panel: rgba(16, 19, 27, .92);
+  --rn-panel-2: rgba(21, 25, 37, .96);
+  --rn-line: #262c3d;
+  --rn-fg: #e3e6ee;
+  --rn-dim: #8a93a8;
+  --rn-accent: #fcee0a;
+  --rn-accent-2: #19f3ff;
+  --rn-on-accent: #08090d;
+  --rn-danger: #ff2a52;
+  --rn-ok: #5dffa1;
+  --rn-display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --rn-body: "Rajdhani", "Segoe UI", sans-serif;
+  --rn-mono: "JetBrains Mono", "Consolas", monospace;
+  --rn-cut: 12px;
+  --rn-glow: none;
+  --rn-title-case: uppercase;
+  /* Window title bars: solid yellow with dark text. */
+  --rn-title-bg: #fcee0a;
+  --rn-title-bg-dim: #8f8710;
+  --rn-title-fg: #08090d;
+  --rn-title-dim: rgba(8, 9, 13, .62);
+  --rn-title-ok: #08090d;
+  --rn-title-mark: #08090d;
+  --rn-title-line: rgba(8, 9, 13, .4);
+  --rn-title-hover-bg: #08090d;
+  --rn-title-hover-fg: #fcee0a;
 }`;
 
   function installGlobals() {
@@ -74,6 +125,18 @@
     document.head.append(fonts, style);
   }
   installGlobals();
+
+  // The player's theme, chosen in the REDnode launcher, applies to the whole page.
+  // An app that sets theme="..." on its <html> keeps its own; theme on an inner
+  // element, such as <body>, still wins inside that element.
+  const appTheme = document.documentElement.getAttribute('theme');
+  function applyPlayerTheme(theme) {
+    if (!appTheme && typeof theme === 'string' && theme) document.documentElement.setAttribute('theme', theme);
+  }
+  window.rednode?.state?.().then((s) => applyPlayerTheme(s?.theme), () => {});
+  window.rednode?.on?.((m) => {
+    if (m.event === 'theme') applyPlayerTheme(m.theme);
+  });
 
   // ---------- shared helpers ----------
 
@@ -134,17 +197,20 @@
   clip-path: polygon(0 0, calc(100% - var(--rn-cut)) 0, 100% var(--rn-cut), 100% 100%, var(--rn-cut) 100%, 0 calc(100% - var(--rn-cut))); }
 :host(.unfocused) { border-color: color-mix(in srgb, var(--rn-accent) 20%, transparent); }
 header { display: flex; align-items: center; gap: 10px; padding: 9px 12px 8px 14px;
-  border-bottom: 1px solid var(--rn-line); background: linear-gradient(90deg, color-mix(in srgb, var(--rn-accent) 14%, transparent), transparent 60%); }
+  border-bottom: 1px solid var(--rn-line); background: var(--rn-title-bg); color: var(--rn-title-fg);
+  /* Status text in the title bar (the status slot) follows the title colors. */
+  --rn-dim: var(--rn-title-dim); --rn-ok: var(--rn-title-ok); }
+:host(.unfocused) header { background: var(--rn-title-bg-dim); }
 /* Only the title area is the drag handle, so controls in the status slot stay clickable. */
 .grip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; align-self: stretch; }
 .grip[data-rednode-drag] { cursor: move; }
-.mark { width: 8px; height: 8px; background: var(--rn-accent); flex: none; }
+.mark { width: 8px; height: 8px; background: var(--rn-title-mark); flex: none; }
 :host(.unfocused) .mark { background: var(--rn-dim); }
 h1 { margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 15px var(--rn-display); letter-spacing: .1em; text-transform: var(--rn-title-case); }
-.close { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid var(--rn-line);
-  background: transparent; color: var(--rn-dim); font: 14px var(--rn-mono); cursor: pointer; }
+.close { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid var(--rn-title-line);
+  background: transparent; color: var(--rn-title-dim); font: 14px var(--rn-mono); cursor: pointer; }
 .close[hidden] { display: none; }
-.close:hover { color: var(--rn-on-accent); background: var(--rn-accent); border-color: var(--rn-accent); }
+.close:hover { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
 .body { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 footer:empty { display: none; }`,
         `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><button class="close" hidden aria-label="Close">✕</button></header>

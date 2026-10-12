@@ -27,7 +27,11 @@
   .status b { color: var(--rn-ok); font-weight: 500; }
   .status b.off { color: var(--rn-danger); }
   #rn-notifications { bottom: auto !important; top: 8px; }
-  .footer { display: flex; gap: 18px; padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
+  .footer { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
+  .switches { display: flex; gap: 18px; }
+  .themes { display: flex; align-items: center; gap: 6px; }
+  .themes .label { font: 600 11px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim); margin-right: 4px; }
+  .themes rn-button::part(button) { min-height: 28px; padding: 4px 10px; font-size: 12px; }
   .mod { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
   .status-line { font: 11px var(--rn-mono); letter-spacing: .08em; color: var(--rn-dim); }
   .st { font-weight: 500; }
@@ -47,8 +51,16 @@
       <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
       <div id="apps"><p class="empty">Looking for apps...</p></div>
       <div slot="footer" class="footer">
-        <rn-toggle id="gpu" label="GPU sharing"></rn-toggle>
-        <rn-toggle id="hot" label="Hot reload"></rn-toggle>
+        <div class="switches">
+          <rn-toggle id="gpu" label="GPU sharing"></rn-toggle>
+          <rn-toggle id="hot" label="Hot reload"></rn-toggle>
+        </div>
+        <div class="themes">
+          <span class="label">Theme</span>
+          <rn-button data-theme="rednode" variant="ghost">REDnode</rn-button>
+          <rn-button data-theme="game" variant="ghost">Game red</rn-button>
+          <rn-button data-theme="yellow" variant="ghost">Yellow</rn-button>
+        </div>
       </div>
     </rn-window>
     <div class="tab">

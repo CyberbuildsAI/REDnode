@@ -121,6 +121,18 @@ $('hot').addEventListener('change', async (e) => {
   RednodeUI.notify(on ? 'Mods restart when their files change' : 'Hot reload off', { title: 'Hot reload' });
 });
 
+// Theme: every window that uses the UI kit follows it, unless the app chose its own.
+const themeButtons = [...document.querySelectorAll('[data-theme]')];
+function showTheme(name) {
+  for (const b of themeButtons) {
+    if (b.dataset.theme === name) b.removeAttribute('variant');
+    else b.setAttribute('variant', 'ghost');
+  }
+}
+for (const b of themeButtons) {
+  b.addEventListener('click', () => act('Theme', async () => showTheme(await window.rednode.apps.theme(b.dataset.theme))));
+}
+
 let refreshing = false;
 async function refresh() {
   if (refreshing) return;
@@ -128,6 +140,7 @@ async function refresh() {
   try {
     $('gpu').checked = (await window.rednode.apps.renderPath()) === 'gpu';
     $('hot').checked = await window.rednode.apps.hotReload();
+    showTheme(await window.rednode.apps.theme());
     const items = await window.rednode.apps.list();
     const list = $('apps');
     const seen = new Set();

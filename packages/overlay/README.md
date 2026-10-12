@@ -27,7 +27,7 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [builder/](builder/) | The page that shows windows built by Node mods with `ui.window` |
 | [preload.js](preload.js) | Defines `window.rednode` for apps |
 | [start.js](start.js) | Starts Electron with a clean environment (developer runs only) |
-| [launcher/](launcher/) | The built-in launcher: a REDNODE tab that lists apps and mods, opens or closes them, and shows each mod's state and memory |
+| [launcher/](launcher/) | The built-in launcher: a REDNODE tab that lists apps and mods, opens or closes them, shows each mod's state and memory, and sets the theme every window follows |
 | [modlog/](modlog/) | The built-in Mod log: every line Node mods print, live, with a filter per mod, errors only, pause and Copy. Off by default; open it from the launcher |
 | [apps/kit/](apps/kit/) | Every UI kit widget in one titled window, built from markup. Opens by default |
 | [apps/native/](apps/native/) | A borderless, game-style button and menu. Opens by default |
@@ -169,6 +169,7 @@ Messages from the game:
 | `focus` | `focused`: `true` or `false` | This window gained or lost keyboard focus. Use it to dim your title bar |
 | `perf` | `game`: `fps`, `cpuMs`, `cpuMsMax`, `waitMs`, `openMs`, `gpuMs`, `gpuMsMax`, `uploadsPerSec`, `uploadMBps`, `sharedPerSec`, `opensPerSec`, `reusedPerSec`. `host`: `memoryMB`, `cpuPercent`, `processes`, `sentMBps`, `renderPath`, `windows` | Once a second |
 | `state` | `state`: `connected`, `overlay`, `menu`, `photoMode`, `scene`, `mainMenu` | The link, the overlay mode or the game's UI state changed |
+| `theme` | `theme`: `rednode`, `game` or `yellow` | The player picked another theme in the launcher. The UI kit applies it for you |
 | `ui-state` | `menu`, `photoMode`, `scene`, `mainMenu` (booleans), `sceneTier` (number, -1 without a player) | The game's UI state changed |
 | `game` | `name`, `value`, `frame` | A redscript event: today `PlayerPuppet.OnGameAttached`, at the main menu and on every save load |
 

@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('rednode', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  /** Connection and game state: { connected, mode, windowed, version, game }. */
+  /** Connection and game state: { connected, mode, windowed, version, game, theme }. */
   state: () => ipcRenderer.invoke('rednode:state'),
   /** Installed apps and mods. Only the built-in REDnode launcher may use these; other apps get an error. */
   apps: {
@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('rednode', {
     renderPath: (path) => ipcRenderer.invoke('rednode:host:render-path', path),
     /** Gets hot reload, or turns it on or off. */
     hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
+    /** Gets the theme every window follows, or sets it: 'rednode', 'game' or 'yellow'. */
+    theme: (name) => ipcRenderer.invoke('rednode:host:theme', name),
   },
   /** The mod log, for apps built into REDnode. Other apps get an error. New lines arrive as {event: 'mod-log', entries}. */
   logs: {

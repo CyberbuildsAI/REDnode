@@ -409,6 +409,7 @@ Built 2026-10-12: plugin 0.10.0, host 0.3.0, `rednode` 0.2.0. Checked against a 
 | `game` helpers | `player.position`, `audio.play`, and the new `player.getHealth` and `player.setHealth` are built on `api` now |
 | **Vitals** app | A HUD widget under the Coords HUD: V's health, level and money, read through `api` from a web page |
 | **Game API mod** | The same three values from Node, plus **Give 100 eddies**, **Wrong argument type** and **Use the player from before** |
+| Theme selector | The launcher's **Theme**: REDnode, Game red, or the new Yellow, with solid yellow title bars. Every window that uses the UI kit follows it at once, unless the app chose its own theme |
 
 In the game, do these in order, with a 30-second pause after each:
 
@@ -418,11 +419,12 @@ In the game, do these in order, with a 30-second pause after each:
 4. Press **Wrong argument type**. The mod shows "Refused, as it should be:" and the reason. Nothing happens in the game.
 5. Press **Use the player from before**. It shows "Still valid" and V's position.
 6. In Hello mod, press **Play sound**: the sound now goes through the generic API.
-7. **Cursor check, carried over from O6a:** open the **Mod log** and switch **Crash mod** on in the launcher. As soon as Crash mod's window appears, click inside it a few times on its text and between its buttons, without pressing a button. The cursor should stay, and interactive mode should not end.
-8. Switch Crash mod off again. Press **F10** until the overlay is hidden, wait 30 seconds, then **F10** back to passive.
-9. Get hurt a little, for example a fall: HP drops in both Vitals and the mod.
-10. Load a different save. Then press **Use the player from before** in the Game API mod: it should now say "that game object no longer exists". The values update for the new save.
-11. Quit the game.
+7. **Themes.** In the launcher, at the bottom, press **Yellow**: every window's title bar turns solid yellow at once. Press **Game red**: the windows turn red. The Coords HUD, Vitals and Native button stay red in every theme, because they choose the game theme themselves. Pick the one you like; it is saved.
+8. **Cursor check, carried over from O6a:** open the **Mod log** and switch **Crash mod** on in the launcher. As soon as Crash mod's window appears, click inside it a few times on its text and between its buttons, without pressing a button. The cursor should stay, and interactive mode should not end.
+9. Switch Crash mod off again. Press **F10** until the overlay is hidden, wait 30 seconds, then **F10** back to passive.
+10. Get hurt a little, for example a fall: HP drops in both Vitals and the mod.
+11. Load a different save. Then press **Use the player from before** in the Game API mod: it should now say "that game object no longer exists". The values update for the new save.
+12. Quit the game.
 
 What I read afterwards: `rednode-mods.log` (the mod's calls and errors), the plugin log (any `rtti.call` crash lines), and `rednode-overlay.log` (no "Released ... shared frame(s)" lines while hidden, and no interactive mode ending by itself).
 

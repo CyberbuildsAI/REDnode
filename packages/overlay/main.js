@@ -159,7 +159,10 @@ function writeJson(name, value) {
   );
 }
 let positions = {};
-let settings = { apps: {} }; // apps: { [id]: { open, shared } }, renderPath: 'gpu' | 'cpu', hotReload
+let settings = { apps: {} }; // apps: { [id]: { open, shared } }, renderPath: 'gpu' | 'cpu', hotReload, theme
+// UI kit themes the player can pick in the launcher. Every page using the kit follows it.
+const THEMES = ['rednode', 'game', 'yellow'];
+const theme = () => (THEMES.includes(settings.theme) ? settings.theme : 'rednode');
 let renderPath = 'gpu';
 
 // GPU-shared frames the game has not finished with yet: frame id -> { texture, windowId, at }.
@@ -660,7 +663,7 @@ function modLogFile() {
 }
 
 function hostState() {
-  return { connected, mode, windowed, version: VERSION, game: gameState() };
+  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme() };
 }
 
 ipcMain.handle('rednode:call', (_event, method, params) => bridgeCall(method, params));
@@ -741,6 +744,17 @@ ipcMain.handle('rednode:mods:restart', (event, id) => {
   if (!mods.has(id)) throw new Error(`No mod "${id}"`);
   mods.restart(id);
   return appList();
+});
+
+ipcMain.handle('rednode:host:theme', (event, name) => {
+  fromLauncher(event);
+  if (THEMES.includes(name) && name !== theme()) {
+    settings.theme = name;
+    writeJson('settings.json', settings);
+    log(`Theme: ${name}`);
+    toAllPages({ event: 'theme', theme: name });
+  }
+  return theme();
 });
 
 ipcMain.handle('rednode:host:hot-reload', (event, on) => {
