@@ -20,5 +20,6 @@
   },
   "hostedBaseUrl": "https://edgemodders.github.io/REDnode/api/",
   "customFooterHtml": "REDnode &middot; MIT",
-  "favicon": "../../docs/assets/brand/icon.png"
+  "favicon": "../../docs/assets/brand/icon.png",
+  "validation": { "notExported": false }
 }

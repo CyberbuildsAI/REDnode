@@ -20,5 +20,8 @@ rtti-dump*
 docs/api/
 docs/game/
 
+# game API types, generated from gameapi/<version>/rtti.json by the rednode build
+packages/rednode/src/generated/
+
 # editor settings: shared ones live in REDnode.code-workspace
 .vscode/

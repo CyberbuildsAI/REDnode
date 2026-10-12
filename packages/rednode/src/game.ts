@@ -11,6 +11,7 @@
  * @module
  */
 
+import { api } from "./api.js";
 import { cleanError, transport, type HostMessage } from "./transport.js";
 
 /** Stops a subscription made with {@link Game.on} or {@link Game.onState}. */
@@ -72,20 +73,27 @@ export interface Player {
   position(): Promise<Vector3>;
 
   /**
-   * Reads the player's current health.
+   * Reads V's health, in health points. Built on {@link api}: the stat pools
+   * system's `Health` pool.
    *
-   * Not built yet: arrives with the generic game API in overlay phase O6b. Throws until then.
+   * @example
+   * ```ts
+   * const hp = await game.player.getHealth();
+   * ```
    */
   getHealth(): Promise<number>;
 
   /**
-   * Sets the player's health.
+   * Sets V's health, in health points. Applied by the game on its next update.
    *
-   * Not built yet: arrives with the generic game API in overlay phase O6b. Throws until then.
+   * @param value - New health points. The game caps it at V's maximum.
    *
-   * @param value - New health points.
+   * @example
+   * ```ts
+   * await game.player.setHealth(1); // one hit from death
+   * ```
    */
-  setHealth(value: number): void;
+  setHealth(value: number): Promise<void>;
 }
 
 /** The game's audio. */
@@ -171,11 +179,32 @@ export interface Game {
 
   /** The game's audio. */
   readonly audio: Audio;
+
+  /**
+   * The game instance, for the many game functions whose first argument is a
+   * `GameInstance`.
+   *
+   * @example
+   * ```ts
+   * const stats = await api.GameInstance.GetStatsSystem(game.instance);
+   * ```
+   */
+  readonly instance: Record<string, never>;
 }
 
-const notYet = (what: string): never => {
-  throw new Error(`rednode: ${what} arrives with the generic game API (overlay phase O6b)`);
-};
+const instance: Record<string, never> = Object.freeze({}) as Record<string, never>;
+
+async function player() {
+  const p = await api.GetPlayer(instance);
+  if (!p) throw new Error("No player. Load a save first.");
+  return p;
+}
+
+// The player's id for stat systems: Cast<StatsObjectID>(player.GetEntityID()).
+async function playerStatsId() {
+  const id = await (await player()).GetEntityID();
+  return (await api.$call("Cast;EntityID;StatsObjectID", id)) as Record<string, unknown>;
+}
 
 async function call<T>(method: string, params?: Record<string, unknown>): Promise<T> {
   try {
@@ -246,14 +275,25 @@ export const game: Game = {
     };
   },
   call,
+  instance,
   player: {
-    position: () => call<Vector3>("player.position"),
-    getHealth: () => notYet("game.player.getHealth"),
-    setHealth: () => notYet("game.player.setHealth"),
+    async position() {
+      const v = await (await player()).GetWorldPosition();
+      return { x: v.X, y: v.Y, z: v.Z };
+    },
+    async getHealth() {
+      const pools = await api.GameInstance.GetStatPoolsSystem(instance);
+      return pools!.GetStatPoolValue(await playerStatsId(), "Health", false);
+    },
+    async setHealth(value: number) {
+      const pools = await api.GameInstance.GetStatPoolsSystem(instance);
+      await pools!.RequestSettingStatPoolValue(await playerStatsId(), "Health", value, null, false);
+    },
   },
   audio: {
     async play(name: string) {
-      await call("audio.play", { name });
+      const audio = await api.GameInstance.GetAudioSystem(instance);
+      await audio!.Play(name);
     },
   },
 };

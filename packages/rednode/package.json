@@ -1,6 +1,6 @@
 {
   "name": "rednode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node.js API for scripting Cyberpunk 2077",
   "license": "MIT",
   "type": "module",
@@ -16,9 +16,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "docs": "typedoc"
+    "gen": "node ../../tools/gameapi/types.mjs",
+    "build": "npm run gen && tsc -p tsconfig.json",
+    "typecheck": "npm run gen && tsc -p tsconfig.json --noEmit",
+    "docs": "npm run gen && typedoc"
   },
   "devDependencies": {
     "typedoc": "^0.28.20",

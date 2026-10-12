@@ -2,7 +2,7 @@
 
 The REDnode SDK: a Node.js API for scripting Cyberpunk 2077 (PC, single-player).
 
-> **Status: overlay phase O6a.** `game` and `ui` work in the REDnode overlay host, for Node mods and overlay apps alike. Their in-game test is pending. The generic game API (any game function, typed) arrives in O6b. Tier 1 interceptors are still a design, and their functions throw.
+> **Status: overlay phase O6b.** `game` and `ui` work in the REDnode overlay host, for Node mods and overlay apps alike, tested in game. `api`, the generic game API (any game function, typed from the game's data), is built; its in-game test is pending. Tier 1 interceptors are still a design, and their functions throw.
 
 ## Two tiers
 
@@ -28,5 +28,17 @@ setInterval(async () => {
 
 game.on("PlayerPuppet.OnGameAttached", () => console.log("A save was loaded"));
 ```
+
+Anything else in the game, through `api`, typed from the game's own data:
+
+```ts
+import { api, game } from "rednode";
+
+const player = await api.GetPlayer(game.instance);
+const shop = await api.GameInstance.GetTransactionSystem(game.instance);
+await shop!.GiveItem(player, await api.MarketSystem.Money(), 100);
+```
+
+The package's build generates those types from `gameapi/<version>/rtti.json` (about 9 MB).
 
 How to write and install mods and apps: the [Overlay apps guide](https://edgemodders.github.io/REDnode/overlay-apps.html). The architecture: the [design document](https://edgemodders.github.io/REDnode/design.html).

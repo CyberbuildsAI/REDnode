@@ -15,8 +15,8 @@
  * {@link interceptor}.
  *
  * **Status:** {@link game} and {@link ui} work in the overlay host since
- * overlay phase O6a. The generic game API arrives in O6b; Tier 1 interceptors
- * are still a design and throw.
+ * overlay phase O6a, and {@link api}, the generic game API, since O6b. Tier 1
+ * interceptors are still a design and throw.
  *
  * @packageDocumentation
  */
@@ -24,6 +24,8 @@
 export { game } from "./game.js";
 export type { Game, GameEvent, GameState, EventHandler, Unsubscribe, Player, Audio, Vector3 } from "./game.js";
 export { ui } from "./ui.js";
+export { api } from "./api.js";
+export type { GameRef, ApiExtras } from "./api.js";
 export type {
   Anchor,
   UiNode,
