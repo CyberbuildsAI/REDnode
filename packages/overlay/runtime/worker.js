@@ -70,7 +70,6 @@ parentPort.on('message', (m) => {
   }
 });
 
-console.log(`Starting ${main}`);
 import(pathToFileURL(path.join(dir, main)).href).then(
   () => parentPort.postMessage({ t: 'loaded' }),
   (err) => {

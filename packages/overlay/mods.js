@@ -46,13 +46,13 @@ function createMods(host) {
 
   try {
     fs.mkdirSync(path.dirname(host.logFile), { recursive: true });
-    fs.appendFileSync(host.logFile, `\n---- REDnode mods, ${new Date().toISOString()} ----\n`);
+    fs.appendFileSync(host.logFile, `\n---- REDnode mods, ${new Date().toString()} ----\n`);
   } catch {
     // the log is best effort
   }
 
   function modLog(id, level, text) {
-    const time = new Date().toISOString().slice(11, 19);
+    const time = new Date().toTimeString().slice(0, 8); // local time, like the player's clock
     const line = `${time} [${id}]${level === 'error' ? ' ERROR' : ''} ${text}`;
     const entry = { seq: ++logSeq, time, id, level, text };
     recent.push(entry);
@@ -118,6 +118,7 @@ function createMods(host) {
       const m = mods.get(id);
       if (!m) continue;
       m.process = null;
+      m.stopping = false;
       host.ui.closeAll(id);
       modLog(id, 'error', `crashed: ${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
       setStatus(id, 'crashed', `${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
@@ -156,11 +157,15 @@ function createMods(host) {
     if (!m) return;
     if (msg.status === 'crashed' || msg.status === 'stopped') {
       p.mods.delete(msg.id);
-      if (m.process === p.key) m.process = null;
-      host.ui.closeAll(msg.id);
-      if (msg.status === 'crashed') modLog(msg.id, 'error', `crashed: ${modFrames(msg.error)}`);
       // An own process with no mod left is not needed any more.
       if (!p.mods.size && p.key !== SHARED) stopProcess(p);
+      // A late message from a process the mod has already left: nothing else to do.
+      if (m.process !== p.key) return;
+      m.process = null;
+      m.stopping = false;
+      host.ui.closeAll(msg.id);
+      if (msg.status === 'crashed') modLog(msg.id, 'error', `crashed: ${modFrames(msg.error)}`);
+      else modLog(msg.id, 'info', 'Stopped');
       if (m.pendingStart) {
         m.pendingStart = false;
         start(msg.id);
@@ -229,7 +234,9 @@ function createMods(host) {
     if (crashes) p.crashes = crashes;
     p.mods.add(id);
     m.process = key;
+    m.stopping = false;
     m.log.length = 0;
+    modLog(id, 'info', `Starting ${m.entry.manifest.main} in ${key === SHARED ? 'the shared process' : 'its own process'}`);
     setStatus(id, 'starting');
     const { manifest } = m.entry;
     p.proc.postMessage({ t: 'start', mod: { id, dir: m.entry.dir, main: manifest.main }, sdk: host.sdk });
@@ -241,14 +248,20 @@ function createMods(host) {
     if (!m) return;
     m.pendingStart = thenStart;
     host.ui.closeAll(id);
+    if (m.stopping) return; // already asked; the answer starts it again if thenStart
     const p = m.process && processes.get(m.process);
-    if (p) p.proc.postMessage({ t: 'stop', id });
-    else setStatus(id, 'stopped');
+    if (p) {
+      m.stopping = true;
+      p.proc.postMessage({ t: 'stop', id });
+    } else {
+      setStatus(id, 'stopped');
+    }
   }
 
-  function restart(id) {
+  function restart(id, why = 'Restarting') {
     const m = mods.get(id);
     if (!m || !m.enabled) return;
+    modLog(id, 'info', why);
     if (m.process) stop(id, true);
     else start(id);
   }
@@ -267,6 +280,7 @@ function createMods(host) {
         log: [],
         process: null,
         pendingStart: false,
+        stopping: false,
       });
       if (enabled) start(entry.manifest.id);
     },
@@ -292,7 +306,7 @@ function createMods(host) {
       if (!m || m.shared === !!shared) return;
       if (shared && !canShare(m)) throw new Error(`${m.entry.manifest.name} must run in its own process`);
       m.shared = !!shared;
-      if (m.enabled) restart(id);
+      if (m.enabled) restart(id, shared ? 'Moving to the shared process' : 'Moving to its own process');
     },
 
     restart,

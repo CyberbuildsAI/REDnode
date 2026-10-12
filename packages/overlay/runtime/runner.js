@@ -82,10 +82,7 @@ function start(mod, sdk) {
 
 function stop(id) {
   const entry = mods.get(id);
-  if (!entry) {
-    send({ t: 'status', id, status: 'stopped' });
-    return;
-  }
+  if (!entry) return; // already gone: its exit was reported then
   entry.stopping = true;
   entry.worker.terminate(); // also stops a mod stuck in an endless loop
 }

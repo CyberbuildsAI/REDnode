@@ -69,7 +69,7 @@ const hotReloadArg = arg('hot-reload');
 // ---------- logging ----------
 
 function log(...args) {
-  const line = `${new Date().toISOString().slice(11, 19)} ${args.join(' ')}`;
+  const line = `${new Date().toTimeString().slice(0, 8)} ${args.join(' ')}`; // local time, like the player's clock
   console.log(line);
   if (logFile) {
     try {
@@ -519,11 +519,17 @@ function onGameMessage(m) {
       toAllPages(m);
       stateChanged();
       return;
-    case 'ui-state':
-      uiState = { menu: !!m.menu, photoMode: !!m.photoMode, scene: !!m.scene, mainMenu: !!m.mainMenu };
+    case 'ui-state': {
+      const next = { menu: !!m.menu, photoMode: !!m.photoMode, scene: !!m.scene, mainMenu: !!m.mainMenu };
+      const changed = JSON.stringify(next) !== JSON.stringify(uiState);
+      uiState = next;
+      // A window hidden with the game's UI loses its texture in the game. Repaint every
+      // window, so one that is shown again gets a frame even if its page is idle.
+      if (changed) for (const w of windows.values()) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
       toAllPages(m);
       stateChanged();
       return;
+    }
     case 'game':
       toAllPages(m);
       mods?.broadcast(m);
