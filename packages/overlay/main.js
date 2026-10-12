@@ -460,6 +460,18 @@ function keyName(vk) {
   return null;
 }
 
+let ctrlDown = false;
+let shiftDown = false;
+// Editing shortcuts, run by the host on the focused page.
+const EDIT_KEYS = {
+  V: (wc) => wc.paste(),
+  C: (wc) => wc.copy(),
+  X: (wc) => wc.cut(),
+  A: (wc) => wc.selectAll(),
+  Z: (wc) => (shiftDown ? wc.redo() : wc.undo()),
+  Y: (wc) => wc.redo(),
+};
+
 function onInput(m) {
   const w = windows.get(m.window);
   if (!w || w.win.isDestroyed()) return;
@@ -478,12 +490,22 @@ function onInput(m) {
       break;
     case 'keyDown':
     case 'keyUp': {
+      // The plugin sends Ctrl and Shift as keys of their own; keep their state, so
+      // shortcuts work: the editing ones are run directly, which is reliable.
+      if (m.vk === 17) ctrlDown = m.type === 'keyDown';
+      if (m.vk === 16) shiftDown = m.type === 'keyDown';
       const keyCode = keyName(m.vk);
-      if (keyCode) wc.sendInputEvent({ type: m.type, keyCode });
+      if (m.type === 'keyDown' && ctrlDown && EDIT_KEYS[keyCode]) {
+        EDIT_KEYS[keyCode](wc);
+        break;
+      }
+      const modifiers = [ctrlDown && 'control', shiftDown && 'shift'].filter(Boolean);
+      if (keyCode) wc.sendInputEvent({ type: m.type, keyCode, modifiers });
       break;
     }
     case 'char':
-      wc.sendInputEvent({ type: 'char', keyCode: String.fromCharCode(m.code) });
+      // Control characters (Ctrl+V makes 0x16) would arrive as junk; real keys came as keyDown.
+      if (m.code >= 32) wc.sendInputEvent({ type: 'char', keyCode: String.fromCharCode(m.code) });
       break;
     default:
       break;
@@ -1257,6 +1279,7 @@ app.whenReady().then(() => {
     call: bridgeCall,
     state: hostState,
     dataDir: dataDirOf,
+    appsDirs: APP_ROOTS.filter((r) => !r.builtin).map((r) => r.dir),
     secret,
     mcpFor,
     post: postToPages,

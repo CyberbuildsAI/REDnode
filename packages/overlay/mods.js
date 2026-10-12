@@ -253,7 +253,7 @@ function createMods(host) {
     const { manifest } = m.entry;
     p.proc.postMessage({
       t: 'start',
-      mod: { id, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id) },
+      mod: { id, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id), appsDirs: host.appsDirs },
       sdk: host.sdk,
     });
   }

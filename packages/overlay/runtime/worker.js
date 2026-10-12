@@ -13,10 +13,10 @@ const { registerHooks } = require('node:module');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const { id, dir, main, sdk, dataDir } = workerData;
+const { id, dir, main, sdk, dataDir, appsDirs } = workerData;
 
 // This package, for `pkg` in the rednode package.
-globalThis[Symbol.for('rednode.package')] = Object.freeze({ id, dir, dataDir });
+globalThis[Symbol.for('rednode.package')] = Object.freeze({ id, dir, dataDir, appsDirs });
 const sdkUrl = pathToFileURL(sdk).href;
 
 registerHooks({

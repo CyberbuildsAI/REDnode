@@ -18,6 +18,8 @@ export interface PackageInfo {
    * writes: settings, caches, history. It survives updates of the package.
    */
   readonly dataDir: string;
+  /** The folders where packages are installed, for tools that read other packages' files. */
+  readonly appsDirs: readonly string[];
 }
 
 /**

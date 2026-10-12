@@ -198,3 +198,4 @@ The styling in [apps/demo/style.css](apps/demo/style.css) uses the REDnode HUD t
 | **F10** | Cycles passive (drawn, input goes to the game), interactive (input goes to the windows) and hidden |
 | **Esc**, or a click on empty screen | Leaves interactive mode |
 | Drag a handle | Moves the window. Positions are saved in the host's user data folder |
+| **Ctrl+V**, **Ctrl+C**, **Ctrl+X**, **Ctrl+A**, **Ctrl+Z** | Paste, copy, cut, select all and undo in the focused window, run by the host |
