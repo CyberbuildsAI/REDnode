@@ -281,6 +281,96 @@ function discoverApps() {
   log(`Found ${apps.size} app(s): ${[...apps.keys()].join(', ')}`);
 }
 
+// ---------- packages added, changed or removed while the host runs ----------
+
+// Starts a package found after startup, as if it had been there from the start.
+function startPackage(entry) {
+  if (hotReload && !entry.builtin) watchPackage(entry);
+  if (shouldOpen(entry)) openApp(entry);
+  if (entry.manifest.main) mods.add(entry, { enabled: shouldOpen(entry), shared: settings.apps[entry.manifest.id]?.shared });
+}
+
+function stopPackage(id) {
+  closeApp(id);
+  if (mods.has(id)) mods.remove(id);
+  watchers.get(id)?.close();
+  watchers.delete(id);
+}
+
+// Looks at the apps folders again: new packages start, removed ones stop, and a
+// changed manifest is applied. A package written while the game runs, for example
+// by REDagent, works without a restart.
+const lastManifestError = new Map(); // folder -> message, so an invalid manifest is logged once
+function rescanApps() {
+  const found = new Map(); // id -> { dir, manifest }
+  for (const root of APP_ROOTS) {
+    if (root.single || !fs.existsSync(root.dir)) continue;
+    for (const d of fs.readdirSync(root.dir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const dir = path.join(root.dir, d.name);
+      try {
+        const manifest = readManifest(dir);
+        lastManifestError.delete(dir);
+        if (manifest && !found.has(manifest.id)) found.set(manifest.id, { dir, manifest });
+      } catch (err) {
+        if (lastManifestError.get(dir) !== err.message) log(`Skipped an app: ${err.message}`);
+        lastManifestError.set(dir, err.message);
+      }
+    }
+  }
+  let changed = false;
+  for (const [id, entry] of [...apps]) {
+    if (entry.builtin) continue;
+    const now = found.get(id);
+    if (!now || now.dir !== entry.dir) {
+      log(`Package removed: ${id}`);
+      stopPackage(id);
+      apps.delete(id);
+      changed = true;
+    } else if (JSON.stringify(now.manifest) !== JSON.stringify(entry.manifest)) {
+      log(`Package changed: ${id}. Restarting it.`);
+      stopPackage(id);
+      entry.manifest = now.manifest;
+      startPackage(entry);
+      changed = true;
+    }
+  }
+  for (const [id, now] of found) {
+    if (apps.has(id)) continue;
+    const entry = { manifest: now.manifest, dir: now.dir, builtin: false, pinned: false };
+    apps.set(id, entry);
+    log(`New package: ${id}`);
+    startPackage(entry);
+    changed = true;
+  }
+  if (changed) {
+    mcp?.configure(mcpConfig());
+    notifyLauncher();
+  }
+}
+
+// Watches each apps folder for new package folders and manifest changes.
+const rootWatchers = [];
+function watchAppRoots() {
+  let timer = null;
+  for (const root of APP_ROOTS) {
+    if (root.single || !fs.existsSync(root.dir)) continue;
+    try {
+      const w = fs.watch(root.dir, { recursive: true }, (_type, file) => {
+        const parts = String(file ?? '').split(/[\\/]/);
+        // A package folder itself, or its manifest; other files are hot reload's business.
+        if (file && !(parts.length === 1 || (parts.length === 2 && parts[1] === 'rednode-app.json'))) return;
+        clearTimeout(timer);
+        timer = setTimeout(rescanApps, 600);
+      });
+      w.on('error', () => {});
+      rootWatchers.push(w);
+    } catch (err) {
+      log(`Cannot watch ${root.dir}: ${err.message}`);
+    }
+  }
+}
+
 function shouldOpen(entry) {
   if (entry.pinned) return true;
   if (chosenApps) return chosenApps.includes(entry.manifest.id);
@@ -1154,8 +1244,10 @@ function watchPackage(entry) {
     const watcher = fs.watch(entry.dir, { recursive: true }, (_type, file) => {
       if (file && /(^|[\\/])node_modules([\\/]|$)/.test(file) && !entry.manifest.main) return;
       if (file && /(^|[\\/])\./.test(file)) return; // dot folders and files belong to tools, not to the package
+      if (file && /(^|[\\/])rednode-app\.json$/.test(file)) return; // a manifest change: rescanApps applies it
       clearTimeout(timer);
       timer = setTimeout(() => {
+        if (watchers.get(id) !== watcher || apps.get(id) !== entry) return; // the package was removed or replaced
         log(`Changed: ${id}${file ? ` (${file})` : ''}. Reloading.`);
         if (entry.manifest.main && mods.has(id)) mods.restart(id);
         const w = windowOfApp(id);
@@ -1301,6 +1393,7 @@ app.whenReady().then(() => {
     if (entry.manifest.main) mods.add(entry, { enabled: shouldOpen(entry), shared: settings.apps[entry.manifest.id]?.shared });
   }
   setHotReload(hotReloadArg ? hotReloadArg !== 'off' : app.isPackaged ? !!settings.hotReload : true);
+  watchAppRoots();
   // Mod memory, for comparing a process per mod with the shared group.
   setInterval(() => {
     const line = mods.memorySummary(app.getAppMetrics());

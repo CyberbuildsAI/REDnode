@@ -40,6 +40,7 @@ function createMods(host) {
   const processes = new Map();
   /** The newest lines of every mod, oldest first, for the Mod log app. */
   const recent = [];
+  let starts = 0; // numbers each start of a mod, so late messages from an earlier start are ignored
   let logSeq = 0; // numbers every line, so a page that also gets the history can skip repeats
 
   // ---------- the mod log ----------
@@ -154,7 +155,16 @@ function createMods(host) {
 
   function onStatus(p, msg) {
     const m = mods.get(msg.id);
-    if (!m) return;
+    // A message from an earlier start of this mod (it was restarted or replaced meanwhile).
+    if (m && msg.gen !== undefined && msg.gen !== m.gen) return;
+    if (!m) {
+      // A removed mod's last message: only the process still counts it.
+      if (msg.status === 'crashed' || msg.status === 'stopped') {
+        p.mods.delete(msg.id);
+        if (!p.mods.size && p.key !== SHARED) stopProcess(p);
+      }
+      return;
+    }
     if (msg.status === 'crashed' || msg.status === 'stopped') {
       p.mods.delete(msg.id);
       // An own process with no mod left is not needed any more.
@@ -247,13 +257,14 @@ function createMods(host) {
     p.mods.add(id);
     m.process = key;
     m.stopping = false;
+    m.gen = ++starts;
     m.log.length = 0;
     modLog(id, 'info', `Starting ${m.entry.manifest.main} in ${key === SHARED ? 'the shared process' : 'its own process'}`);
     setStatus(id, 'starting');
     const { manifest } = m.entry;
     p.proc.postMessage({
       t: 'start',
-      mod: { id, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id), appsDirs: host.appsDirs },
+      mod: { id, gen: m.gen, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id), appsDirs: host.appsDirs },
       sdk: host.sdk,
     });
   }
@@ -302,6 +313,16 @@ function createMods(host) {
     },
 
     has: (id) => mods.has(id),
+
+    /** Stops a mod and forgets it: its package was removed or changed. */
+    remove(id) {
+      const m = mods.get(id);
+      if (!m) return;
+      m.enabled = false;
+      stop(id);
+      mods.delete(id);
+      host.changed();
+    },
 
     isEnabled: (id) => !!mods.get(id)?.enabled,
 

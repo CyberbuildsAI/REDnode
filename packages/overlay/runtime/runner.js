@@ -12,7 +12,7 @@
 // Runner -> host:
 //   { t: 'from-mod', id, message }               a call, state request or UI message
 //   { t: 'log', id, level, text }                a line the mod printed
-//   { t: 'status', id, status, error? }          running, crashed, not-responding, stopped
+//   { t: 'status', id, gen, status, error? }     running, crashed, not-responding, stopped; gen is the start's number
 
 'use strict';
 
@@ -27,6 +27,8 @@ const HUNG_AFTER = 10000;
 
 /** Running mods by id: { worker, lastPong, hung, stopping } */
 const mods = new Map();
+/** Starts asked for while the same mod was still stopping: run when its worker is gone. */
+const queued = new Map(); // id -> { mod, sdk }
 
 function send(message) {
   port.postMessage(message);
@@ -37,14 +39,17 @@ function pipeLines(stream, id, level) {
 }
 
 function start(mod, sdk) {
-  if (mods.has(mod.id)) return;
+  if (mods.has(mod.id)) {
+    if (mods.get(mod.id).stopping) queued.set(mod.id, { mod, sdk });
+    return;
+  }
   const worker = new Worker(WORKER, {
     workerData: { ...mod, sdk },
     stdout: true,
     stderr: true,
     name: `rednode mod ${mod.id}`,
   });
-  const entry = { worker, lastPong: Date.now(), hung: false, stopping: false };
+  const entry = { worker, lastPong: Date.now(), hung: false, stopping: false, gen: mod.gen };
   mods.set(mod.id, entry);
   pipeLines(worker.stdout, mod.id, 'info');
   pipeLines(worker.stderr, mod.id, 'error');
@@ -54,10 +59,10 @@ function start(mod, sdk) {
       entry.lastPong = Date.now();
       if (entry.hung) {
         entry.hung = false;
-        send({ t: 'status', id: mod.id, status: 'running' });
+        send({ t: 'status', id: mod.id, gen: mod.gen, status: 'running' });
       }
     } else if (m.t === 'loaded') {
-      send({ t: 'status', id: mod.id, status: 'running' });
+      send({ t: 'status', id: mod.id, gen: mod.gen, status: 'running' });
     } else {
       send({ t: 'from-mod', id: mod.id, message: m });
     }
@@ -67,12 +72,16 @@ function start(mod, sdk) {
   });
   worker.on('exit', (code) => {
     mods.delete(mod.id);
+    const next = queued.get(mod.id);
+    queued.delete(mod.id);
+    if (next) setImmediate(() => start(next.mod, next.sdk));
     if (entry.stopping) {
-      send({ t: 'status', id: mod.id, status: 'stopped' });
+      send({ t: 'status', id: mod.id, gen: mod.gen, status: 'stopped' });
     } else {
       send({
         t: 'status',
         id: mod.id,
+        gen: mod.gen,
         status: 'crashed',
         error: entry.error ?? `The mod exited with code ${code}`,
       });
@@ -113,7 +122,7 @@ setInterval(() => {
     entry.worker.postMessage({ t: 'ping' });
     if (!entry.hung && now - entry.lastPong > HUNG_AFTER) {
       entry.hung = true;
-      send({ t: 'status', id, status: 'not-responding' });
+      send({ t: 'status', id, gen: entry.gen, status: 'not-responding' });
     }
   }
 }, PING_EVERY);
