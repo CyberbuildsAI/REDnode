@@ -163,6 +163,7 @@ function page({ title, rel, crumb, body, source }) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="${rel}../assets/brand/icon.png">
 <link rel="stylesheet" href="${rel}../assets/css/hud.css">
 <link rel="stylesheet" href="${rel}assets/gameapi.css">
 <script src="${rel}assets/search.js" defer></script>

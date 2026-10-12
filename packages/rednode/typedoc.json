@@ -1,6 +1,8 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["src/index.ts"],
+  "entryPoints": [
+    "src/index.ts"
+  ],
   "tsconfig": "tsconfig.json",
   "out": "../../docs/api",
   "name": "rednode API",
@@ -17,5 +19,6 @@
     "GitHub": "https://github.com/Edgemodders/REDnode"
   },
   "hostedBaseUrl": "https://edgemodders.github.io/REDnode/api/",
-  "customFooterHtml": "REDnode &middot; MIT"
+  "customFooterHtml": "REDnode &middot; MIT",
+  "favicon": "../../docs/assets/brand/icon.png"
 }
