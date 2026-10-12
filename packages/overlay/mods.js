@@ -209,6 +209,9 @@ function createMods(host) {
       case 'state':
         reply(p, id, msg.rid, host.state());
         return;
+      case 'post':
+        host.post(id, msg.data);
+        return;
       case 'secret':
       case 'mcp':
         try {

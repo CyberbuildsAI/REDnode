@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('rednode', {
   pkg: {
     secret: (op, name, value) => ipcRenderer.invoke('rednode:pkg:secret', op, name, value),
     mcp: () => ipcRenderer.invoke('rednode:pkg:mcp'),
+    post: (data) => ipcRenderer.send('rednode:pkg:post', data),
   },
   /** For the host's builder page, which shows windows built by Node mods. Other pages get an error. */
   builder: {

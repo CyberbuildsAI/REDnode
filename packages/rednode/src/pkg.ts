@@ -45,6 +45,7 @@ export const pkg: PackageInfo = new Proxy({} as PackageInfo, {
 interface SecretTransport {
   secret?(op: string, name: string, value?: string): Promise<unknown>;
   mcp?(): Promise<unknown>;
+  post?(data: unknown): void;
 }
 
 function pageBridge(): SecretTransport | undefined {
@@ -87,6 +88,40 @@ export const secrets = {
   /** Deletes the secret. */
   async delete(name: string): Promise<void> {
     await secretCall("delete", name);
+  },
+};
+
+/**
+ * Messages between a package's overlay pages and its own Node mod: a web UI
+ * with a Node backend. What one side posts, the other side's handlers get.
+ * Data must be plain JSON-like values.
+ *
+ * @example
+ * ```ts
+ * // In the Node mod
+ * import { channel } from "rednode";
+ * channel.on((msg) => {
+ *   if (msg.type === "ping") channel.post({ type: "pong" });
+ * });
+ *
+ * // In the package's page
+ * import { channel } from "rednode";
+ * channel.on((msg) => console.log(msg.type)); // "pong"
+ * channel.post({ type: "ping" });
+ * ```
+ */
+export const channel = {
+  /** Sends data to the other side: from a mod to its pages, from a page to its mod. */
+  post(data: unknown): void {
+    const t = (transport() as SecretTransport).post ? (transport() as SecretTransport) : pageBridge();
+    if (!t?.post) throw new Error("rednode: the channel needs the REDnode host");
+    t.post(data);
+  },
+  /** Calls the handler for every message from the other side. Returns a function that stops it. */
+  on<T = any>(handler: (data: T) => void): () => void {
+    return transport().listen((m) => {
+      if (m.event === "channel") handler(m.data as T);
+    });
   },
 };
 

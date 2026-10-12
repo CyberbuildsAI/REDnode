@@ -857,6 +857,23 @@ function packageOf(event) {
 }
 
 ipcMain.handle('rednode:pkg:secret', (event, op, name, value) => secret(packageOf(event), op, name, value));
+
+// The channel between a package's pages and its own Node mod (channel in the rednode package).
+ipcMain.on('rednode:pkg:post', (event, data) => {
+  let id;
+  try {
+    id = packageOf(event);
+  } catch {
+    return;
+  }
+  mods?.toMod(id, { event: 'channel', data });
+});
+function postToPages(id, data) {
+  for (const w of windows.values()) {
+    const owner = w.app.built ? built.get(w.app.built)?.modId : w.app.manifest.id;
+    if (owner === id) toPage(w, { event: 'channel', data });
+  }
+}
 ipcMain.handle('rednode:pkg:mcp', (event) => mcpFor(packageOf(event)));
 
 ipcMain.handle('rednode:apps:grant', (event, id, permission, granted) => {
@@ -1242,6 +1259,7 @@ app.whenReady().then(() => {
     dataDir: dataDirOf,
     secret,
     mcpFor,
+    post: postToPages,
     ui,
     changed: notifyLauncher,
     onLog: onModLog,
