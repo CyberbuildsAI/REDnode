@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6a Runtime built, in-game test pending.** O1 to O5 have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6a Runtime passed in game.** O1 to O6a have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. Next: O6b Game API. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -375,6 +375,26 @@ In the game, do these in order, with a 30-second pause after each, timed on a ph
 After the test, switch **Shared process** off again if you want each mod in its own process.
 
 What I read from the logs afterwards: `rednode-overlay.log` (the perf lines with GPU wait and texture reuse, and the `Mod processes:` memory lines every 10 seconds) and `rednode-mods.log` (everything the mods printed, and their crashes).
+
+**Result, 2026-10-12: passed.** Modded profile with CET, 3840 x 2160 SDR, plugin 0.9.0, host 0.2.0, GPU sharing on. All 12 steps worked: the same position in Hello mod and the Coords HUD, the sound button, hot reload (the edited mod was back within a second), the Mod log with **Copy** (the pasted crash was the message plus `mod.mjs:16:13`), throw, hang and Restart, the shared process, and its automatic restart 2 seconds after Kill.
+
+| Measured (host log) | Result |
+|---|---|
+| Overlay CPU time per game frame, gameplay | **0.11 to 0.15 ms**, down from 0.7 to 1.0 ms in O5. GPU wait 0.00 ms; opening textures 0.00 to 0.05 ms |
+| Shared textures | Opened 0 per second once windows are up, reused 35 to 64 per second. Opening every texture again each frame was the O5 cost |
+| Worst single frame | 21 to 25 ms when a window opens or closes (save load, hot reload, a mod window). Otherwise under 1.5 ms |
+| Mod process, own | 97 to 102 MB at the start; about 135 MB after a reload |
+| Three mods in the shared process | 151 to 155 MB, against about 370 MB in three own processes |
+
+| Finding | Notes |
+|---|---|
+| The overlay's CPU cost is solved | Reusing opened shared textures cut it about sevenfold. Waiting for the GPU was never the cause |
+| Cursor sometimes disappeared in interactive mode | New in this test. The plugin log shows interactive mode ending by itself, then F10 presses. Likely cause: with GPU sharing the click-through map is read back at most 5 times a second, and only when a frame arrives. A window that stops repainting right after it opens keeps the map of a half-drawn first frame, so a click on it falls through to empty screen and ends interactive mode. **Fixed:** the plugin now reads back the newest frame once the 5-a-second limit allows, even if no new frame comes. To check in the next test |
+| Frames still waiting a second while hidden | 1 to 4 per switch to hidden. Frames already copied in the last three game frames were only acknowledged when drawing resumed. **Fixed:** they are given back as soon as the GPU is done with them. To check in the next test |
+| Ticker mod stopped silently once | After a restart in the shared process at 18:34:28 it started, then printed nothing more, and was in no process. The cause is not found. A harness that moves and restarts mods quickly could not reproduce it. A related race is closed, and the mod log now records every move, start and stop, so it can be traced if it happens again. Open |
+| A hitch when a window opens or closes | The plugin waits for the GPU to finish before it replaces or frees a window's texture. A follow-up for O7: release textures through the frame ring instead |
+| Log times were UTC | Now local time, like the player's clock |
+| Windows hidden with the game's UI lose their texture | A page that does not repaint by itself could stay invisible after a menu closes. The host now repaints every window when the game's UI state changes. Not seen in the test: Coords repaints every half second |
 
 
 ### UI kit
