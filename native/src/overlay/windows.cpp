@@ -27,6 +27,8 @@
 #include "overlay.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <cstring>
 #include <functional>
 #include <mutex>
 
@@ -55,10 +57,17 @@ struct Window
     bool draggable = true;
     std::vector<DragRegion> dragRegions;
 
-    std::vector<uint8_t> alpha; // for hit testing, from the newest frame
+    // The whole current image, kept so changed rectangles can be merged into it.
+    std::vector<uint8_t> image; // BGRA
+    std::vector<uint8_t> alpha; // for hit testing
     uint32_t alphaWidth = 0, alphaHeight = 0;
 
-    WindowFrame pending;
+    // The newest GPU-shared frame, waiting for the compositor.
+    SharedFrame shared;
+    bool hasShared = false;
+
+    // Union of the rectangles changed since the compositor last took a frame.
+    uint32_t dirtyX0 = 0, dirtyY0 = 0, dirtyX1 = 0, dirtyY1 = 0;
     bool hasPending = false;
 };
 
@@ -296,6 +305,8 @@ void HandleWindowCommand(const std::string& aJson)
         else if (cmd == "window.close" && w)
         {
             const uint32_t closing = w->id;
+            if (w->hasShared)
+                CloseHandle(w->shared.handle);
             g_windows.erase(g_windows.begin() + (w - g_windows.data()));
             if (g_focus == closing)
                 SetFocus(actions, 0);
@@ -310,27 +321,143 @@ void HandleWindowCommand(const std::string& aJson)
     Run(actions);
 }
 
-void SubmitFrame(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels)
+void SubmitRect(uint32_t aWindow, uint32_t aFullWidth, uint32_t aFullHeight, uint32_t aX, uint32_t aY, uint32_t aWidth,
+                uint32_t aHeight, const uint8_t* aPixels)
+{
+    if (aWidth == 0 || aHeight == 0 || aX + aWidth > aFullWidth || aY + aHeight > aFullHeight)
+        return;
+    std::scoped_lock lock(g_mutex);
+    Window* w = Find(aWindow);
+    if (!w)
+        return;
+
+    // A new size starts a fresh, transparent image, all of it changed.
+    if (w->alphaWidth != aFullWidth || w->alphaHeight != aFullHeight)
+    {
+        w->alphaWidth = aFullWidth;
+        w->alphaHeight = aFullHeight;
+        w->image.assign(size_t(aFullWidth) * aFullHeight * 4, 0);
+        w->alpha.assign(size_t(aFullWidth) * aFullHeight, 0);
+        w->dirtyX0 = 0;
+        w->dirtyY0 = 0;
+        w->dirtyX1 = aFullWidth;
+        w->dirtyY1 = aFullHeight;
+        w->hasPending = true;
+    }
+
+    for (uint32_t row = 0; row < aHeight; ++row)
+    {
+        const uint8_t* src = aPixels + size_t(row) * aWidth * 4;
+        const size_t at = size_t(aY + row) * aFullWidth + aX;
+        std::memcpy(w->image.data() + at * 4, src, size_t(aWidth) * 4);
+        for (uint32_t col = 0; col < aWidth; ++col)
+            w->alpha[at + col] = src[col * 4 + 3];
+    }
+
+    if (!w->hasPending)
+    {
+        w->dirtyX0 = aX;
+        w->dirtyY0 = aY;
+        w->dirtyX1 = aX + aWidth;
+        w->dirtyY1 = aY + aHeight;
+    }
+    else
+    {
+        w->dirtyX0 = std::min(w->dirtyX0, aX);
+        w->dirtyY0 = std::min(w->dirtyY0, aY);
+        w->dirtyX1 = std::max(w->dirtyX1, aX + aWidth);
+        w->dirtyY1 = std::max(w->dirtyY1, aY + aHeight);
+    }
+    w->hasPending = true;
+}
+
+void AckFrames(const std::vector<uint32_t>& aFrameIds)
+{
+    if (aFrameIds.empty())
+        return;
+    std::string json = "{\"event\":\"frame-done\",\"frames\":[";
+    for (size_t i = 0; i < aFrameIds.size(); ++i)
+        json += (i ? "," : "") + std::to_string(aFrameIds[i]);
+    SendJson(json + "]}");
+}
+
+void ReportSharedFailure(const char* aWhat, long aCode)
+{
+    static std::atomic_bool reported{false};
+    if (reported.exchange(true))
+        return;
+    Log("Overlay: GPU sharing failed: %s (0x%08lX). The host falls back to the CPU path.", aWhat,
+        static_cast<unsigned long>(aCode));
+    SendJson("{\"event\":\"shared-failed\",\"error\":" + JsonString(aWhat) + "}");
+}
+
+void SubmitShared(uint32_t aWindow, const SharedFrame& aFrame)
+{
+    std::vector<uint32_t> done;
+    {
+        std::scoped_lock lock(g_mutex);
+        Window* w = Find(aWindow);
+        if (!w)
+        {
+            CloseHandle(aFrame.handle);
+            done.push_back(aFrame.frameId);
+        }
+        else
+        {
+            if (w->hasShared)
+            {
+                CloseHandle(w->shared.handle); // superseded before it was drawn
+                done.push_back(w->shared.frameId);
+            }
+            w->shared = aFrame;
+            w->hasShared = true;
+        }
+    }
+    AckFrames(done);
+}
+
+bool TakeShared(uint32_t aWindow, SharedFrame& aOut)
+{
+    std::scoped_lock lock(g_mutex);
+    Window* w = Find(aWindow);
+    if (!w || !w->hasShared)
+        return false;
+    aOut = w->shared;
+    w->hasShared = false;
+    return true;
+}
+
+void SubmitAlpha(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, const uint8_t* aRows, uint32_t aRowPitch)
 {
     std::scoped_lock lock(g_mutex);
     Window* w = Find(aWindow);
     if (!w)
         return;
-    // Keep the alpha channel for click-through.
     w->alphaWidth = aWidth;
     w->alphaHeight = aHeight;
     w->alpha.resize(size_t(aWidth) * aHeight);
-    for (size_t i = 0; i < w->alpha.size(); ++i)
-        w->alpha[i] = aPixels[i * 4 + 3];
-    w->pending.width = aWidth;
-    w->pending.height = aHeight;
-    w->pending.pixels = std::move(aPixels);
-    w->hasPending = true;
+    for (uint32_t y = 0; y < aHeight; ++y)
+    {
+        const uint8_t* row = aRows + size_t(y) * aRowPitch;
+        for (uint32_t x = 0; x < aWidth; ++x)
+            w->alpha[size_t(y) * aWidth + x] = row[x * 4 + 3];
+    }
+}
+
+void SubmitFrame(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels)
+{
+    if (aPixels.size() == size_t(aWidth) * aHeight * 4)
+        SubmitRect(aWindow, aWidth, aHeight, 0, 0, aWidth, aHeight, aPixels.data());
 }
 
 void CloseAllWindows()
 {
     std::scoped_lock lock(g_mutex);
+    for (auto& w : g_windows)
+    {
+        if (w.hasShared)
+            CloseHandle(w.shared.handle);
+    }
     g_windows.clear();
     g_focus = g_hover = g_capture = g_dragging = 0;
 }
@@ -355,8 +482,18 @@ bool TakeFrame(uint32_t aWindow, WindowFrame& aOut)
     Window* w = Find(aWindow);
     if (!w || !w->hasPending)
         return false;
-    aOut = std::move(w->pending);
-    w->pending = {};
+    aOut.fullWidth = w->alphaWidth;
+    aOut.fullHeight = w->alphaHeight;
+    aOut.x = w->dirtyX0;
+    aOut.y = w->dirtyY0;
+    aOut.width = w->dirtyX1 - w->dirtyX0;
+    aOut.height = w->dirtyY1 - w->dirtyY0;
+    aOut.pixels.resize(size_t(aOut.width) * aOut.height * 4);
+    for (uint32_t row = 0; row < aOut.height; ++row)
+    {
+        std::memcpy(aOut.pixels.data() + size_t(row) * aOut.width * 4,
+                    w->image.data() + (size_t(aOut.y + row) * w->alphaWidth + aOut.x) * 4, size_t(aOut.width) * 4);
+    }
     w->hasPending = false;
     return true;
 }

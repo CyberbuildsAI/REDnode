@@ -5,7 +5,14 @@
 // Present code (CET, Steam) keep running: we call whatever the vtable held.
 // Back buffers are fetched per frame and never held, so resizes stay safe.
 // Each window has its own texture and upload buffers; windows are drawn back
-// to front, then the cursor on top.
+// to front, then the cursor on top. Only the changed part of a window is
+// uploaded. Once a second the compositor reports what it costs ("perf").
+//
+// GPU sharing: when the host sends shared textures instead of pixels, the
+// compositor opens each one on the game's device and copies it into the
+// window's texture on the GPU. Shared textures are acknowledged once the copy
+// has finished, so the host can give them back to Chromium. A few times a
+// second the window's alpha is read back from the GPU for click-through.
 
 #include "overlay.hpp"
 
@@ -17,6 +24,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 
@@ -149,6 +157,13 @@ struct GpuWindow
     bool texShaderState = false; // in PIXEL_SHADER_RESOURCE state, else COPY_DEST
     ComPtr<ID3D12Resource> upload[FramesInFlight];
     UINT64 uploadSize[FramesInFlight] = {};
+
+    // Alpha readback for click-through on GPU-shared windows.
+    ComPtr<ID3D12Resource> readback;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT readbackFootprint{};
+    UINT64 readbackFence = 0; // fence value after which the readback holds data
+    bool readbackPending = false;
+    LARGE_INTEGER lastReadback{};
 };
 
 struct Gpu
@@ -181,10 +196,67 @@ struct Gpu
     std::vector<GpuWindow> windows;
     bool srvUsed[MaxWindows] = {};
 
+    // GPU timestamps around the overlay's own work, two per frame slot.
+    ComPtr<ID3D12QueryHeap> queries;
+    ComPtr<ID3D12Resource> readback;
+    bool slotTimed[FramesInFlight] = {};
+    UINT64 timestampFrequency = 0;
+
+    // Shared textures copied in each frame slot, kept until that slot's GPU work is done.
+    std::vector<ComPtr<ID3D12Resource>> slotShared[FramesInFlight];
+    std::vector<uint32_t> slotAcks[FramesInFlight];
+
     bool failed = false;
 } g;
 
 std::mutex g_renderMutex; // Present may come from more than one thread
+
+// What the overlay costs, summed over one second and sent as {"event":"perf"}.
+struct Perf
+{
+    LARGE_INTEGER start{};
+    uint32_t presents = 0;  // the game's frames
+    uint32_t rendered = 0;  // frames the overlay drew on
+    double cpuMs = 0, cpuMsMax = 0;
+    double gpuMs = 0, gpuMsMax = 0;
+    uint32_t gpuSamples = 0;
+    uint64_t uploadBytes = 0;
+    uint32_t uploads = 0;
+    uint32_t sharedCopies = 0;
+} g_perf;
+LARGE_INTEGER g_qpcFrequency{};
+
+double SecondsSince(const LARGE_INTEGER& aThen)
+{
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return double(now.QuadPart - aThen.QuadPart) / double(g_qpcFrequency.QuadPart);
+}
+
+void ReportPerf()
+{
+    if (!g_qpcFrequency.QuadPart)
+        QueryPerformanceFrequency(&g_qpcFrequency);
+    if (!g_perf.start.QuadPart)
+    {
+        QueryPerformanceCounter(&g_perf.start);
+        return;
+    }
+    const double seconds = SecondsSince(g_perf.start);
+    if (seconds < 1.0)
+        return;
+    char json[384];
+    std::snprintf(json, sizeof(json),
+                  "{\"event\":\"perf\",\"fps\":%.1f,\"overlayFrames\":%u,\"cpuMs\":%.3f,\"cpuMsMax\":%.3f,"
+                  "\"gpuMs\":%.3f,\"gpuMsMax\":%.3f,\"uploadsPerSec\":%.1f,\"uploadMBps\":%.2f,"
+                  "\"sharedPerSec\":%.1f}",
+                  g_perf.presents / seconds, g_perf.rendered, g_perf.rendered ? g_perf.cpuMs / g_perf.rendered : 0.0,
+                  g_perf.cpuMsMax, g_perf.gpuSamples ? g_perf.gpuMs / g_perf.gpuSamples : 0.0, g_perf.gpuMsMax,
+                  g_perf.uploads / seconds, g_perf.uploadBytes / seconds / 1048576.0, g_perf.sharedCopies / seconds);
+    SendJson(json);
+    g_perf = {};
+    QueryPerformanceCounter(&g_perf.start);
+}
 
 bool Fail(const char* aWhat, HRESULT aHr)
 {
@@ -358,6 +430,30 @@ bool CreateBaseResources()
     if (FAILED(hr))
         return Fail("CreateFence", hr);
     g.fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+
+    // Timestamps are only for the perf report: if they fail, drawing goes on.
+    D3D12_QUERY_HEAP_DESC qh{};
+    qh.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    qh.Count = FramesInFlight * 2;
+    D3D12_HEAP_PROPERTIES readbackHeap{};
+    readbackHeap.Type = D3D12_HEAP_TYPE_READBACK;
+    D3D12_RESOURCE_DESC rb{};
+    rb.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    rb.Width = sizeof(UINT64) * FramesInFlight * 2;
+    rb.Height = 1;
+    rb.DepthOrArraySize = 1;
+    rb.MipLevels = 1;
+    rb.SampleDesc.Count = 1;
+    rb.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    if (FAILED(g.device->CreateQueryHeap(&qh, IID_PPV_ARGS(&g.queries))) ||
+        FAILED(g.device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &rb,
+                                                 D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&g.readback))) ||
+        FAILED(g.queue->GetTimestampFrequency(&g.timestampFrequency)))
+    {
+        g.queries.Reset();
+        g.readback.Reset();
+        Log("Overlay: GPU timestamps unavailable; the perf report leaves out GPU time");
+    }
     return true;
 }
 
@@ -491,25 +587,33 @@ bool EnsureTexture(GpuWindow& aWin, UINT aWidth, UINT aHeight)
     return true;
 }
 
-// Copies the window's newest frame, if any, into this slot's upload buffer and records the GPU copy.
+// Copies the changed part of the window's image, if any, into this slot's upload
+// buffer and records the GPU copy into the window's texture.
 void RecordUpload(GpuWindow& aWin, UINT aSlot)
 {
     WindowFrame frame;
-    if (!TakeFrame(aWin.id, frame) || !EnsureTexture(aWin, frame.width, frame.height))
+    if (!TakeFrame(aWin.id, frame) || !EnsureTexture(aWin, frame.fullWidth, frame.fullHeight))
         return;
 
+    // A footprint for just the changed region.
+    D3D12_RESOURCE_DESC region = aWin.texture->GetDesc();
+    region.Width = frame.width;
+    region.Height = frame.height;
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
     UINT64 total = 0;
-    const D3D12_RESOURCE_DESC texDesc = aWin.texture->GetDesc();
-    g.device->GetCopyableFootprints(&texDesc, 0, 1, 0, &footprint, nullptr, nullptr, &total);
+    g.device->GetCopyableFootprints(&region, 0, 1, 0, &footprint, nullptr, nullptr, &total);
 
     if (!aWin.upload[aSlot] || aWin.uploadSize[aSlot] < total)
     {
+        // Size upload buffers for the whole window, so they are made once.
+        const D3D12_RESOURCE_DESC whole = aWin.texture->GetDesc();
+        UINT64 wholeTotal = 0;
+        g.device->GetCopyableFootprints(&whole, 0, 1, 0, nullptr, nullptr, nullptr, &wholeTotal);
         D3D12_HEAP_PROPERTIES heap{};
         heap.Type = D3D12_HEAP_TYPE_UPLOAD;
         D3D12_RESOURCE_DESC buf{};
         buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-        buf.Width = total;
+        buf.Width = std::max(total, wholeTotal);
         buf.Height = 1;
         buf.DepthOrArraySize = 1;
         buf.MipLevels = 1;
@@ -524,7 +628,7 @@ void RecordUpload(GpuWindow& aWin, UINT aSlot)
             Fail("CreateCommittedResource upload", hr);
             return;
         }
-        aWin.uploadSize[aSlot] = total;
+        aWin.uploadSize[aSlot] = buf.Width;
     }
 
     uint8_t* mapped = nullptr;
@@ -537,6 +641,8 @@ void RecordUpload(GpuWindow& aWin, UINT aSlot)
                     frame.pixels.data() + size_t(row) * frame.width * 4, size_t(frame.width) * 4);
     }
     aWin.upload[aSlot]->Unmap(0, nullptr);
+    g_perf.uploadBytes += uint64_t(frame.width) * frame.height * 4;
+    g_perf.uploads += 1;
 
     if (aWin.texShaderState)
     {
@@ -551,11 +657,140 @@ void RecordUpload(GpuWindow& aWin, UINT aSlot)
     src.pResource = aWin.upload[aSlot].Get();
     src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     src.PlacedFootprint = footprint;
-    g.list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    g.list->CopyTextureRegion(&dst, frame.x, frame.y, 0, &src, nullptr);
     auto b = Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     g.list->ResourceBarrier(1, &b);
     aWin.texShaderState = true;
+    // The texture is only worth drawing once the whole window has been uploaded.
+    if (frame.x == 0 && frame.y == 0 && frame.width == frame.fullWidth && frame.height == frame.fullHeight)
+        aWin.texReady = true;
+}
+
+bool IsBgra(DXGI_FORMAT aFormat)
+{
+    return aFormat == DXGI_FORMAT_B8G8R8A8_UNORM || aFormat == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+           aFormat == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+}
+
+// Copies the window's newest shared texture, if any, into the window's texture on the GPU.
+void RecordShared(GpuWindow& aWin, UINT aSlot)
+{
+    SharedFrame frame;
+    if (!TakeShared(aWin.id, frame))
+        return;
+
+    ComPtr<ID3D12Resource> src;
+    const HRESULT hr = g.device->OpenSharedHandle(frame.handle, IID_PPV_ARGS(&src));
+    CloseHandle(frame.handle);
+    if (FAILED(hr))
+    {
+        ReportSharedFailure("OpenSharedHandle", hr);
+        AckFrames({frame.frameId});
+        return;
+    }
+    const D3D12_RESOURCE_DESC desc = src->GetDesc();
+    if (!IsBgra(desc.Format) || desc.Width < frame.width || desc.Height < frame.height)
+    {
+        ReportSharedFailure("unexpected shared texture format or size", long(desc.Format));
+        AckFrames({frame.frameId});
+        return;
+    }
+    if (!EnsureTexture(aWin, frame.width, frame.height))
+    {
+        AckFrames({frame.frameId});
+        return;
+    }
+
+    D3D12_RESOURCE_BARRIER before[2] = {
+        Transition(src.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_SOURCE),
+        Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST),
+    };
+    g.list->ResourceBarrier(aWin.texShaderState ? 2 : 1, before);
+
+    D3D12_TEXTURE_COPY_LOCATION dst{};
+    dst.pResource = aWin.texture.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    D3D12_TEXTURE_COPY_LOCATION from{};
+    from.pResource = src.Get();
+    from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    const D3D12_BOX box{0, 0, 0, frame.width, frame.height, 1};
+    g.list->CopyTextureRegion(&dst, 0, 0, 0, &from, &box);
+
+    D3D12_RESOURCE_BARRIER after[2] = {
+        Transition(src.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COMMON),
+        Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+    };
+    g.list->ResourceBarrier(2, after);
+    aWin.texShaderState = true;
     aWin.texReady = true;
+
+    g.slotShared[aSlot].push_back(std::move(src));
+    g.slotAcks[aSlot].push_back(frame.frameId);
+    g_perf.sharedCopies += 1;
+
+    // A few times a second, copy the window to the CPU for click-through.
+    if (!aWin.readbackPending && SecondsSince(aWin.lastReadback) >= 0.2)
+    {
+        const D3D12_RESOURCE_DESC texDesc = aWin.texture->GetDesc();
+        UINT64 total = 0;
+        g.device->GetCopyableFootprints(&texDesc, 0, 1, 0, &aWin.readbackFootprint, nullptr, nullptr, &total);
+        if (!aWin.readback || aWin.readback->GetDesc().Width < total)
+        {
+            D3D12_HEAP_PROPERTIES heap{};
+            heap.Type = D3D12_HEAP_TYPE_READBACK;
+            D3D12_RESOURCE_DESC buf{};
+            buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            buf.Width = total;
+            buf.Height = 1;
+            buf.DepthOrArraySize = 1;
+            buf.MipLevels = 1;
+            buf.SampleDesc.Count = 1;
+            buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            aWin.readback.Reset();
+            if (FAILED(g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buf,
+                                                         D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+                                                         IID_PPV_ARGS(&aWin.readback))))
+                return;
+        }
+        auto toSource = Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                   D3D12_RESOURCE_STATE_COPY_SOURCE);
+        g.list->ResourceBarrier(1, &toSource);
+        D3D12_TEXTURE_COPY_LOCATION rbDst{};
+        rbDst.pResource = aWin.readback.Get();
+        rbDst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        rbDst.PlacedFootprint = aWin.readbackFootprint;
+        D3D12_TEXTURE_COPY_LOCATION rbSrc{};
+        rbSrc.pResource = aWin.texture.Get();
+        rbSrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        g.list->CopyTextureRegion(&rbDst, 0, 0, 0, &rbSrc, nullptr);
+        auto back = Transition(aWin.texture.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE,
+                               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        g.list->ResourceBarrier(1, &back);
+        aWin.readbackPending = true;
+        aWin.readbackFence = g.fenceValue + 1; // signalled at the end of this frame
+        QueryPerformanceCounter(&aWin.lastReadback);
+    }
+}
+
+// Hands finished alpha readbacks to the window manager.
+void CollectReadbacks()
+{
+    const UINT64 done = g.fence->GetCompletedValue();
+    for (auto& w : g.windows)
+    {
+        if (!w.readbackPending || done < w.readbackFence)
+            continue;
+        w.readbackPending = false;
+        uint8_t* data = nullptr;
+        D3D12_RANGE range{0, SIZE_T(w.readbackFootprint.Footprint.RowPitch) * w.readbackFootprint.Footprint.Height};
+        if (SUCCEEDED(w.readback->Map(0, &range, reinterpret_cast<void**>(&data))))
+        {
+            SubmitAlpha(w.id, w.readbackFootprint.Footprint.Width, w.readbackFootprint.Footprint.Height,
+                        data + w.readbackFootprint.Offset, w.readbackFootprint.Footprint.RowPitch);
+            D3D12_RANGE none{0, 0};
+            w.readback->Unmap(0, &none);
+        }
+    }
 }
 
 // Reference-pixel rectangle to NDC: left, top, right, bottom.
@@ -567,9 +802,30 @@ void ToNdc(float aX, float aY, float aW, float aH, float aScale, float aOut[4])
     aOut[3] = 1 - (aY + aH) * aScale / g.height * 2;
 }
 
+void RenderFrame(IDXGISwapChain* aSwapChain);
+
+// Times the overlay's CPU work on the present path.
 void Render(IDXGISwapChain* aSwapChain)
 {
     std::scoped_lock renderLock(g_renderMutex);
+    if (!g_qpcFrequency.QuadPart)
+        QueryPerformanceFrequency(&g_qpcFrequency);
+    LARGE_INTEGER start;
+    QueryPerformanceCounter(&start);
+    const uint32_t before = g_perf.rendered;
+    RenderFrame(aSwapChain);
+    if (g_perf.rendered != before)
+    {
+        const double ms = SecondsSince(start) * 1000.0;
+        g_perf.cpuMs += ms;
+        g_perf.cpuMsMax = std::max(g_perf.cpuMsMax, ms);
+    }
+    g_perf.presents += 1;
+    ReportPerf();
+}
+
+void RenderFrame(IDXGISwapChain* aSwapChain)
+{
     if (g.failed)
         return;
 
@@ -592,13 +848,46 @@ void Render(IDXGISwapChain* aSwapChain)
         g.fence->SetEventOnCompletion(g.slotFence[slot], g.fenceEvent);
         WaitForSingleObject(g.fenceEvent, 100);
     }
+    // This slot's previous frame is finished: give its shared textures back.
+    g.slotShared[slot].clear();
+    AckFrames(g.slotAcks[slot]);
+    g.slotAcks[slot].clear();
+    CollectReadbacks();
+
+    // This slot's previous frame is finished: read its GPU time.
+    if (g.queries && g.slotTimed[slot])
+    {
+        UINT64* ts = nullptr;
+        D3D12_RANGE range{slot * 2 * sizeof(UINT64), (slot * 2 + 2) * sizeof(UINT64)};
+        if (SUCCEEDED(g.readback->Map(0, &range, reinterpret_cast<void**>(&ts))))
+        {
+            const UINT64 t0 = ts[slot * 2];
+            const UINT64 t1 = ts[slot * 2 + 1];
+            D3D12_RANGE none{0, 0};
+            g.readback->Unmap(0, &none);
+            if (t1 > t0 && g.timestampFrequency)
+            {
+                const double ms = double(t1 - t0) * 1000.0 / double(g.timestampFrequency);
+                g_perf.gpuMs += ms;
+                g_perf.gpuMsMax = std::max(g_perf.gpuMsMax, ms);
+                g_perf.gpuSamples += 1;
+            }
+        }
+        g.slotTimed[slot] = false;
+    }
+
     g.allocators[slot]->Reset();
     g.list->Reset(g.allocators[slot].Get(), g.pso.Get());
+    if (g.queries)
+        g.list->EndQuery(g.queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slot * 2);
 
     for (const auto& v : views)
     {
         if (GpuWindow* w = FindGpu(v.id))
+        {
             RecordUpload(*w, slot);
+            RecordShared(*w, slot);
+        }
     }
     if (g.failed)
     {
@@ -662,6 +951,14 @@ void Render(IDXGISwapChain* aSwapChain)
     auto toPresent = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     g.list->ResourceBarrier(1, &toPresent);
 
+    if (g.queries)
+    {
+        g.list->EndQuery(g.queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slot * 2 + 1);
+        g.list->ResolveQueryData(g.queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slot * 2, 2, g.readback.Get(),
+                                 slot * 2 * sizeof(UINT64));
+        g.slotTimed[slot] = true;
+    }
+
     if (FAILED(g.list->Close()))
     {
         Fail("Close command list", E_FAIL);
@@ -671,6 +968,7 @@ void Render(IDXGISwapChain* aSwapChain)
     g.queue->ExecuteCommandLists(1, lists);
     g.queue->Signal(g.fence.Get(), ++g.fenceValue);
     g.slotFence[slot] = g.fenceValue;
+    g_perf.rendered += 1;
 }
 
 HRESULT STDMETHODCALLTYPE HookPresent(IDXGISwapChain* aSwapChain, UINT aSync, UINT aFlags)
@@ -761,6 +1059,8 @@ void UninstallCompositor()
     WaitForGpu();
     if (g.fenceEvent)
         CloseHandle(g.fenceEvent);
+    for (auto& acks : g.slotAcks)
+        AckFrames(acks);
     g = Gpu{};
 }
 } // namespace rednode::overlay::detail

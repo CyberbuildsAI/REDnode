@@ -3,6 +3,14 @@
 // Wire format, both directions: uint32 type, uint32 length, then length bytes.
 //   type 1 FRAME (host -> game): uint32 window, uint32 width, uint32 height, then
 //                                 width * height BGRA pixels, premultiplied alpha
+//   type 4 RECT  (host -> game): uint32 window, full width, full height, x, y,
+//                                 width, height, then width * height BGRA pixels:
+//                                 only the part of the window that changed
+//   type 5 SHARED (host -> game): uint32 window, width, height, frame id, then a
+//                                 uint64 NT handle to a GPU texture in the host's
+//                                 process. The plugin duplicates it, copies the
+//                                 texture on the GPU and answers {"event":"frame-done"}.
+//                                 The host first sends {"cmd":"host","pid":N}.
 //   type 2 JSON  (both ways):    one UTF-8 JSON object. From the host, objects
 //                                 with "cmd" manage windows (windows.cpp); the
 //                                 rest are bridge requests (bridge.cpp)
@@ -13,6 +21,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -25,6 +34,21 @@ namespace
 constexpr wchar_t PipeName[] = L"\\\\.\\pipe\\rednode-overlay";
 constexpr uint32_t TypeFrame = 1;
 constexpr uint32_t TypeJson = 2;
+constexpr uint32_t TypeRect = 4;
+constexpr uint32_t TypeShared = 5;
+
+std::mutex g_hostProcessMutex;
+HANDLE g_hostProcess = nullptr; // the host, for duplicating texture handles
+
+void SetHostProcess(DWORD aPid)
+{
+    std::scoped_lock lock(g_hostProcessMutex);
+    if (g_hostProcess)
+        CloseHandle(g_hostProcess);
+    g_hostProcess = OpenProcess(PROCESS_DUP_HANDLE, FALSE, aPid);
+    if (!g_hostProcess)
+        ReportSharedFailure("OpenProcess on the host", long(GetLastError()));
+}
 constexpr uint32_t MaxMessage = 64u << 20;
 constexpr size_t MaxQueued = 256;
 
@@ -123,9 +147,57 @@ void Dispatch(uint32_t aType, std::vector<uint8_t>&& aPayload)
         aPayload.erase(aPayload.begin(), aPayload.begin() + 12);
         SubmitFrame(head[0], head[1], head[2], std::move(aPayload));
     }
+    else if (aType == TypeRect && aPayload.size() >= 28)
+    {
+        uint32_t h[7]; // window, full width, full height, x, y, width, height
+        std::memcpy(h, aPayload.data(), sizeof(h));
+        const uint64_t expected = 28ull + uint64_t(h[5]) * h[6] * 4;
+        if (h[1] == 0 || h[2] == 0 || h[1] > 4096 || h[2] > 4096 || h[5] == 0 || h[6] == 0 ||
+            uint64_t(h[3]) + h[5] > h[1] || uint64_t(h[4]) + h[6] > h[2] || aPayload.size() != expected)
+        {
+            Log("Overlay: ignored a malformed rectangle");
+            return;
+        }
+        SubmitRect(h[0], h[1], h[2], h[3], h[4], h[5], h[6], aPayload.data() + 28);
+    }
+    else if (aType == TypeShared && aPayload.size() == 24)
+    {
+        uint32_t h[4]; // window, width, height, frame id
+        uint64_t handle = 0;
+        std::memcpy(h, aPayload.data(), sizeof(h));
+        std::memcpy(&handle, aPayload.data() + 16, sizeof(handle));
+        SharedFrame frame;
+        frame.width = h[1];
+        frame.height = h[2];
+        frame.frameId = h[3];
+        BOOL ok = FALSE;
+        {
+            std::scoped_lock lock(g_hostProcessMutex);
+            if (g_hostProcess)
+                ok = DuplicateHandle(g_hostProcess, reinterpret_cast<HANDLE>(handle), GetCurrentProcess(),
+                                     &frame.handle, 0, FALSE, DUPLICATE_SAME_ACCESS);
+        }
+        if (!ok || h[1] == 0 || h[2] == 0 || h[1] > 4096 || h[2] > 4096)
+        {
+            if (!ok)
+                ReportSharedFailure("DuplicateHandle", long(GetLastError()));
+            else
+                CloseHandle(frame.handle);
+            AckFrames({h[3]});
+            return;
+        }
+        SubmitShared(h[0], frame);
+    }
     else if (aType == TypeJson)
     {
         std::string json(aPayload.begin(), aPayload.end());
+        if (json.find("\"cmd\":\"host\"") != std::string::npos)
+        {
+            const auto at = json.find("\"pid\":");
+            if (at != std::string::npos)
+                SetHostProcess(DWORD(std::strtoul(json.c_str() + at + 6, nullptr, 10)));
+            return;
+        }
         if (json.find("\"cmd\":") != std::string::npos)
             HandleWindowCommand(json);
         else
@@ -173,7 +245,7 @@ void ReaderLoop()
             }
             g_connected = true;
             Log("Overlay: host connected");
-            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.7.0\",\"mode\":") +
+            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.8.0\",\"mode\":") +
                      JsonString(ModeName(GetMode())) + "}");
             ResendGameState();
 

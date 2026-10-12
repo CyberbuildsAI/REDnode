@@ -74,13 +74,36 @@ struct WindowView // what the compositor needs, back to front
     float x, y;             // reference pixels, top-left
     uint32_t width, height; // page pixels
 };
+// The changed part of a window's image, ready to upload.
 struct WindowFrame
 {
-    uint32_t width = 0, height = 0;
-    std::vector<uint8_t> pixels; // BGRA, premultiplied
+    uint32_t fullWidth = 0, fullHeight = 0; // the whole window image
+    uint32_t x = 0, y = 0;                  // where the region goes
+    uint32_t width = 0, height = 0;         // the region
+    std::vector<uint8_t> pixels;            // BGRA, premultiplied, width * height
 };
 void HandleWindowCommand(const std::string& aJson); // host -> plugin "cmd" messages
 void SubmitFrame(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, std::vector<uint8_t>&& aPixels);
+// A frame shared on the GPU: an NT handle already duplicated into this process.
+struct SharedFrame
+{
+    HANDLE handle = nullptr;
+    uint32_t width = 0, height = 0;
+    uint32_t frameId = 0;
+};
+// Keeps the newest shared frame per window; an older one still waiting is closed and acknowledged.
+void SubmitShared(uint32_t aWindow, const SharedFrame& aFrame);
+bool TakeShared(uint32_t aWindow, SharedFrame& aOut);
+// Tells the host it may give these shared textures back to Chromium.
+void AckFrames(const std::vector<uint32_t>& aFrameIds);
+// Alpha read back from the GPU, for click-through on GPU-shared windows. Rows are aRowPitch bytes of BGRA.
+void SubmitAlpha(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, const uint8_t* aRows, uint32_t aRowPitch);
+// Reports, once, that GPU sharing failed, so the host falls back to the CPU path.
+void ReportSharedFailure(const char* aWhat, long aCode);
+
+// A changed rectangle of a window's image, in page pixels.
+void SubmitRect(uint32_t aWindow, uint32_t aFullWidth, uint32_t aFullHeight, uint32_t aX, uint32_t aY, uint32_t aWidth,
+                uint32_t aHeight, const uint8_t* aPixels);
 void CloseAllWindows(); // host disconnected
 std::vector<WindowView> SnapshotWindows();
 bool TakeFrame(uint32_t aWindow, WindowFrame& aOut);

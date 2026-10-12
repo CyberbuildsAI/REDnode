@@ -191,6 +191,22 @@ int main()
     g_uiState = 0;
     HandleWindowCommand(R"({"cmd":"window.close","window":3})");
 
+    // Changed rectangles: only the changed part is uploaded, and alpha follows it.
+    HandleWindowCommand(R"({"cmd":"window.open","window":4,"x":0,"y":0,"width":100,"height":100})");
+    SubmitFrame(4, 100, 100, Frame(100, 100));
+    WindowFrame f;
+    Check(TakeFrame(4, f) && f.width == 100 && f.height == 100 && f.x == 0, "a full frame uploads everything");
+    std::vector<uint8_t> clear(10 * 5 * 4, 0); // a transparent 10 x 5 patch
+    SubmitRect(4, 100, 100, 20, 30, 10, 5, clear.data());
+    SubmitRect(4, 100, 100, 40, 32, 10, 5, clear.data());
+    Check(TakeFrame(4, f) && f.x == 20 && f.y == 30 && f.width == 30 && f.height == 7, "two changes upload their union");
+    Check(!TakeFrame(4, f), "nothing new, nothing to upload");
+    SetMode(Mode::Interactive);
+    g_sent.clear();
+    OnMouseMove(25, 32);
+    Check(!SentContains(R"("window":4)"), "a transparent patch clicks through");
+    HandleWindowCommand(R"({"cmd":"window.close","window":4})");
+
     // Closing.
     SetMode(Mode::Interactive);
     HandleWindowCommand(R"({"cmd":"window.close","window":2})");

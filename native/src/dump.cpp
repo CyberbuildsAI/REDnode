@@ -307,7 +307,7 @@ bool rednode::DumpRtti(const std::filesystem::path& aFile, const std::string& aG
     j.Raw(",");
     j.Field("game", aGameVersion);
     j.Raw(",");
-    j.Field("dumper", "REDnode 0.7.0");
+    j.Field("dumper", "REDnode 0.8.0");
 
     // Classes and structs.
     j.Raw(",\n");
