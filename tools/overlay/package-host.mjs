@@ -5,11 +5,14 @@
 // Output, next to the plugin that tools/build-native.ps1 staged, so that
 // tools/deploy-native.ps1 copies everything into the game:
 //   native/build/dist/red4ext/plugins/REDnode/host/REDnode-overlay.exe  the host, with its own Electron
-//   native/build/dist/red4ext/plugins/REDnode/apps/<id>/                 the example apps
+//   native/build/dist/red4ext/plugins/REDnode/host/resources/sdk/        the rednode package, for apps and mods
+//   native/build/dist/red4ext/plugins/REDnode/host/resources/runtime/    the Node mod runtime
+//   native/build/dist/red4ext/plugins/REDnode/apps/<id>/                 the example apps and mods
 //
 // The REDnode plugin starts host/REDnode-overlay.exe when the game loads.
 
 import { packager } from '@electron/packager';
+import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,18 +26,34 @@ const plugin = join(repo, 'native', 'build', 'dist', 'red4ext', 'plugins', 'REDn
 const pkg = JSON.parse(readFileSync(join(overlay, 'package.json'), 'utf8'));
 const electronVersion = pkg.devDependencies.electron;
 
-// 1. Stage the app: host code, the built-in launcher and the UI kit. Apps go to the game separately.
+// 1. Build the rednode package, which apps and Node mods import.
+console.log('Building the rednode package...');
+const build = spawnSync('npm run build --workspace rednode', { cwd: repo, stdio: 'inherit', shell: true });
+if (build.status !== 0) throw new Error('Building the rednode package failed');
+
+// 2. Stage the app: host code, the built-in launcher, the builder page and the UI kit.
+// Apps and mods go to the game separately.
 rmSync(work, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-for (const f of ['main.js', 'preload.js']) cpSync(join(overlay, f), join(stage, f));
-cpSync(join(overlay, 'launcher'), join(stage, 'launcher'), { recursive: true });
+for (const f of ['main.js', 'preload.js', 'mods.js']) cpSync(join(overlay, f), join(stage, f));
+for (const d of ['launcher', 'builder']) cpSync(join(overlay, d), join(stage, d), { recursive: true });
 cpSync(join(repo, 'packages', 'ui', 'src'), join(stage, 'ui'), { recursive: true });
+
+// The SDK and the mod runtime go outside app.asar, into resources/, so mod
+// processes and their worker threads load them as plain files.
+const resources = join(work, 'resources');
+const sdk = join(resources, 'sdk');
+mkdirSync(sdk, { recursive: true });
+const dist = join(repo, 'packages', 'rednode', 'dist');
+for (const f of readdirSync(dist)) if (f.endsWith('.js')) cpSync(join(dist, f), join(sdk, f));
+writeFileSync(join(sdk, 'package.json'), JSON.stringify({ type: 'module' }, null, 2));
+cpSync(join(overlay, 'runtime'), join(resources, 'runtime'), { recursive: true });
 writeFileSync(
   join(stage, 'package.json'),
   JSON.stringify({ name: pkg.name, version: pkg.version, description: pkg.description, license: pkg.license, main: 'main.js' }, null, 2),
 );
 
-// 2. Package with Electron.
+// 3. Package with Electron.
 console.log(`Packaging the host with Electron ${electronVersion}...`);
 const [out] = await packager({
   dir: stage,
@@ -46,6 +65,7 @@ const [out] = await packager({
   electronVersion,
   appVersion: pkg.version,
   asar: true,
+  extraResource: [sdk, join(resources, 'runtime')],
   overwrite: true,
   quiet: true,
   win32metadata: {
@@ -56,11 +76,11 @@ const [out] = await packager({
   },
 });
 
-// 3. Keep only the English Chromium locale; the host's UI text comes from the apps.
+// 4. Keep only the English Chromium locale; the host's UI text comes from the apps.
 const locales = join(out, 'locales');
 for (const f of readdirSync(locales)) if (f !== 'en-US.pak') rmSync(join(locales, f));
 
-// 4. Stage next to the plugin: host/ and apps/.
+// 5. Stage next to the plugin: host/ and apps/.
 const hostDir = join(plugin, 'host');
 const appsDir = join(plugin, 'apps');
 rmSync(hostDir, { recursive: true, force: true });

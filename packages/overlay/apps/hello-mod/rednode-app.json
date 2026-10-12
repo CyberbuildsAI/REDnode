@@ -1,0 +1,9 @@
+{
+  "id": "hello-mod",
+  "name": "Hello mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A Node mod with a window built by the rednode ui builder: V's position, a sound button and a counter. No HTML.",
+  "main": "mod.mjs",
+  "open": true
+}

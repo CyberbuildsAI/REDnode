@@ -1,0 +1,9 @@
+{
+  "id": "crash-mod",
+  "name": "Crash mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "Breaks on purpose, to test that one bad mod cannot take down the others. Off until you turn it on.",
+  "main": "mod.mjs",
+  "open": false
+}

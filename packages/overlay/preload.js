@@ -19,14 +19,25 @@ contextBridge.exposeInMainWorld('rednode', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  /** Connection state: { connected, mode, windowed, version }. */
+  /** Connection and game state: { connected, mode, windowed, version, game }. */
   state: () => ipcRenderer.invoke('rednode:state'),
-  /** Installed apps. Only the built-in REDnode launcher may use these; other apps get an error. */
+  /** Installed apps and mods. Only the built-in REDnode launcher may use these; other apps get an error. */
   apps: {
     list: () => ipcRenderer.invoke('rednode:apps:list'),
     setOpen: (id, open) => ipcRenderer.invoke('rednode:apps:set-open', id, open),
-    /** Gets the render path, or sets it to 'gpu' (GPU sharing) or 'cpu'. Launcher only. */
+    /** Moves a Node mod into the shared mod process, or back to its own. */
+    setShared: (id, shared) => ipcRenderer.invoke('rednode:mods:set-shared', id, shared),
+    /** Restarts a Node mod. */
+    restart: (id) => ipcRenderer.invoke('rednode:mods:restart', id),
+    /** Gets the render path, or sets it to 'gpu' (GPU sharing) or 'cpu'. */
     renderPath: (path) => ipcRenderer.invoke('rednode:host:render-path', path),
+    /** Gets hot reload, or turns it on or off. */
+    hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
+  },
+  /** For the host's builder page, which shows windows built by Node mods. Other pages get an error. */
+  builder: {
+    spec: () => ipcRenderer.invoke('rednode:builder:spec'),
+    send: (event) => ipcRenderer.send('rednode:builder:event', event),
   },
 });
 

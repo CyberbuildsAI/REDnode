@@ -1,24 +1,29 @@
-// REDnode overlay host. See docs/overlay.md and README.md.
+// REDnode overlay host and Tier 2 runtime. See docs/overlay.md and README.md.
 //
-// Finds overlay apps (folders with a rednode-app.json manifest), renders each
-// open app off-screen with Chromium, and streams its frames to the REDnode
-// plugin in the game over a named pipe. The plugin owns window placement,
-// focus and dragging; the host replays the plugin's input into the right page.
-// Apps call the game through window.rednode (preload.js).
+// Finds packages (folders with a rednode-app.json manifest). A package can be
+// an overlay app ("entry", an HTML page), a Node mod ("main", Node code), or
+// both. Apps are rendered off-screen with Chromium and their frames streamed
+// to the REDnode plugin in the game over a named pipe. The plugin owns window
+// placement, focus and dragging; the host replays the plugin's input into the
+// right page. Node mods run in mod processes (mods.js, runtime/). Apps and mods
+// call the game through the same rednode package, served as rednode://sdk/.
 //
 // Developers:
 //   npm run overlay                          # off-screen, streams to the game
 //   npm run overlay -- --window              # normal desktop windows, without the game
 //   npm run overlay -- --apps=demo,signal    # open exactly these apps this time
+//   npm run overlay -- --hot-reload=off      # do not restart mods when their files change
+//   npm run overlay -- --data-dir=<folder>   # settings and positions somewhere else, for tests
 // Players: the plugin starts the packaged host with the game:
 //   REDnode-overlay.exe --apps-dir=<plugin>\apps --parent-pid=<game> --log=<file>
 
 'use strict';
 
-const { app, BrowserWindow, ipcMain, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, utilityProcess } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
+const { createMods } = require('./mods');
 
 // REDNODE_OVERLAY_PIPE lets tests use a private pipe instead of the game's.
 const PIPE = process.env.REDNODE_OVERLAY_PIPE || '\\\\.\\pipe\\rednode-overlay';
@@ -48,6 +53,16 @@ const APP_ROOTS = [
 ];
 // The UI kit, served to every app as rednode://ui/rednode-ui.js.
 const UI_DIR = app.isPackaged ? path.join(__dirname, 'ui') : path.join(__dirname, '..', 'ui', 'src');
+// The rednode package (built from packages/rednode), served to apps as rednode://sdk/index.js
+// and loaded by mods for `import ... from "rednode"`. Packaged, it and the mod runtime sit
+// outside app.asar, in resources/, so worker threads can load them as normal files.
+const SDK_DIR = app.isPackaged ? path.join(process.resourcesPath, 'sdk') : path.join(__dirname, '..', 'rednode', 'dist');
+const RUNTIME_DIR = app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.join(__dirname, 'runtime');
+// The page that shows windows built by Node mods.
+const BUILDER_DIR = path.join(__dirname, 'builder');
+// Restart a mod, or reload an app's page, when its files change. On for developers;
+// for players a launcher switch, off by default. --hot-reload=on|off overrides both.
+const hotReloadArg = arg('hot-reload');
 
 // ---------- logging ----------
 
@@ -65,6 +80,10 @@ function log(...args) {
 
 // ---------- one host at a time ----------
 
+// --data-dir keeps settings, positions and the single-instance lock in another
+// folder, so a test host can run beside a player's.
+if (arg('data-dir')) app.setPath('userData', path.resolve(arg('data-dir')));
+
 if (!app.requestSingleInstanceLock()) {
   log('Another REDnode overlay host is already running. Exiting.');
   app.exit(0);
@@ -72,7 +91,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'rednode', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: 'rednode', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
 ]);
 // Page pixels must match frame pixels, whatever the desktop scaling is.
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
@@ -91,6 +110,18 @@ let bytes = 0;
 
 const pending = new Map(); // request id -> { resolve, reject, timer }
 let nextRequestId = 1;
+
+// What the game shows, from the plugin's ui-state events. Sent to apps and mods as
+// {event: 'state'} whenever it, the link or the overlay mode changes.
+let uiState = { menu: false, photoMode: false, scene: false, mainMenu: false };
+let lastStateJson = '';
+
+/** Node mods (mods.js), created when the app is ready. */
+let mods = null;
+/** Windows built by Node mods, by key '<mod id>~<window id>': { modId, win, spec } */
+const built = new Map();
+let hotReload = false;
+const watchers = new Map(); // package id -> fs.FSWatcher
 
 /** Installed apps by id: { manifest, dir, builtin } */
 const apps = new Map();
@@ -126,7 +157,7 @@ function writeJson(name, value) {
   );
 }
 let positions = {};
-let settings = { apps: {} }; // apps: { [id]: { open: boolean } }, renderPath: 'gpu' | 'cpu'
+let settings = { apps: {} }; // apps: { [id]: { open, shared } }, renderPath: 'gpu' | 'cpu', hotReload
 let renderPath = 'gpu';
 
 // GPU-shared frames the game has not finished with yet: frame id -> { texture, windowId, at }.
@@ -150,10 +181,19 @@ function readManifest(dir) {
   }
   const problems = [];
   if (typeof m.id !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(m.id)) problems.push('id must be lowercase letters, digits, - or _');
-  if (typeof m.entry !== 'string' || !fs.existsSync(path.join(dir, m.entry))) problems.push(`entry "${m.entry}" not found`);
-  for (const k of ['width', 'height']) {
-    if (!Number.isInteger(m[k]) || m[k] < 1 || m[k] > 4096) problems.push(`${k} must be a whole number from 1 to 4096`);
+  if (m.entry === undefined && m.main === undefined) problems.push('needs "entry" (an HTML page), "main" (Node code) or both');
+  if (m.entry !== undefined && (typeof m.entry !== 'string' || !fs.existsSync(path.join(dir, m.entry)))) {
+    problems.push(`entry "${m.entry}" not found`);
   }
+  if (m.main !== undefined && (typeof m.main !== 'string' || !fs.existsSync(path.join(dir, m.main)))) {
+    problems.push(`main "${m.main}" not found`);
+  }
+  if (m.entry !== undefined) {
+    for (const k of ['width', 'height']) {
+      if (!Number.isInteger(m[k]) || m[k] < 1 || m[k] > 4096) problems.push(`${k} must be a whole number from 1 to 4096`);
+    }
+  }
+  if (m.isolation !== undefined && !['process', 'any'].includes(m.isolation)) problems.push('isolation must be process or any');
   if (m.anchor !== undefined && !ANCHORS.includes(m.anchor)) problems.push(`anchor must be one of ${ANCHORS.join(', ')}`);
   if (m.kind !== undefined && !['window', 'hud'].includes(m.kind)) problems.push('kind must be window or hud');
   if (m.hideWith !== undefined && (!Array.isArray(m.hideWith) || m.hideWith.some((h) => !HIDE_WITH.includes(h)))) {
@@ -166,7 +206,9 @@ function readManifest(dir) {
     version: typeof m.version === 'string' ? m.version : '',
     author: typeof m.author === 'string' ? m.author : '',
     description: typeof m.description === 'string' ? m.description : '',
-    entry: m.entry,
+    entry: m.entry ?? null,
+    main: m.main ?? null,
+    isolation: m.isolation ?? 'any',
     kind: m.kind ?? 'window',
     width: m.width,
     height: m.height,
@@ -207,6 +249,23 @@ function shouldOpen(entry) {
   if (entry.builtin) return true;
   if (chosenApps) return chosenApps.includes(entry.manifest.id);
   return settings.apps[entry.manifest.id]?.open ?? entry.manifest.open;
+}
+
+// ---------- game state for apps and mods ----------
+
+function gameState() {
+  return { connected, overlay: mode, ...(connected ? uiState : { menu: false, photoMode: false, scene: false, mainMenu: false }) };
+}
+
+// Tells apps and mods when the state changed.
+function stateChanged() {
+  const state = gameState();
+  const json = JSON.stringify(state);
+  if (json === lastStateJson) return;
+  lastStateJson = json;
+  const message = { event: 'state', state };
+  toAllPages(message);
+  mods?.broadcast(message);
 }
 
 // ---------- messages to pages ----------
@@ -309,6 +368,7 @@ function connect() {
     sendJson({ cmd: 'host', pid: process.pid }); // lets the plugin open our texture handles
     for (const w of windows.values()) openInGame(w);
     toAllPages({ event: 'link', connected: true });
+    stateChanged();
   });
 
   socket.on('drain', () => {
@@ -339,6 +399,7 @@ function connect() {
       toAllPages({ event: 'link', connected: false });
     }
     connected = false;
+    stateChanged();
     pendingFrames.clear();
     releaseSharedFrames(() => true);
     for (const [id, p] of pending) {
@@ -453,7 +514,18 @@ function onGameMessage(m) {
       mode = m.mode;
       log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
       if (mode !== 'interactive') onFocus(0);
-      break;
+      toAllPages(m);
+      stateChanged();
+      return;
+    case 'ui-state':
+      uiState = { menu: !!m.menu, photoMode: !!m.photoMode, scene: !!m.scene, mainMenu: !!m.mainMenu };
+      toAllPages(m);
+      stateChanged();
+      return;
+    case 'game':
+      toAllPages(m);
+      mods?.broadcast(m);
+      return;
     default:
       break;
   }
@@ -522,7 +594,9 @@ function logPerf(game, host) {
   const open = [...windows.values()].map((w) => w.app.manifest.id);
   log(
     `Perf ${host.renderPath}${open.includes('stress') ? ' +stress' : ''}: game ${game.fps.toFixed(0)} fps; ` +
-      `overlay CPU ${game.cpuMs.toFixed(2)} ms (worst ${game.cpuMsMax.toFixed(2)}), ` +
+      `overlay CPU ${game.cpuMs.toFixed(2)} ms (worst ${game.cpuMsMax.toFixed(2)}; ` +
+      `GPU wait ${(game.waitMs ?? 0).toFixed(2)}, opening ${(game.openMs ?? 0).toFixed(2)}), ` +
+      `textures opened ${(game.opensPerSec ?? 0).toFixed(0)}/s, reused ${(game.reusedPerSec ?? 0).toFixed(0)}/s, ` +
       `GPU ${game.gpuMs.toFixed(2)} ms (worst ${game.gpuMsMax.toFixed(2)}); ` +
       `uploads ${game.uploadMBps.toFixed(1)} MB/s, shared ${(game.sharedPerSec ?? 0).toFixed(0)}/s; ` +
       `host ${host.memoryMB} MB in ${host.processes} processes, CPU ${host.cpuPercent}%, sent ${host.sentMBps.toFixed(1)} MB/s`,
@@ -558,7 +632,9 @@ function hostPerf() {
 
 // ---------- the bridge for apps ----------
 
-ipcMain.handle('rednode:call', (_event, method, params) => {
+// Calls a bridge method in the game. Apps and mods both come through here.
+function bridgeCall(method, params) {
+  if (typeof method !== 'string') return Promise.reject(new Error('method must be a string'));
   if (!connected) return Promise.reject(new Error('Not connected to the game'));
   const id = nextRequestId++;
   return new Promise((resolve, reject) => {
@@ -569,9 +645,15 @@ ipcMain.handle('rednode:call', (_event, method, params) => {
     pending.set(id, { resolve, reject, timer });
     sendJson({ id, method, params });
   });
-});
+}
 
-ipcMain.handle('rednode:state', () => ({ connected, mode, windowed, version: VERSION }));
+function hostState() {
+  return { connected, mode, windowed, version: VERSION, game: gameState() };
+}
+
+ipcMain.handle('rednode:call', (_event, method, params) => bridgeCall(method, params));
+
+ipcMain.handle('rednode:state', () => hostState());
 
 // Drag handles reported by preload.js: flat [x, y, w, h, ...] in page pixels.
 ipcMain.on('rednode:drag-regions', (event, regions) => {
@@ -588,18 +670,29 @@ function fromLauncher(event) {
   if (!w?.app.builtin) throw new Error('Only the REDnode launcher can manage apps');
 }
 
+function isEnabled(entry) {
+  const id = entry.manifest.id;
+  return entry.manifest.entry ? !!windowOfApp(id) : mods.isEnabled(id);
+}
+
 function appList() {
+  const metrics = app.getAppMetrics();
   return [...apps.values()]
     .filter((a) => !a.builtin)
-    .map(({ manifest: m }) => ({
-      id: m.id,
-      name: m.name,
-      version: m.version,
-      author: m.author,
-      description: m.description,
-      kind: m.kind,
-      open: !!windowOfApp(m.id),
-    }));
+    .map((entry) => {
+      const m = entry.manifest;
+      return {
+        id: m.id,
+        name: m.name,
+        version: m.version,
+        author: m.author,
+        description: m.description,
+        kind: m.kind,
+        app: !!m.entry,
+        open: isEnabled(entry),
+        mod: m.main ? mods.info(m.id, metrics) : null,
+      };
+    });
 }
 
 ipcMain.handle('rednode:apps:list', (event) => {
@@ -611,11 +704,40 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   fromLauncher(event);
   const entry = apps.get(id);
   if (!entry || entry.builtin) throw new Error(`No app "${id}"`);
-  if (open) openApp(entry);
-  else closeApp(id);
-  settings.apps[id] = { open: !!open };
+  settings.apps[id] = { ...settings.apps[id], open: !!open };
+  writeJson('settings.json', settings);
+  if (entry.manifest.entry) {
+    if (open) openApp(entry);
+    else closeApp(id);
+  }
+  if (entry.manifest.main) mods.setEnabled(id, !!open);
+  return appList();
+});
+
+ipcMain.handle('rednode:mods:set-shared', (event, id, shared) => {
+  fromLauncher(event);
+  if (!mods.has(id)) throw new Error(`No mod "${id}"`);
+  mods.setShared(id, !!shared);
+  settings.apps[id] = { ...settings.apps[id], shared: !!shared };
   writeJson('settings.json', settings);
   return appList();
+});
+
+ipcMain.handle('rednode:mods:restart', (event, id) => {
+  fromLauncher(event);
+  if (!mods.has(id)) throw new Error(`No mod "${id}"`);
+  mods.restart(id);
+  return appList();
+});
+
+ipcMain.handle('rednode:host:hot-reload', (event, on) => {
+  fromLauncher(event);
+  if (typeof on === 'boolean') {
+    settings.hotReload = on;
+    writeJson('settings.json', settings);
+    setHotReload(on);
+  }
+  return hotReload;
 });
 
 ipcMain.handle('rednode:host:render-path', (event, path) => {
@@ -624,14 +746,132 @@ ipcMain.handle('rednode:host:render-path', (event, path) => {
   return renderPath;
 });
 
+let launcherQueued = false;
 function notifyLauncher() {
-  for (const w of windows.values()) if (w.app.builtin) toPage(w, { event: 'apps' });
+  if (launcherQueued) return;
+  launcherQueued = true;
+  setImmediate(() => {
+    launcherQueued = false;
+    for (const w of windows.values()) if (w.app.builtin) toPage(w, { event: 'apps' });
+  });
+}
+
+// ---------- windows built by Node mods (rednode's ui builder) ----------
+
+const builtKey = (modId, win) => `${modId}~${win}`;
+
+function findNode(spec, id) {
+  if (spec.id === id) return spec;
+  for (const c of spec.children ?? []) {
+    const found = findNode(c, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+const ui = {
+  open(modId, win, spec) {
+    const key = builtKey(modId, win);
+    closeApp(key);
+    built.set(key, { modId, win, spec });
+    const p = spec?.props ?? {};
+    const size = (v, d) => (Number.isInteger(v) && v >= 1 && v <= 4096 ? v : d);
+    openApp({
+      dir: BUILDER_DIR,
+      builtin: false,
+      built: key,
+      manifest: {
+        id: key,
+        name: String(p.title ?? win),
+        entry: 'index.html',
+        kind: 'window',
+        width: size(p.width, 360),
+        height: size(p.height, 320),
+        anchor: ANCHORS.includes(p.anchor) ? p.anchor : 'center',
+        x: Number(p.x) || 0,
+        y: Number(p.y) || 0,
+        hideWith: [],
+      },
+    });
+  },
+  update(modId, win, node, props) {
+    const b = built.get(builtKey(modId, win));
+    const target = b && findNode(b.spec, node);
+    if (!target) return;
+    Object.assign(target.props, props);
+    const w = windowOfApp(builtKey(modId, win));
+    if (w) toPage(w, { event: 'builder', op: 'update', node, props });
+  },
+  close(modId, win) {
+    const key = builtKey(modId, win);
+    built.delete(key);
+    closeApp(key);
+  },
+  closeAll(modId) {
+    for (const [key, b] of built) if (b.modId === modId) ui.close(modId, b.win);
+  },
+};
+
+function builtFor(event) {
+  const w = windowFor(event.sender);
+  const b = w?.app.built && built.get(w.app.built);
+  if (!b) throw new Error('Only the REDnode builder page can use this');
+  return b;
+}
+
+ipcMain.handle('rednode:builder:spec', (event) => builtFor(event).spec);
+
+ipcMain.on('rednode:builder:event', (event, e) => {
+  let b;
+  try {
+    b = builtFor(event);
+  } catch {
+    return;
+  }
+  if (e?.type === 'close') {
+    ui.close(b.modId, b.win);
+    mods.toMod(b.modId, { event: 'ui', window: b.win, type: 'close' });
+  } else {
+    mods.toMod(b.modId, { event: 'ui', window: b.win, node: e?.node, type: e?.type, value: e?.value });
+  }
+});
+
+// ---------- hot reload ----------
+
+function watchPackage(entry) {
+  const id = entry.manifest.id;
+  if (watchers.has(id)) return;
+  let timer = null;
+  try {
+    const watcher = fs.watch(entry.dir, { recursive: true }, (_type, file) => {
+      if (file && /(^|[\\/])node_modules([\\/]|$)/.test(file) && !entry.manifest.main) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        log(`Changed: ${id}${file ? ` (${file})` : ''}. Reloading.`);
+        if (entry.manifest.main && mods.has(id)) mods.restart(id);
+        const w = windowOfApp(id);
+        if (w && !w.win.isDestroyed()) w.win.webContents.reloadIgnoringCache();
+      }, 400);
+    });
+    watcher.on('error', () => watchers.delete(id));
+    watchers.set(id, watcher);
+  } catch (err) {
+    log(`Cannot watch ${entry.dir}: ${err.message}`);
+  }
+}
+
+function setHotReload(on) {
+  hotReload = on;
+  for (const w of watchers.values()) w.close();
+  watchers.clear();
+  if (on) for (const entry of apps.values()) if (!entry.builtin) watchPackage(entry);
+  log(`Hot reload ${on ? 'on' : 'off'}`);
 }
 
 // ---------- windows ----------
 
 function openApp(entry) {
-  if (windowOfApp(entry.manifest.id)) return;
+  if (!entry.manifest.entry || windowOfApp(entry.manifest.id)) return;
   const m = entry.manifest;
   const id = nextWindowId++;
   const win = new BrowserWindow({
@@ -667,6 +907,9 @@ function openApp(entry) {
     windows.delete(id);
     windowStats.delete(id);
   });
+  win.webContents.on('console-message', ({ level, message }) => {
+    if (level === 'error') log(`[${m.id}] page error: ${message}`);
+  });
   win.loadFile(path.join(entry.dir, m.entry));
   if (connected) openInGame(w);
   log(`Opened ${m.id}`);
@@ -688,15 +931,20 @@ function closeApp(appId) {
 // ---------- start ----------
 
 app.whenReady().then(() => {
+  // rednode://ui/  the UI kit; rednode://sdk/  the rednode package, as ES modules.
   protocol.handle('rednode', (request) => {
     const url = new URL(request.url);
-    const file = path.join(UI_DIR, decodeURIComponent(url.pathname));
-    if (url.host !== 'ui' || !file.startsWith(UI_DIR + path.sep) || !fs.existsSync(file)) {
+    const root = { ui: UI_DIR, sdk: SDK_DIR }[url.host];
+    const file = root && path.join(root, decodeURIComponent(url.pathname));
+    if (!root || !file.startsWith(root + path.sep) || !fs.existsSync(file)) {
       return new Response('Not found', { status: 404 });
     }
     // Read directly rather than fetch a file:// URL: packaged, the kit is inside app.asar.
+    // Apps are file:// pages, so module imports from here need a CORS header.
     const type = file.endsWith('.css') ? 'text/css' : 'text/javascript';
-    return new Response(fs.readFileSync(file), { headers: { 'content-type': `${type}; charset=utf-8` } });
+    return new Response(fs.readFileSync(file), {
+      headers: { 'content-type': `${type}; charset=utf-8`, 'access-control-allow-origin': '*' },
+    });
   });
 
   log(`REDnode overlay host ${VERSION}${app.isPackaged ? ' (packaged)' : ''}`);
@@ -710,7 +958,31 @@ app.whenReady().then(() => {
     if (n) log(`Released ${n} shared frame(s) the game did not answer`);
   }, 500);
   discoverApps();
-  for (const entry of apps.values()) if (shouldOpen(entry)) openApp(entry);
+  mods = createMods({
+    app,
+    utilityProcess,
+    log,
+    logFile: logFile ? path.join(path.dirname(logFile), 'rednode-mods.log') : dataFile('rednode-mods.log'),
+    runner: path.join(RUNTIME_DIR, 'runner.js'),
+    sdk: path.join(SDK_DIR, 'index.js'),
+    call: bridgeCall,
+    state: hostState,
+    ui,
+    changed: notifyLauncher,
+  });
+  if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {
+    log(`The rednode package is missing at ${SDK_DIR}. Build it with: npm run build --workspace rednode`);
+  }
+  for (const entry of apps.values()) {
+    if (shouldOpen(entry)) openApp(entry);
+    if (entry.manifest.main) mods.add(entry, { enabled: shouldOpen(entry), shared: settings.apps[entry.manifest.id]?.shared });
+  }
+  setHotReload(hotReloadArg ? hotReloadArg !== 'off' : app.isPackaged ? !!settings.hotReload : true);
+  // Mod memory, for comparing a process per mod with the shared group.
+  setInterval(() => {
+    const line = mods.memorySummary(app.getAppMetrics());
+    if (line) log(`Mod processes: ${line}`);
+  }, 10000);
 
   if (!windowed) {
     connect();
@@ -738,3 +1010,5 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (windowed) app.quit();
 });
+
+app.on('will-quit', () => mods?.stopAll());

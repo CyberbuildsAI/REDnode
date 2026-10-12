@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REDnode mod window</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* A window built by a Node mod with rednode's ui builder. The host sizes the
+     page; space the window does not use stays transparent and clicks through. */
+  html, body { margin: 0; overflow: hidden; background: transparent; }
+  rn-window { display: block; width: 100%; max-height: 100vh; }
+  rn-window[hidden] { display: none; }
+  .content { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .column { display: flex; flex-direction: column; gap: 8px; }
+  .text { font-size: 15px; line-height: 1.4; color: var(--rn-fg); white-space: pre-wrap; }
+  .heading { margin: 4px 0 0; font: 700 14px var(--rn-display); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-accent); }
+  .tone-dim { color: var(--rn-dim); }
+  .tone-accent { color: var(--rn-accent); }
+  .tone-danger { color: var(--rn-danger); }
+</style>
+</head>
+<body>
+  <rn-window id="win" draggable></rn-window>
+<script src="builder.js"></script>
+</body>
+</html>

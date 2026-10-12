@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <title>Coords HUD</title>
 <script src="rednode://ui/rednode-ui.js"></script>
+<!-- Lets the page import the rednode package by name, like a Node mod does. -->
+<script type="importmap">{ "imports": { "rednode": "rednode://sdk/index.js" } }</script>
 <style>
   /* A HUD widget: kind "hud" in the manifest, so it never takes input.
      The REDnode plugin hides it with the game's menus, photo mode and scenes. */
@@ -25,12 +27,14 @@
     <span><span class="axis">Y</span><span id="y">----.-</span></span>
     <span><span class="axis">Z</span><span id="z">---.-</span></span>
   </div>
-<script>
-  'use strict';
+<script type="module">
+  // The same call as the Hello mod, a Node mod: both show the same position.
+  import { game } from 'rednode';
+
   const set = (id, v) => (document.getElementById(id).textContent = v);
   async function update() {
     try {
-      const p = await window.rednode.call('player.position');
+      const p = await game.player.position();
       set('x', p.x.toFixed(1));
       set('y', p.y.toFixed(1));
       set('z', p.z.toFixed(1));

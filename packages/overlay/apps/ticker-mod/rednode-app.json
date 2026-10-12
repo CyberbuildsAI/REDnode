@@ -1,0 +1,9 @@
+{
+  "id": "ticker-mod",
+  "name": "Ticker mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A Node mod with no window. Logs V's position every 10 seconds, and every game event and state change, to rednode-mods.log.",
+  "main": "mod.mjs",
+  "open": true
+}

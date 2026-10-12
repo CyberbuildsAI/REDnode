@@ -27,16 +27,28 @@
   .status b { color: var(--rn-ok); font-weight: 500; }
   .status b.off { color: var(--rn-danger); }
   #rn-notifications { bottom: auto !important; top: 8px; }
-  .footer { padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
+  .footer { display: flex; gap: 18px; padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
+  .mod { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .status-line { font: 11px var(--rn-mono); letter-spacing: .08em; color: var(--rn-dim); }
+  .st { font-weight: 500; }
+  .st-running { color: var(--rn-ok); }
+  .st-starting { color: var(--rn-accent-2); }
+  .st-crashed, .st-not-responding { color: var(--rn-danger); }
+  .controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .err { font: 11px/1.35 var(--rn-mono); color: var(--rn-danger); white-space: pre-wrap; word-break: break-word; }
+  .log { font: 11px/1.35 var(--rn-mono); color: var(--rn-dim); white-space: pre-wrap; word-break: break-word;
+    max-height: 70px; overflow: hidden; border-left: 2px solid var(--rn-line); padding-left: 8px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
   <div class="dock">
-    <rn-window id="panel" title="REDnode apps" hidden>
+    <rn-window id="panel" title="REDnode apps and mods" hidden>
       <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
       <div id="apps"><p class="empty">Looking for apps...</p></div>
       <div slot="footer" class="footer">
         <rn-toggle id="gpu" label="GPU sharing"></rn-toggle>
+        <rn-toggle id="hot" label="Hot reload"></rn-toggle>
       </div>
     </rn-window>
     <div class="tab">

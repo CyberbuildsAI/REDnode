@@ -1,7 +1,7 @@
 {
   "id": "coords",
   "name": "Coords HUD",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Edgemodders",
   "description": "A HUD widget at the top of the screen with V's position. Never takes input; hides in menus, photo mode, scenes and the main menu.",
   "entry": "index.html",

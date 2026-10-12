@@ -1,9 +1,9 @@
 {
   "id": "launcher",
   "name": "REDnode launcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Edgemodders",
-  "description": "Lists installed overlay apps and opens or closes them. Built into the host.",
+  "description": "Lists installed overlay apps and Node mods, and opens, closes and restarts them. Built into the host.",
   "entry": "index.html",
   "kind": "window",
   "width": 380,
