@@ -25,6 +25,8 @@ const PIPE = process.env.REDNODE_OVERLAY_PIPE || '\\\\.\\pipe\\rednode-overlay';
 const FPS = 60;
 const TYPE_FRAME = 1;
 const TYPE_JSON = 2;
+const TYPE_RECT = 4; // only the changed part of a window
+const TYPE_SHARED = 5; // a GPU texture handle instead of pixels
 const VERSION = require('./package.json').version;
 
 // ---------- command line ----------
@@ -34,6 +36,9 @@ const windowed = process.argv.includes('--window');
 const chosenApps = arg('apps')?.split(',').filter(Boolean) ?? null;
 const parentPid = Number(arg('parent-pid')) || null;
 const logFile = arg('log') ?? null;
+// Render path: 'gpu' shares Chromium's textures with the game, 'cpu' copies pixels.
+// --render overrides the setting saved by the launcher.
+const renderArg = arg('render');
 
 // Where apps are found: the launcher built into the host, then the apps folder.
 // Packaged, the plugin passes the game's apps folder; in the repo it is ./apps.
@@ -78,7 +83,9 @@ let socket = null;
 let connected = false;
 let mode = 'passive';
 let writable = true;
-const pendingFrames = new Map(); // window id -> newest frame waiting for the pipe
+// window id -> { image, dirty } waiting for the pipe: the newest image and the
+// union of every area that changed since the last send.
+const pendingFrames = new Map();
 let frames = 0;
 let bytes = 0;
 
@@ -89,6 +96,8 @@ let nextRequestId = 1;
 const apps = new Map();
 /** Open windows by window id: { id, app, win, dragRegions } */
 const windows = new Map();
+/** Frames sent per window since the last perf report. */
+const windowStats = new Map();
 let nextWindowId = 1;
 
 // ---------- settings and saved positions (in the host's user data folder) ----------
@@ -117,7 +126,12 @@ function writeJson(name, value) {
   );
 }
 let positions = {};
-let settings = { apps: {} }; // apps: { [id]: { open: boolean } }
+let settings = { apps: {} }; // apps: { [id]: { open: boolean } }, renderPath: 'gpu' | 'cpu'
+let renderPath = 'gpu';
+
+// GPU-shared frames the game has not finished with yet: frame id -> { texture, windowId, at }.
+const sharedFrames = new Map();
+let nextFrameId = 1;
 
 // ---------- app discovery ----------
 
@@ -225,21 +239,44 @@ function sendJson(object) {
   if (connected) writeMessage(TYPE_JSON, Buffer.from(JSON.stringify(object), 'utf8'));
 }
 
-function sendFrame(windowId, image) {
+function unionRect(a, b) {
+  if (!a) return { ...b };
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+}
+
+// Sends the changed part of a window's image. While the pipe is busy, changes
+// are merged and only the newest image is kept.
+function sendFrame(windowId, image, dirty) {
   if (!connected || !windows.has(windowId)) return;
+  const size = image.getSize();
+  const full = { x: 0, y: 0, width: size.width, height: size.height };
+  const area = dirty && dirty.width > 0 && dirty.height > 0 ? dirty : full;
   if (!writable) {
-    pendingFrames.set(windowId, image); // keep only the newest frame per window while the pipe is busy
+    const queued = pendingFrames.get(windowId);
+    pendingFrames.set(windowId, { image, dirty: unionRect(queued?.dirty, area) });
     return;
   }
-  const { width, height } = image.getSize();
-  const pixels = image.toBitmap(); // BGRA, premultiplied alpha
-  const head = Buffer.alloc(12);
-  head.writeUInt32LE(windowId, 0);
-  head.writeUInt32LE(width, 4);
-  head.writeUInt32LE(height, 8);
-  writable = writeMessage(TYPE_FRAME, Buffer.concat([head, pixels]));
+  // Clip to the image, in whole pixels.
+  const x = Math.max(0, Math.floor(area.x));
+  const y = Math.max(0, Math.floor(area.y));
+  const width = Math.min(size.width - x, Math.ceil(area.x + area.width) - x);
+  const height = Math.min(size.height - y, Math.ceil(area.y + area.height) - y);
+  if (width <= 0 || height <= 0) return;
+  const isFull = width === size.width && height === size.height;
+  const pixels = (isFull ? image : image.crop({ x, y, width, height })).toBitmap(); // BGRA, premultiplied
+  const head = Buffer.alloc(28);
+  [windowId, size.width, size.height, x, y, width, height].forEach((v, i) => head.writeUInt32LE(v, i * 4));
+  writable = writeMessage(TYPE_RECT, Buffer.concat([head, pixels]));
   frames += 1;
   bytes += pixels.length;
+  windowStats.get(windowId).frames += 1;
 }
 
 // Tells the plugin about a window. A saved position wins over the manifest's anchor.
@@ -269,15 +306,16 @@ function connect() {
     connected = true;
     writable = true;
     log('Connected to the game');
+    sendJson({ cmd: 'host', pid: process.pid }); // lets the plugin open our texture handles
     for (const w of windows.values()) openInGame(w);
     toAllPages({ event: 'link', connected: true });
   });
 
   socket.on('drain', () => {
     writable = true;
-    for (const [id, image] of pendingFrames) {
+    for (const [id, queued] of pendingFrames) {
       pendingFrames.delete(id);
-      sendFrame(id, image);
+      sendFrame(id, queued.image, queued.dirty);
       if (!writable) break;
     }
   });
@@ -302,6 +340,7 @@ function connect() {
     }
     connected = false;
     pendingFrames.clear();
+    releaseSharedFrames(() => true);
     for (const [id, p] of pending) {
       clearTimeout(p.timer);
       p.reject(new Error('Disconnected from the game'));
@@ -390,6 +429,22 @@ function onGameMessage(m) {
       }
       return;
     }
+    case 'perf':
+      toAllPages({ event: 'perf', game: m, host: hostPerf() });
+      return;
+    case 'frame-done':
+      for (const fid of m.frames ?? []) {
+        const f = sharedFrames.get(fid);
+        if (f) {
+          f.texture.release();
+          sharedFrames.delete(fid);
+        }
+      }
+      return;
+    case 'shared-failed':
+      log(`The game could not use GPU sharing (${m.error}). Switching to the CPU path.`);
+      setRenderPath('cpu', false);
+      return;
     case 'hello':
     case 'overlay':
       mode = m.mode;
@@ -400,6 +455,86 @@ function onGameMessage(m) {
       break;
   }
   toAllPages(m);
+}
+
+// ---------- GPU sharing ----------
+
+// Sends a GPU texture handle instead of pixels. The texture stays ours until
+// the game answers frame-done, or a second has passed.
+function sendShared(windowId, texture) {
+  const info = texture.textureInfo;
+  const handle = info.handle?.ntHandle;
+  if (!connected || !windows.has(windowId) || !handle) {
+    texture.release();
+    return;
+  }
+  const frameId = nextFrameId++;
+  sharedFrames.set(frameId, { texture, windowId, at: Date.now() });
+  const msg = Buffer.alloc(24);
+  msg.writeUInt32LE(windowId, 0);
+  msg.writeUInt32LE(info.codedSize.width, 4);
+  msg.writeUInt32LE(info.codedSize.height, 8);
+  msg.writeUInt32LE(frameId, 12);
+  msg.writeBigUInt64LE(handle.readBigUInt64LE(0), 16);
+  writable = writeMessage(TYPE_SHARED, msg);
+  frames += 1;
+  windowStats.get(windowId).frames += 1;
+}
+
+function releaseSharedFrames(test) {
+  let n = 0;
+  for (const [fid, f] of sharedFrames) {
+    if (!test(f)) continue;
+    f.texture.release();
+    sharedFrames.delete(fid);
+    n += 1;
+  }
+  return n;
+}
+
+// Switches between GPU sharing and the CPU path by reopening every window.
+function setRenderPath(path, save = true) {
+  if (renderPath === path) return;
+  renderPath = path;
+  if (save) {
+    settings.renderPath = path;
+    writeJson('settings.json', settings);
+  }
+  log(`Render path: ${path}`);
+  const open = [...windows.values()].map((w) => w.app);
+  for (const entry of open) closeApp(entry.manifest.id);
+  releaseSharedFrames(() => true);
+  for (const entry of open) openApp(entry);
+  notifyLauncher();
+}
+
+// ---------- what the host costs ----------
+
+let lastPerfAt = Date.now();
+function takeBytes() {
+  const b = bytes;
+  bytes = 0;
+  return b;
+}
+function hostPerf() {
+  const now = Date.now();
+  const seconds = Math.max(0.001, (now - lastPerfAt) / 1000);
+  lastPerfAt = now;
+  const metrics = app.getAppMetrics();
+  const perWindow = [...windows.values()].map((w) => ({
+    id: w.app.manifest.id,
+    fps: Math.round((windowStats.get(w.id)?.frames ?? 0) / seconds),
+  }));
+  for (const s of windowStats.values()) s.frames = 0;
+  return {
+    memoryMB: Math.round(metrics.reduce((n, p) => n + (p.memory?.workingSetSize ?? 0), 0) / 1024),
+    cpuPercent: Math.round(metrics.reduce((n, p) => n + (p.cpu?.percentCPUUsage ?? 0), 0)),
+    processes: metrics.length,
+    sentMBps: +(takeBytes() / 1048576 / seconds).toFixed(2),
+    renderPath,
+    sharedOutstanding: sharedFrames.size,
+    windows: perWindow,
+  };
 }
 
 // ---------- the bridge for apps ----------
@@ -464,6 +599,12 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   return appList();
 });
 
+ipcMain.handle('rednode:host:render-path', (event, path) => {
+  fromLauncher(event);
+  if (path === 'gpu' || path === 'cpu') setRenderPath(path);
+  return renderPath;
+});
+
 function notifyLauncher() {
   for (const w of windows.values()) if (w.app.builtin) toPage(w, { event: 'apps' });
 }
@@ -486,7 +627,7 @@ function openApp(entry) {
     useContentSize: true,
     title: m.name,
     webPreferences: {
-      offscreen: !windowed,
+      offscreen: windowed ? false : renderPath === 'gpu' ? { useSharedTexture: true } : true,
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       sandbox: true,
@@ -494,12 +635,19 @@ function openApp(entry) {
   });
   const w = { id, app: entry, win, dragRegions: [] };
   windows.set(id, w);
+  windowStats.set(id, { frames: 0 });
 
   if (!windowed) {
     win.webContents.setFrameRate(FPS);
-    win.webContents.on('paint', (_event, _dirty, image) => sendFrame(id, image));
+    win.webContents.on('paint', (event, dirty, image) => {
+      if (event.texture) sendShared(id, event.texture);
+      else sendFrame(id, image, dirty);
+    });
   }
-  win.on('closed', () => windows.delete(id));
+  win.on('closed', () => {
+    windows.delete(id);
+    windowStats.delete(id);
+  });
   win.loadFile(path.join(entry.dir, m.entry));
   if (connected) openInGame(w);
   log(`Opened ${m.id}`);
@@ -511,6 +659,7 @@ function closeApp(appId) {
   if (!w) return;
   sendJson({ cmd: 'window.close', window: w.id });
   windows.delete(w.id);
+  windowStats.delete(w.id);
   pendingFrames.delete(w.id);
   if (!w.win.isDestroyed()) w.win.destroy();
   log(`Closed ${appId}`);
@@ -534,6 +683,13 @@ app.whenReady().then(() => {
   log(`REDnode overlay host ${VERSION}${app.isPackaged ? ' (packaged)' : ''}`);
   positions = readJson('window-positions.json', {});
   settings = { apps: {}, ...readJson('settings.json', {}) };
+  renderPath = ['gpu', 'cpu'].includes(renderArg) ? renderArg : settings.renderPath === 'cpu' ? 'cpu' : 'gpu';
+  log(`Render path: ${renderPath}`);
+  // Never hold a shared texture long: Chromium has only a few.
+  setInterval(() => {
+    const n = releaseSharedFrames((f) => Date.now() - f.at > 1000);
+    if (n) log(`Released ${n} shared frame(s) the game did not answer`);
+  }, 500);
   discoverApps();
   for (const entry of apps.values()) if (shouldOpen(entry)) openApp(entry);
 
@@ -542,7 +698,6 @@ app.whenReady().then(() => {
     setInterval(() => {
       if (frames) log(`${frames} frames, ${(bytes / 1048576).toFixed(1)} MB sent in the last 10 s`);
       frames = 0;
-      bytes = 0;
     }, 10000);
   }
 

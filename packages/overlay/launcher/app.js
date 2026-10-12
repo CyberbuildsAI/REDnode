@@ -47,7 +47,15 @@ function row(app) {
   return div;
 }
 
+// GPU sharing on or off. Switching reopens every window.
+$('gpu').addEventListener('change', async (e) => {
+  const path = await window.rednode.apps.renderPath(e.detail.checked ? 'gpu' : 'cpu');
+  $('gpu').checked = path === 'gpu';
+  RednodeUI.notify(path === 'gpu' ? 'GPU sharing on' : 'GPU sharing off: CPU path', { title: 'Render path' });
+});
+
 async function refresh() {
+  $('gpu').checked = (await window.rednode.apps.renderPath()) === 'gpu';
   const apps = await window.rednode.apps.list();
   const list = $('apps');
   list.replaceChildren(...apps.map(row));

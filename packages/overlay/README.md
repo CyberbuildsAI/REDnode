@@ -1,6 +1,6 @@
 # REDnode overlay host
 
-Status: **phase O4, HUD widgets.** The proof of concept and O1 to O3 work in game, including the player install. O4 adds HUD widgets and hiding with the game's UI. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
+Status: **phase O5, performance.** The proof of concept and O1 to O4 work in game, including the player install. O5 adds GPU sharing, changed-area updates and performance measurement. The design, the plan and the test results are in [docs/overlay.md](../../docs/overlay.md).
 
 The host is an Electron app. It renders each overlay window off-screen, streams the frames to the REDnode plugin in the game, replays the game's mouse and keyboard input into the right page, and gives apps a `window.rednode` API for talking to the game. The plugin owns window placement, focus and dragging, so they keep up with the game's frame rate.
 
@@ -8,6 +8,7 @@ The host is an Electron app. It renders each overlay window off-screen, streams 
 npm run overlay                          # from the repo root: off-screen, connects to the game
 npm run overlay:window                   # the apps in normal desktop windows, without the game
 npm run overlay -- --apps=demo,signal    # open exactly these apps this time
+npm run overlay -- --render=cpu          # force the CPU path instead of GPU sharing
 npm run overlay:package                  # package the host for players (see below)
 ```
 
@@ -27,6 +28,8 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 | [apps/signal/](apps/signal/) | A small round widget: a borderless window with a transparent middle |
 | [apps/coords/](apps/coords/) | A real HUD widget: V's position at the top of the screen, hidden in menus, photo mode and scenes |
 | [apps/state/](apps/state/) | Shows the game state REDnode reads for `hideWith` |
+| [apps/perf/](apps/perf/) | What the overlay costs: game frame rate, overlay CPU and GPU time, uploads, host memory and CPU |
+| [apps/stress/](apps/stress/) | Worst case: a large window that redraws every pixel every frame |
 
 ## Apps and manifests
 
@@ -63,6 +66,15 @@ Every folder in the apps folder with a `rednode-app.json` is an app. In the repo
 | `open` | Whether the app starts open, until the player changes it in the launcher |
 
 A window the player has dragged keeps its saved position instead of the anchor. The launcher remembers which apps are on. Both are kept in the host's user data folder, `%APPDATA%\@rednode\overlay`.
+
+## Render paths
+
+| Path | How frames reach the game | When |
+|---|---|---|
+| `gpu` (default) | Chromium renders into a shared GPU texture. The host sends its handle; the plugin copies it on the GPU and answers `frame-done`, and the host releases the texture | Normal |
+| `cpu` | The host sends the changed rectangle as BGRA pixels; the plugin uploads it | If GPU sharing fails, or when chosen |
+
+If the plugin reports `shared-failed`, the host switches to `cpu` by itself for that session. The launcher's **GPU sharing** switch saves the choice; `--render=gpu|cpu` overrides it for one run.
 
 ## Packaged host
 
@@ -124,6 +136,7 @@ Messages from the game:
 | `hello` | `plugin`, `mode` | Right after connecting |
 | `overlay` | `mode`: `passive`, `interactive` or `hidden` | The player presses F10 or Esc, or clicks empty screen |
 | `focus` | `focused`: `true` or `false` | This window gained or lost keyboard focus. Use it to dim your title bar |
+| `perf` | `game`: `fps`, `cpuMs`, `cpuMsMax`, `gpuMs`, `gpuMsMax`, `uploadsPerSec`, `uploadMBps`, `sharedPerSec`. `host`: `memoryMB`, `cpuPercent`, `processes`, `sentMBps`, `renderPath`, `windows` | Once a second |
 | `ui-state` | `menu`, `photoMode`, `scene`, `mainMenu` (booleans), `sceneTier` (number, -1 without a player) | The game's UI state changed |
 | `game` | `name`, `value`, `frame` | A redscript event, from the Tier 1 path (the P1 probe's `OnGameAttached`) |
 

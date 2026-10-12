@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Perf</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  html, body { margin: 0; width: 340px; height: 530px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 4px; }
+  table { width: 100%; border-collapse: collapse; font: 13px var(--rn-mono); }
+  th { text-align: left; padding: 8px 0 4px; font: 600 11px var(--rn-mono); letter-spacing: .14em; color: var(--rn-accent); }
+  td { padding: 3px 0; border-bottom: 1px solid var(--rn-line); }
+  td:last-child { text-align: right; color: var(--rn-fg); }
+  td:first-child { color: var(--rn-dim); }
+  .hint { margin: 0; font-size: 13px; color: var(--rn-dim); }
+</style>
+</head>
+<body>
+<rn-window title="Perf" draggable>
+  <table>
+    <tr><th colspan="2">Game</th></tr>
+    <tr><td>Frame rate</td><td id="fps">-</td></tr>
+    <tr><th colspan="2">Overlay, per game frame</th></tr>
+    <tr><td>CPU, average</td><td id="cpu">-</td></tr>
+    <tr><td>CPU, worst</td><td id="cpuMax">-</td></tr>
+    <tr><td>GPU, average</td><td id="gpu">-</td></tr>
+    <tr><td>GPU, worst</td><td id="gpuMax">-</td></tr>
+    <tr><td>Uploads</td><td id="uploads">-</td></tr>
+    <tr><td>Upload volume</td><td id="upload">-</td></tr>
+    <tr><td>GPU-shared frames</td><td id="shared">-</td></tr>
+    <tr><th colspan="2">Host (all Electron processes)</th></tr>
+    <tr><td>Render path</td><td id="path">-</td></tr>
+    <tr><td>Memory</td><td id="mem">-</td></tr>
+    <tr><td>CPU</td><td id="hcpu">-</td></tr>
+    <tr><td>Sent to the game</td><td id="sent">-</td></tr>
+    <tr><td>Busiest window</td><td id="busy">-</td></tr>
+  </table>
+  <p class="hint">Updates every second. Switch on Stress in the launcher for a worst case.</p>
+</rn-window>
+<script>
+  'use strict';
+  const set = (id, v) => (document.getElementById(id).textContent = v);
+  const ms = (v) => `${v.toFixed(2)} ms`;
+  window.rednode.on((m) => {
+    if (m.event !== 'perf') return;
+    const g = m.game;
+    const h = m.host;
+    set('fps', `${g.fps.toFixed(0)} fps`);
+    set('cpu', ms(g.cpuMs));
+    set('cpuMax', ms(g.cpuMsMax));
+    set('gpu', g.gpuMs ? ms(g.gpuMs) : 'n/a');
+    set('gpuMax', g.gpuMsMax ? ms(g.gpuMsMax) : 'n/a');
+    set('uploads', `${g.uploadsPerSec.toFixed(0)} /s`);
+    set('upload', `${g.uploadMBps.toFixed(1)} MB/s`);
+    set('shared', `${(g.sharedPerSec ?? 0).toFixed(0)} /s`);
+    set('path', h.renderPath === 'gpu' ? 'GPU sharing' : 'CPU copy');
+    set('mem', `${h.memoryMB} MB, ${h.processes} proc.`);
+    set('hcpu', `${h.cpuPercent} %`);
+    set('sent', `${h.sentMBps.toFixed(1)} MB/s`);
+    const busy = [...h.windows].sort((a, b) => b.fps - a.fps)[0];
+    set('busy', busy ? `${busy.id}, ${busy.fps} fps` : '-');
+  });
+</script>
+</body>
+</html>

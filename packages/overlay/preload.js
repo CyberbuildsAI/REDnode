@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('rednode', {
   apps: {
     list: () => ipcRenderer.invoke('rednode:apps:list'),
     setOpen: (id, open) => ipcRenderer.invoke('rednode:apps:set-open', id, open),
+    /** Gets the render path, or sets it to 'gpu' (GPU sharing) or 'cpu'. Launcher only. */
+    renderPath: (path) => ipcRenderer.invoke('rednode:host:render-path', path),
   },
 });
 

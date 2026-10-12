@@ -27,6 +27,7 @@
   .status b { color: var(--rn-ok); font-weight: 500; }
   .status b.off { color: var(--rn-danger); }
   #rn-notifications { bottom: auto !important; top: 8px; }
+  .footer { padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
 </style>
 </head>
 <body>
@@ -34,7 +35,9 @@
     <rn-window id="panel" title="REDnode apps" hidden>
       <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
       <div id="apps"><p class="empty">Looking for apps...</p></div>
-      <span slot="footer"></span>
+      <div slot="footer" class="footer">
+        <rn-toggle id="gpu" label="GPU sharing"></rn-toggle>
+      </div>
     </rn-window>
     <div class="tab">
       <div class="grip" data-rednode-drag title="Drag to move"></div>

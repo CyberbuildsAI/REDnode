@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stress</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  /* Worst case: every pixel of a large window changes every frame. */
+  html, body { margin: 0; width: 800px; height: 500px; overflow: hidden; background: transparent; }
+  canvas { position: absolute; inset: 0; }
+  .label { position: absolute; left: 16px; top: 12px; font: 600 12px var(--rn-mono); letter-spacing: .16em;
+    color: #fff; text-shadow: 0 0 4px #000; }
+</style>
+</head>
+<body>
+  <canvas id="c" width="800" height="500"></canvas>
+  <div class="label" data-rednode-drag>STRESS // FULL REDRAW EVERY FRAME</div>
+<script>
+  'use strict';
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d');
+  function draw(t) {
+    // A moving gradient over the whole canvas, semi-transparent so the game shows through.
+    const g = ctx.createLinearGradient(0, 0, 800, 500);
+    const p = (t / 1000) % 1;
+    g.addColorStop(0, `hsla(${(p * 360) | 0}, 90%, 55%, .55)`);
+    g.addColorStop(0.5, `hsla(${((p * 360 + 120) | 0) % 360}, 90%, 50%, .35)`);
+    g.addColorStop(1, `hsla(${((p * 360 + 240) | 0) % 360}, 90%, 55%, .55)`);
+    ctx.clearRect(0, 0, 800, 500);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 800, 500);
+    // Moving bars so neighbouring frames always differ everywhere.
+    ctx.fillStyle = 'rgba(8, 9, 13, .35)';
+    for (let x = ((t / 8) % 40) - 40; x < 800; x += 40) ctx.fillRect(x, 0, 20, 500);
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+</script>
+</body>
+</html>
