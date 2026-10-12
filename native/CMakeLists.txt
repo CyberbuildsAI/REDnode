@@ -26,6 +26,7 @@ add_library(REDnode SHARED
   src/overlay/compositor.cpp
   src/overlay/input.cpp
   src/overlay/bridge.cpp
+  src/overlay/reflect.cpp
   src/overlay/windows.cpp
   src/overlay/host.cpp
   src/overlay/gamestate.cpp
@@ -49,3 +50,6 @@ add_executable(REDnode_tests tests/windows_test.cpp src/overlay/windows.cpp)
 target_link_libraries(REDnode_tests PRIVATE RED4ext::SDK)
 target_compile_definitions(REDnode_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(REDnode_tests PRIVATE /W4 /utf-8)
+
+add_executable(REDnode_json_tests tests/json_test.cpp)
+target_compile_options(REDnode_json_tests PRIVATE /W4 /utf-8)

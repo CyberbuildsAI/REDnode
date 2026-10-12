@@ -8,8 +8,10 @@
 //   player.position  V's world position, through GetPlayer and Entity.GetWorldPosition
 //   audio.play       {"params":{"name":"ui_menu_onpress"}}: plays a game sound event
 //                    through AudioSystem.Play with no entity, as UI sounds are played
+//   rtti.call, rtti.get, rtti.release   the generic game API, in reflect.cpp
 
 #include "json.hpp"
+#include "jvalue.hpp"
 #include "overlay.hpp"
 
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
@@ -158,6 +160,19 @@ std::string Handle(const std::string& aJson, uint64_t aFrame)
         return PlayerPosition(id);
     if (method == "audio.play")
         return AudioPlay(id, aJson);
+    if (IsReflectMethod(method))
+    {
+        json::Value request;
+        std::string error;
+        if (!json::Parse(aJson, request, error))
+            return Error(id, ("Bad request: " + error).c_str());
+        static const json::Value none;
+        const json::Value* params = request.Get("params");
+        std::string result = Reflect(method, params ? *params : none, error);
+        if (!error.empty())
+            return Error(id, error.c_str());
+        return Reply(id, "\"result\":" + result);
+    }
     return Error(id, ("Unknown method: " + method).c_str());
 }
 } // namespace

@@ -29,6 +29,10 @@ void Start(RED4ext::v1::PluginHandle aHandle, const RED4ext::v1::Sdk* aSdk, cons
 void Install();
 // Every game frame, on the game thread: run queued bridge requests.
 void Update(uint64_t aFrame);
+// Forgets every game object reference handed to apps and mods. Called on each
+// session attach, when the objects of the last session are gone.
+void ClearGameRefs();
+
 // Plugin unload: remove hooks and stop threads.
 void Stop();
 
@@ -147,5 +151,14 @@ void StopHost();
 // bridge.cpp
 void QueueRequest(std::string aJson);
 void RunRequests(uint64_t aFrame);
+
+// reflect.cpp: the generic game API (rtti.call, rtti.get, rtti.release). Game thread.
+namespace json
+{
+struct Value;
+}
+bool IsReflectMethod(const std::string& aMethod);
+std::string Reflect(const std::string& aMethod, const json::Value& aParams, std::string& aError); // result JSON
+void ClearRefs();
 } // namespace detail
 } // namespace rednode::overlay

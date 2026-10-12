@@ -156,6 +156,9 @@ bool OnRunningUpdate(RED4ext::CGameApplication* aApp)
 
     for (const auto& [name, value] : events)
     {
+        // A new session: object references from the last one are no longer valid.
+        if (name == "PlayerPuppet.OnGameAttached")
+            rednode::overlay::ClearGameRefs();
         g_sdk->logger->InfoF(g_handle, "Event drained on frame %llu: %s = %d", g_frames, name.c_str(), value);
         rednode::overlay::SendJson("{\"event\":\"game\",\"name\":" + rednode::overlay::JsonString(name) +
                                    ",\"value\":" + std::to_string(value) + ",\"frame\":" + std::to_string(g_frames) +

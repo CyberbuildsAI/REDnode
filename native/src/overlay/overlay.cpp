@@ -83,6 +83,11 @@ void Update(uint64_t aFrame)
     detail::PollGameState(aFrame);
 }
 
+void ClearGameRefs()
+{
+    detail::ClearRefs();
+}
+
 void Stop()
 {
     detail::UninstallInput();
