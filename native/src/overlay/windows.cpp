@@ -445,6 +445,10 @@ void SetCompositorActive(bool aActive)
     g_compositorActive = aActive;
     if (!aActive)
         DropSharedExcept({});
+    else
+        // Frames that came before were given back undrawn: ask the host for new
+        // ones, or a page that is not repainting would never show. (Found in the O6b test.)
+        SendJson("{\"event\":\"repaint\"}");
 }
 
 bool TakeShared(uint32_t aWindow, SharedFrame& aOut)

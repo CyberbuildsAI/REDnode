@@ -537,6 +537,10 @@ function onGameMessage(m) {
       toAllPages(m);
       mods?.broadcast(m);
       return;
+    case 'repaint':
+      // The game has started drawing and threw away the frames it got before.
+      for (const w of windows.values()) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
+      return;
     default:
       break;
   }

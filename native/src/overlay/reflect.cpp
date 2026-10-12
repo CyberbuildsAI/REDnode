@@ -48,6 +48,8 @@ constexpr int MaxDepth = 6;          // nested structs and arrays written to JSO
 constexpr uint32_t MaxElements = 2000; // array elements written to JSON
 constexpr size_t MaxRefs = 100000;
 
+bool FillGameInstance(const rtti::IType* aType, void* aMem);
+
 std::string Str(CName aName)
 {
     const char* s = aName.ToString();
@@ -512,6 +514,8 @@ bool FromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std::st
             aError = TypeName(aType) + " is an object: pass a reference instead";
             return false;
         }
+        if (FillGameInstance(aType, aMem))
+            return true; // whatever was passed, it means the running game
         if (aValue.IsNull())
             return true; // the default value
         if (!Expect(aValue.kind == Value::Kind::Object, aType, "an object of its properties", aError))
@@ -587,6 +591,17 @@ bool FromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std::st
 
 // ---------- memory for one value ----------
 
+// A GameInstance built from the type data has no game in it, and functions given
+// one answer as if nothing existed (GetPlayer returns null). The SDK's constructor
+// points it at the running game. (Found in the O6b test.)
+bool FillGameInstance(const rtti::IType* aType, void* aMem)
+{
+    if (aType->GetType() != Kind::Class || aType->GetName() != "ScriptGameInstance")
+        return false;
+    *static_cast<ScriptGameInstance*>(aMem) = ScriptGameInstance();
+    return true;
+}
+
 struct Slot
 {
     const rtti::IType* type = nullptr;
@@ -601,6 +616,7 @@ struct Slot
         mem = ::operator new(size, std::align_val_t(align));
         std::memset(mem, 0, size);
         type->Construct(mem);
+        FillGameInstance(type, mem);
     }
     ~Slot()
     {

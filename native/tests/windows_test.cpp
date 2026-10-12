@@ -230,7 +230,9 @@ int main()
     g_sent.clear();
     SubmitShared(1, {nullptr, 400, 300, 11});
     Check(SentContains(R"("frames":[11])"), "before Present is hooked, a shared frame is acknowledged at once");
+    g_sent.clear();
     SetCompositorActive(true);
+    Check(SentContains(R"({"event":"repaint"})"), "hooking Present asks the host for new frames");
     g_sent.clear();
     SubmitShared(1, {nullptr, 400, 300, 12});
     Check(!SentContains("frame-done"), "with Present hooked, a shared frame waits for the compositor");
