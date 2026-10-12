@@ -1,6 +1,6 @@
 # Overlay apps
 
-Overlay apps are small web apps drawn on top of the game: HTML, CSS and JavaScript. They talk to the game through the `rednode` bridge and can play the game's own UI sounds. Every example on this page comes from an app that was tested in game on 2026-10-11 (Cyberpunk 2077 2.31).
+Overlay apps are small web apps drawn on top of the game: HTML, CSS and JavaScript. They talk to the game through the `rednode` package and can play the game's own UI sounds. [Node mods](#node-mods) use the same package from Node, and can open windows without writing HTML. Every app example on this page was tested in game on 2026-10-11 (Cyberpunk 2077 2.31). The Node mod examples were tested against a stand-in for the game; their in-game test (overlay phase O6a) is pending.
 
 Status: **developer preview.** See the [overlay design](overlay.md) for how it works and what is planned.
 
@@ -218,31 +218,118 @@ The game has many more. An unknown name plays nothing and is not an error, so th
 
 ## Talking to the game
 
-```js
-// Call a game method. Runs on the game thread between frames.
-const pos = await window.rednode.call('player.position');   // { x, y, z }, fails at the main menu
-const info = await window.rednode.call('game.info');         // { frame }
+Import the `rednode` package, the same one Node mods use. An import map lets the page import it by name; the host serves it at `rednode://sdk/index.js`. This is the [Coords HUD](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/coords) app:
 
-// Listen to the game and the overlay.
+```html
+<script type="importmap">{ "imports": { "rednode": "rednode://sdk/index.js" } }</script>
+<script type="module">
+  import { game } from 'rednode';
+
+  setInterval(async () => {
+    try {
+      const p = await game.player.position();   // { x, y, z }; fails at the main menu
+      document.getElementById('x').textContent = p.x.toFixed(1);
+    } catch {
+      // no player yet
+    }
+  }, 500);
+</script>
+```
+
+| Call | What it does |
+|---|---|
+| `game.player.position()` | V's world position. Rejects at the main menu, where there is no player |
+| `game.audio.play(name)` | Plays a game sound event |
+| `game.on(name, handler)` | A game event. Today `"PlayerPuppet.OnGameAttached"`, at the main menu and on every save load |
+| `game.state()`, `game.onState(handler)` | Whether a menu, photo mode, a scene or the main menu is showing, the overlay mode, and whether the game is linked |
+| `game.call(method, params)` | Any bridge method by name, for example `"game.info"` |
+
+The full list, with examples, is in the [API reference](api/). Phase O6b adds the generic game API, generated from the [game API](game/) data.
+
+The older `window.rednode` calls still work, and the overlay events `focus` and `overlay` come only through it:
+
+```js
 window.rednode.on((m) => {
-  if (m.event === 'game') console.log(m.name, m.value);      // redscript events (Tier 1 path)
   if (m.event === 'focus') console.log('focused:', m.focused); // dim your title when false
   if (m.event === 'overlay') console.log('mode:', m.mode);   // passive, interactive or hidden
 });
 ```
 
-| Bridge method | Result |
-|---|---|
-| `player.position` | V's world position. Fails at the main menu, where there is no player |
-| `game.info` | The REDnode frame counter |
-| `audio.play` | Plays a sound event, `{ name }` |
+## Node mods
 
-The bridge is small during the overlay phases. Phase O6 grows it into the full `rednode` API, generated from the [game API](game/) data.
+A Node mod is Node code that runs in the REDnode host, outside the game: full Node and npm, `await` anywhere, and the game never waits for it. It is a folder with a manifest that has `main` instead of `entry`:
+
+```json
+{
+  "id": "hello-mod",
+  "name": "Hello mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A Node mod with a window built by the rednode ui builder.",
+  "main": "mod.mjs",
+  "open": true
+}
+```
+
+A mod opens windows with the **ui builder**: a tree of nodes, rendered by the host with the UI kit. No HTML. This is the [Hello mod](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/hello-mod), shortened:
+
+```js
+import { game, ui } from 'rednode';
+
+const where = ui.text('Waiting for the game...');
+
+ui.window({
+  title: 'Hello mod',
+  anchor: 'right',
+  x: -40,
+  children: [
+    ui.heading('Where is V'),
+    where,
+    ui.row(
+      ui.button('Play sound', () => game.audio.play('ui_menu_onpress')),
+      ui.toggle('Follow', (on) => console.log('Follow', on), { checked: true }),
+    ),
+  ],
+});
+
+setInterval(async () => {
+  try {
+    const p = await game.player.position();
+    where.set({ text: `X ${p.x.toFixed(1)}   Y ${p.y.toFixed(1)}   Z ${p.z.toFixed(1)}` });
+  } catch (err) {
+    where.set({ text: err.message, tone: 'dim' });
+  }
+}, 500);
+
+game.on('PlayerPuppet.OnGameAttached', () => console.log('A save was loaded'));
+```
+
+| Node | Makes |
+|---|---|
+| `ui.text(text, { tone })`, `ui.heading(text)` | Text. `tone` is `dim`, `accent` or `danger` |
+| `ui.button(label, onClick, { variant, sound })` | A button. `variant` is `ghost` or `danger` |
+| `ui.toggle(label, onChange, { checked })` | An on and off switch |
+| `ui.slider(label, onChange, { min, max, step, value, unit })` | A slider |
+| `ui.input({ label, placeholder, value, onChange, onSubmit })` | A text field |
+| `ui.progress(value, { label, max })` | A progress bar |
+| `ui.row(...nodes)`, `ui.column(...nodes)` | Layout |
+| `ui.window({ title, width, height, anchor, x, y, children, onClose })` | Opens the window. The player can drag it in interactive mode, and its position is saved |
+
+Every node has `set(props)`, which updates the open window at once.
+
+| Good to know | |
+|---|---|
+| Output | `console.log` goes to `red4ext/logs/rednode-mods.log`, tagged with the mod id. The launcher shows a mod's last lines and its last error |
+| Isolation | Each mod runs on its own thread in a mod process. A thrown error, an endless loop or `process.exit()` stops only your mod. The launcher shows it as **CRASHED** or **NOT RESPONDING** with a **Restart** button |
+| Memory | A mod process costs about 80 MB. Players can put mods in one **shared process** with the launcher; three mods then took about 92 MB in total. A native crash in the shared process stops every mod in it, so a mod with native addons should set `"isolation": "process"` |
+| Hot reload | With the launcher's **Hot reload** switch on, saving a mod's file restarts the mod, and saving an app's file reloads its page |
+| `.mjs` | Use the `.mjs` extension for `import` syntax, or add a `package.json` with `"type": "module"` |
 
 ## More
 
 | Where | What |
 |---|---|
 | [UI kit reference](https://github.com/Edgemodders/REDnode/tree/main/packages/ui) | Every component, attribute and event, themes, keyboard keys |
-| [Overlay host](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay) | Running the host, the app list, the demo apps |
+| [API reference](api/) | The `rednode` package: `game`, `ui` and every type, with examples |
+| [Overlay host](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay) | Running the host, the app list, the demo apps and mods |
 | [Overlay design](overlay.md) | How the overlay works, test results, and the plan |

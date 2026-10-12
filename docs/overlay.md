@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O5 Performance passed in game.** O1 to O5 have all passed; the O4 scene threshold is still open (see the O4 result). Next: O6 One runtime. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6a Runtime built, in-game test pending.** O1 to O5 have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -339,6 +339,40 @@ Agreed 2026-10-12. Node mods and overlay apps run in the same host, use the same
 | Object lifetime | Weak references, cleared on each session attach (unverified that this is enough) |
 | Generated types size | Measured before deciding how to split them |
 | Memory per mod | Measured in the O6a test, for a process per mod and for a shared group |
+
+### O6a Runtime: test
+
+Built 2026-10-12: plugin 0.9.0, host 0.2.0, `rednode` 0.1.0. Tested against a stand-in for the game (a mock of the plugin's pipe), packaged and unpackaged:
+
+| Checked against the mock | Result |
+|---|---|
+| Hello mod's builder window and the Coords HUD app | Both show the same position from `game.player.position()` |
+| A button in a mod window | Reaches the mod; `game.audio.play` reaches the bridge |
+| `game.on("PlayerPuppet.OnGameAttached")` and `game.onState` | Arrive in both mods |
+| Throw, hang, exit | Stop only the crash mod, in its own process and in the shared group. A hang shows NOT RESPONDING after 10 s; Restart ends it |
+| Killing the shared process | All three mods show CRASHED, their windows close, and they restart 2 s later |
+| Hot reload | Saving `mod.mjs` restarts the mod with the new code in about a second |
+| Memory (host log, `Mod processes:`) | About 80 MB per own process; three mods in the shared process about 92 MB |
+
+New in the plugin: shared frames are given back at once when nothing draws them, opened textures are reused, and the perf line splits the overlay CPU time into **GPU wait** (waiting for the frame from three frames ago) and **opening** (opening shared textures).
+
+In the game, do these in order, with a 30-second pause after each, timed on a phone stopwatch:
+
+1. Start the game and load a save. Stand still in gameplay for **60 seconds**. **Hello mod** sits at the right edge, the **Coords HUD** at the top: both show the same X, Y and Z, and change together when you walk.
+2. **F10** for interactive mode. In Hello mod, press **Play sound**: a sound plays. Switch **Follow** off: the position stops changing. Switch it on again. Drag Hello mod by its title.
+3. Open the launcher (the REDNODE tab, bottom left). Hello mod and Ticker mod show **RUNNING · own process** and their memory; Crash mod is off. Switch **Hot reload** on. Then either tell me "edit" in chat and I change Hello mod's file in the game folder, or open `red4ext\plugins\REDnode\apps\hello-mod\mod.mjs` in Notepad and change `first version` to anything, then save. Within a few seconds, Hello mod's window comes back with the new text.
+4. Switch **Crash mod** on. Its window opens at the left. Press **Throw an error**: its window closes, the launcher shows **CRASHED** and the error, and Hello mod keeps updating. Press **Restart** in the launcher.
+5. In Crash mod, press **Hang forever**. Hello mod keeps updating. After about 10 seconds the launcher shows **NOT RESPONDING**. Press **Restart**.
+6. Switch **Shared process** on for all three mods. Each restarts; the launcher then shows **shared process (3 mods)** and one memory figure.
+7. In Crash mod, press **Kill the process**. All three mods show **CRASHED** and their windows close; about 2 seconds later all three are running again.
+8. Press **F10** until the overlay is hidden. Wait 30 seconds. Press **F10** to come back to passive.
+9. Open the inventory for 30 seconds: the Coords HUD hides, Hello mod stays. Close it.
+10. Load a save. Hello mod's **Saves loaded** count goes up by one.
+11. Quit the game.
+
+After the test, switch **Shared process** off again if you want each mod in its own process.
+
+What I read from the logs afterwards: `rednode-overlay.log` (the perf lines with GPU wait and texture reuse, and the `Mod processes:` memory lines every 10 seconds) and `rednode-mods.log` (everything the mods printed, and their crashes).
 
 
 ### UI kit

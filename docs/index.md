@@ -19,9 +19,9 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 |---|---|
 | P0 Research | RED4ext side done. Cyber Engine Tweaks analysis deferred |
 | P1 Proof | Done. Passed in game on 2026-10-11. See [P1 results](p1-results.md) |
-| HTML overlay | O1 to O5 passed in game. Next: O6 One runtime. See [HTML overlay](overlay.md) |
+| HTML overlay | O1 to O5 passed in game. O6a Runtime (Node mods beside overlay apps) built, in-game test pending. See [HTML overlay](overlay.md) |
 | REDclaude | Planned after O6: an in-game Claude assistant that uses the kernel API to help write mods. Its own repo: [Edgemodders/REDclaude](https://github.com/Edgemodders/REDclaude) |
-| P2 Tier 2 | Not started |
+| P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge and the Node SDK. Events from hooked game functions are still to do |
 | P3 Rules | Not started |
 | P4 Tier 1 | Not started |
 
