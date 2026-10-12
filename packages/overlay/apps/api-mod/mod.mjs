@@ -25,7 +25,10 @@ const health = ui.text('Health: -');
 const level = ui.text('Level: -');
 const money = ui.text('Eddies: -');
 const result = ui.text('', { tone: 'dim' });
-let firstPlayer = null; // the player reference from before the last save load
+// Player references, taken only after the plugin has dropped the last save's
+// references (when it handles PlayerPuppet.OnGameAttached), never during a load.
+let current = null; // taken after the latest load
+let previous = null; // taken after the load before it: invalid now
 
 const show = (text, tone = 'normal') => result.set({ text, tone });
 
@@ -63,13 +66,16 @@ ui.window({
       }
     }, { variant: 'ghost' }),
     ui.button('Use the player from before', async () => {
-      if (!firstPlayer) return show('No reference kept yet', 'dim');
+      const ref = previous ?? current;
+      const which = previous ? 'From before the last load' : 'From this save';
+      if (!ref) return show('No reference kept yet', 'dim');
       try {
-        const p = await firstPlayer.GetWorldPosition();
-        show(`Still valid: X ${p.X.toFixed(1)} Y ${p.Y.toFixed(1)}`, 'accent');
+        const p = await ref.GetWorldPosition();
+        show(`${which}: still valid, X ${p.X.toFixed(1)} Y ${p.Y.toFixed(1)}`, 'accent');
+        console.log(`${which}: still valid`);
       } catch (err) {
-        show(err.message, 'accent');
-        console.log(`Old reference: ${err.message}`);
+        show(`${which}: ${err.message}`, 'accent');
+        console.log(`${which}: ${err.message}`);
       }
     }, { variant: 'ghost' }),
     result,
@@ -79,7 +85,6 @@ ui.window({
 async function refresh() {
   try {
     const v = await vitals();
-    firstPlayer ??= v.player;
     health.set({ text: `Health: ${Math.round(v.health)}` });
     level.set({ text: `Level: ${v.level}` });
     money.set({ text: `Eddies: ${v.money}` });
@@ -90,13 +95,20 @@ async function refresh() {
 setInterval(refresh, 1000);
 refresh();
 
-// Keep the reference from before a load, to show it no longer works after it.
+async function keepPlayer() {
+  current = await api.GetPlayer(game.instance).catch(() => null);
+}
+
+// A load makes the kept reference the one "from before"; a fresh one is taken after.
 game.on('PlayerPuppet.OnGameAttached', () => {
+  if (current) {
+    previous = current;
+    show('A save loaded: try "Use the player from before"', 'dim');
+  }
+  current = null;
   console.log('Save loaded: references from before are now invalid');
-  setTimeout(async () => {
-    const v = await vitals().catch(() => null);
-    if (v && firstPlayer && firstPlayer !== v.player) show('A save loaded: try "Use the player from before"', 'dim');
-  }, 2000);
+  setTimeout(keepPlayer, 1000);
 });
+keepPlayer(); // started in game, for example by hot reload
 
 console.log('Game API mod started');
