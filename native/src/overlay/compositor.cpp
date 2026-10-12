@@ -158,6 +158,15 @@ struct GpuWindow
     ComPtr<ID3D12Resource> upload[FramesInFlight];
     UINT64 uploadSize[FramesInFlight] = {};
 
+    // Shared textures opened before, kept so a texture Chromium sends again is not
+    // opened again. The handle is our duplicate, compared with CompareObjectHandles.
+    struct Opened
+    {
+        HANDLE handle = nullptr;
+        ComPtr<ID3D12Resource> resource;
+    };
+    std::vector<Opened> opened;
+
     // Alpha readback for click-through on GPU-shared windows.
     ComPtr<ID3D12Resource> readback;
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT readbackFootprint{};
@@ -223,6 +232,9 @@ struct Perf
     uint64_t uploadBytes = 0;
     uint32_t uploads = 0;
     uint32_t sharedCopies = 0;
+    double waitMs = 0;              // waiting for the GPU to finish this slot's previous frame
+    double openMs = 0;              // OpenSharedHandle
+    uint32_t opens = 0, reused = 0; // shared textures opened, and found already open
 } g_perf;
 LARGE_INTEGER g_qpcFrequency{};
 
@@ -245,14 +257,18 @@ void ReportPerf()
     const double seconds = SecondsSince(g_perf.start);
     if (seconds < 1.0)
         return;
-    char json[384];
+    const double perFrame = g_perf.rendered ? 1.0 / g_perf.rendered : 0.0;
+    char json[640];
     std::snprintf(json, sizeof(json),
                   "{\"event\":\"perf\",\"fps\":%.1f,\"overlayFrames\":%u,\"cpuMs\":%.3f,\"cpuMsMax\":%.3f,"
+                  "\"waitMs\":%.3f,\"openMs\":%.3f,"
                   "\"gpuMs\":%.3f,\"gpuMsMax\":%.3f,\"uploadsPerSec\":%.1f,\"uploadMBps\":%.2f,"
-                  "\"sharedPerSec\":%.1f}",
-                  g_perf.presents / seconds, g_perf.rendered, g_perf.rendered ? g_perf.cpuMs / g_perf.rendered : 0.0,
-                  g_perf.cpuMsMax, g_perf.gpuSamples ? g_perf.gpuMs / g_perf.gpuSamples : 0.0, g_perf.gpuMsMax,
-                  g_perf.uploads / seconds, g_perf.uploadBytes / seconds / 1048576.0, g_perf.sharedCopies / seconds);
+                  "\"sharedPerSec\":%.1f,\"opensPerSec\":%.1f,\"reusedPerSec\":%.1f}",
+                  g_perf.presents / seconds, g_perf.rendered, g_perf.cpuMs * perFrame, g_perf.cpuMsMax,
+                  g_perf.waitMs * perFrame, g_perf.openMs * perFrame,
+                  g_perf.gpuSamples ? g_perf.gpuMs / g_perf.gpuSamples : 0.0, g_perf.gpuMsMax,
+                  g_perf.uploads / seconds, g_perf.uploadBytes / seconds / 1048576.0, g_perf.sharedCopies / seconds,
+                  g_perf.opens / seconds, g_perf.reused / seconds);
     SendJson(json);
     g_perf = {};
     QueryPerformanceCounter(&g_perf.start);
@@ -505,6 +521,61 @@ bool EnsureResources(IDXGISwapChain3* aSwapChain)
     return true;
 }
 
+void ForgetOpened(GpuWindow& aWin)
+{
+    for (auto& o : aWin.opened)
+        CloseHandle(o.handle);
+    aWin.opened.clear();
+}
+
+// CompareObjectHandles is in Windows 10 and later; looked up at run time.
+using CompareObjectHandlesFn = BOOL(WINAPI*)(HANDLE, HANDLE);
+CompareObjectHandlesFn SameObject()
+{
+    static const auto fn = reinterpret_cast<CompareObjectHandlesFn>(
+        GetProcAddress(GetModuleHandleW(L"kernelbase.dll"), "CompareObjectHandles"));
+    return fn;
+}
+
+constexpr size_t MaxOpenedPerWindow = 8; // Chromium cycles through a few textures per page
+
+// Opens a shared texture, or finds it among those opened before. Takes ownership of aHandle.
+ComPtr<ID3D12Resource> OpenShared(GpuWindow& aWin, HANDLE aHandle, HRESULT& aHr)
+{
+    aHr = S_OK;
+    if (const auto same = SameObject())
+    {
+        for (auto& o : aWin.opened)
+        {
+            if (same(o.handle, aHandle))
+            {
+                CloseHandle(aHandle);
+                g_perf.reused += 1;
+                return o.resource;
+            }
+        }
+    }
+
+    LARGE_INTEGER start;
+    QueryPerformanceCounter(&start);
+    ComPtr<ID3D12Resource> res;
+    aHr = g.device->OpenSharedHandle(aHandle, IID_PPV_ARGS(&res));
+    g_perf.openMs += SecondsSince(start) * 1000.0;
+    g_perf.opens += 1;
+    if (FAILED(aHr) || !SameObject())
+    {
+        CloseHandle(aHandle);
+        return res;
+    }
+    if (aWin.opened.size() >= MaxOpenedPerWindow)
+    {
+        CloseHandle(aWin.opened.front().handle);
+        aWin.opened.erase(aWin.opened.begin());
+    }
+    aWin.opened.push_back({aHandle, res});
+    return res;
+}
+
 // Matches the GPU windows to the registry: frees closed ones, adds new ones.
 void SyncWindows(const std::vector<WindowView>& aViews)
 {
@@ -523,6 +594,7 @@ void SyncWindows(const std::vector<WindowView>& aViews)
             }
             g.srvUsed[it->srvIndex] = false;
             WriteNullSrv(it->srvIndex);
+            ForgetOpened(*it);
             it = g.windows.erase(it);
         }
     }
@@ -679,9 +751,8 @@ void RecordShared(GpuWindow& aWin, UINT aSlot)
     if (!TakeShared(aWin.id, frame))
         return;
 
-    ComPtr<ID3D12Resource> src;
-    const HRESULT hr = g.device->OpenSharedHandle(frame.handle, IID_PPV_ARGS(&src));
-    CloseHandle(frame.handle);
+    HRESULT hr = S_OK;
+    ComPtr<ID3D12Resource> src = OpenShared(aWin, frame.handle, hr);
     if (FAILED(hr))
     {
         ReportSharedFailure("OpenSharedHandle", hr);
@@ -840,13 +911,20 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
     const std::vector<WindowView> views = SnapshotWindows();
     SyncWindows(views);
     if (mode == Mode::Hidden || (views.empty() && mode != Mode::Interactive))
+    {
+        DropSharedExcept({}); // nothing is drawn: give every shared texture back now
         return;
+    }
+    DropSharedExcept(views); // windows hidden with the game's UI
 
     const UINT slot = static_cast<UINT>(g.frameIndex++ % FramesInFlight);
     if (g.fence->GetCompletedValue() < g.slotFence[slot])
     {
+        LARGE_INTEGER waitStart;
+        QueryPerformanceCounter(&waitStart);
         g.fence->SetEventOnCompletion(g.slotFence[slot], g.fenceEvent);
         WaitForSingleObject(g.fenceEvent, 100);
+        g_perf.waitMs += SecondsSince(waitStart) * 1000.0;
     }
     // This slot's previous frame is finished: give its shared textures back.
     g.slotShared[slot].clear();
@@ -1042,6 +1120,7 @@ bool InstallCompositor(HWND& aWindow)
     if (PatchSlot(Present1Slot, reinterpret_cast<void*>(&HookPresent1), &old))
         g_origPresent1 = reinterpret_cast<Present1Fn>(old);
 
+    SetCompositorActive(true);
     Log("Overlay: Present hooked. F10 cycles passive, interactive and hidden.");
     return true;
 }
@@ -1055,10 +1134,13 @@ void UninstallCompositor()
         PatchSlot(Present1Slot, reinterpret_cast<void*>(g_origPresent1), nullptr);
     g_vtable = nullptr;
 
+    SetCompositorActive(false);
     std::scoped_lock renderLock(g_renderMutex);
     WaitForGpu();
     if (g.fenceEvent)
         CloseHandle(g.fenceEvent);
+    for (auto& w : g.windows)
+        ForgetOpened(w);
     for (auto& acks : g.slotAcks)
         AckFrames(acks);
     g = Gpu{};

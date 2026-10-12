@@ -94,6 +94,10 @@ struct SharedFrame
 // Keeps the newest shared frame per window; an older one still waiting is closed and acknowledged.
 void SubmitShared(uint32_t aWindow, const SharedFrame& aFrame);
 bool TakeShared(uint32_t aWindow, SharedFrame& aOut);
+// Gives back the shared frames of every window not in aDrawn: hidden mode, or hidden with the game's UI.
+void DropSharedExcept(const std::vector<WindowView>& aDrawn);
+// True once Present is hooked. Until then a shared frame is acknowledged as soon as it arrives.
+void SetCompositorActive(bool aActive);
 // Tells the host it may give these shared textures back to Chromium.
 void AckFrames(const std::vector<uint32_t>& aFrameIds);
 // Alpha read back from the GPU, for click-through on GPU-shared windows. Rows are aRowPitch bytes of BGRA.

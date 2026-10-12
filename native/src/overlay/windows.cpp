@@ -78,6 +78,7 @@ uint32_t g_hover = 0;
 uint32_t g_capture = 0; // the window that got the mouse press, gets the release
 uint32_t g_dragging = 0;
 float g_dragOffsetX = 0, g_dragOffsetY = 0;
+std::atomic_bool g_compositorActive{false}; // false until Present is hooked
 float g_mouseX = 0, g_mouseY = 0;
 
 std::mutex g_screenMutex;
@@ -306,7 +307,11 @@ void HandleWindowCommand(const std::string& aJson)
         {
             const uint32_t closing = w->id;
             if (w->hasShared)
+            {
                 CloseHandle(w->shared.handle);
+                const uint32_t frameId = w->shared.frameId;
+                actions.push_back([frameId]() { AckFrames({frameId}); });
+            }
             g_windows.erase(g_windows.begin() + (w - g_windows.data()));
             if (g_focus == closing)
                 SetFocus(actions, 0);
@@ -397,8 +402,9 @@ void SubmitShared(uint32_t aWindow, const SharedFrame& aFrame)
     {
         std::scoped_lock lock(g_mutex);
         Window* w = Find(aWindow);
-        if (!w)
+        if (!w || !g_compositorActive)
         {
+            // Nothing will draw it: give the texture back to Chromium at once.
             CloseHandle(aFrame.handle);
             done.push_back(aFrame.frameId);
         }
@@ -414,6 +420,31 @@ void SubmitShared(uint32_t aWindow, const SharedFrame& aFrame)
         }
     }
     AckFrames(done);
+}
+
+void DropSharedExcept(const std::vector<WindowView>& aDrawn)
+{
+    std::vector<uint32_t> done;
+    {
+        std::scoped_lock lock(g_mutex);
+        for (auto& w : g_windows)
+        {
+            if (!w.hasShared ||
+                std::any_of(aDrawn.begin(), aDrawn.end(), [&](const WindowView& v) { return v.id == w.id; }))
+                continue;
+            CloseHandle(w.shared.handle);
+            done.push_back(w.shared.frameId);
+            w.hasShared = false;
+        }
+    }
+    AckFrames(done);
+}
+
+void SetCompositorActive(bool aActive)
+{
+    g_compositorActive = aActive;
+    if (!aActive)
+        DropSharedExcept({});
 }
 
 bool TakeShared(uint32_t aWindow, SharedFrame& aOut)

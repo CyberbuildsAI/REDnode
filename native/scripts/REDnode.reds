@@ -12,8 +12,9 @@ protected cb func OnGameAttached() -> Bool {
   // Tier 1 path: synchronous native call. The script uses the return value.
   let pong: Int32 = REDnode_Ping(21);
 
-  // Tier 2 path: queued, then logged on the game thread by the pump.
-  REDnode_Emit("PlayerPuppet.OnGameAttached REDnode_Ping(21)", pong);
+  // Tier 2 path: queued, then logged on the game thread by the pump and sent
+  // to the overlay host, where Node mods get it with game.on("PlayerPuppet.OnGameAttached").
+  REDnode_Emit("PlayerPuppet.OnGameAttached", pong);
 
   return result;
 }

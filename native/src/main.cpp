@@ -191,7 +191,7 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
         g_handle = aHandle;
         g_sdk = aSdk;
 
-        aSdk->logger->Info(aHandle, "REDnode 0.8.0 loading (P1 probe, overlay O5)");
+        aSdk->logger->Info(aHandle, "REDnode 0.9.0 loading (P1 probe, overlay O6)");
 
         RED4ext::CRTTISystem::Get()->AddPostRegisterCallback(PostRegisterTypes);
 
@@ -224,7 +224,7 @@ RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::v1::PluginInfo* aInfo)
 {
     aInfo->name = L"REDnode";
     aInfo->author = L"Edgemodders";
-    aInfo->version = RED4EXT_V1_SEMVER(0, 8, 0);
+    aInfo->version = RED4EXT_V1_SEMVER(0, 9, 0);
     aInfo->runtime = RED4EXT_V1_RUNTIME_VERSION_LATEST;
     aInfo->sdk = RED4EXT_V1_SDK_VERSION_CURRENT;
 }

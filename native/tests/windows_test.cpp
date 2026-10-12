@@ -225,6 +225,25 @@ int main()
     Check(SentContains(R"({"event":"focus","window":5})"), "clicking the same window again focuses it again");
     HandleWindowCommand(R"({"cmd":"window.close","window":5})");
 
+    // Shared GPU frames are given back at once whenever nothing will draw them.
+    // (Found in the O5 test: frames waited a second for the host's sweep.)
+    g_sent.clear();
+    SubmitShared(1, {nullptr, 400, 300, 11});
+    Check(SentContains(R"("frames":[11])"), "before Present is hooked, a shared frame is acknowledged at once");
+    SetCompositorActive(true);
+    g_sent.clear();
+    SubmitShared(1, {nullptr, 400, 300, 12});
+    Check(!SentContains("frame-done"), "with Present hooked, a shared frame waits for the compositor");
+    DropSharedExcept(SnapshotWindows());
+    Check(!SentContains("frame-done"), "a drawn window keeps its shared frame");
+    DropSharedExcept({});
+    Check(SentContains(R"("frames":[12])"), "a window that is not drawn gives its shared frame back");
+    g_sent.clear();
+    SubmitShared(2, {nullptr, 200, 200, 13});
+    HandleWindowCommand(R"({"cmd":"window.close","window":2})");
+    Check(SentContains(R"("frames":[13])"), "closing a window gives its waiting shared frame back");
+    HandleWindowCommand(R"({"cmd":"window.open","window":2,"x":300,"y":200,"width":200,"height":200})");
+
     // Closing.
     SetMode(Mode::Interactive);
     HandleWindowCommand(R"({"cmd":"window.close","window":2})");
