@@ -1,13 +1,19 @@
 /**
- * Tier 2 API: asynchronous mods running in a normal Node process.
+ * Tier 2 API: asynchronous mods and overlay apps.
  *
  * Events flow out of the game, queries and commands flow in. Nothing here
- * blocks the game thread. Stubs only: the native bridge does not exist yet.
+ * blocks the game thread: a query is answered on the game thread between
+ * frames, and the promise resolves after that.
+ *
+ * The same calls work in a Node mod and in an overlay app, and give the same
+ * answers.
  *
  * @module
  */
 
-/** Stops a subscription made with {@link Game.on}. */
+import { cleanError, transport, type HostMessage } from "./transport.js";
+
+/** Stops a subscription made with {@link Game.on} or {@link Game.onState}. */
 export type Unsubscribe = () => void;
 
 /**
@@ -17,86 +23,237 @@ export type Unsubscribe = () => void;
  */
 export type EventHandler<T = unknown> = (event: T) => void | Promise<void>;
 
+/** A position in the game world, in meters. */
+export interface Vector3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** A game event, as sent by the REDnode plugin. */
+export interface GameEvent {
+  /** The event name, for example `"PlayerPuppet.OnGameAttached"`. */
+  name: string;
+  /** A number sent with the event. */
+  value: number;
+  /** The plugin's frame counter when the event was sent. */
+  frame: number;
+}
+
+/** What the game is showing, and whether REDnode is linked to it. */
+export interface GameState {
+  /** True while the overlay host is linked to the game. All other fields are false when it is not. */
+  connected: boolean;
+  /** A game menu is open: inventory, map, pause menu and so on. */
+  menu: boolean;
+  /** Photo mode is on. */
+  photoMode: boolean;
+  /** A scene that takes control of V, such as a cutscene. The threshold is unverified. */
+  scene: boolean;
+  /** The main menu, before a save is loaded. */
+  mainMenu: boolean;
+  /** The overlay's input mode, switched with F10. */
+  overlay: "passive" | "interactive" | "hidden";
+}
+
 /** The player character, V. */
 export interface Player {
   /**
-   * Reads the player's current health.
+   * Reads V's position in the world.
    *
-   * This is a query: the value is read on the game thread and the promise
-   * resolves on a later tick.
-   *
-   * @returns Current health points.
+   * Rejects at the main menu and while a save loads, when there is no player.
    *
    * @example
    * ```ts
-   * const hp = await game.player.getHealth();
+   * const { x, y, z } = await game.player.position();
+   * console.log(`V is at ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`);
    * ```
+   */
+  position(): Promise<Vector3>;
+
+  /**
+   * Reads the player's current health.
+   *
+   * Not built yet: arrives with the generic game API in overlay phase O6b. Throws until then.
    */
   getHealth(): Promise<number>;
 
   /**
    * Sets the player's health.
    *
-   * This is a command: it is queued and applied on the next game tick. It
-   * returns before the change happens.
+   * Not built yet: arrives with the generic game API in overlay phase O6b. Throws until then.
    *
    * @param value - New health points.
    */
   setHealth(value: number): void;
 }
 
-/** Entry point for Tier 2 mods. Use the {@link game} instance. */
+/** The game's audio. */
+export interface Audio {
+  /**
+   * Plays a game sound event, the way the game plays its UI sounds.
+   *
+   * Sound event names are listed in the game's audio data. These are tested:
+   * `ui_menu_onpress`, `ui_menu_hover`, `ui_loot_take_all`. The Overlay apps guide lists more.
+   *
+   * @param name - The sound event name.
+   *
+   * @example
+   * ```ts
+   * await game.audio.play("ui_menu_onpress");
+   * ```
+   */
+  play(name: string): Promise<void>;
+}
+
+/** Entry point for Tier 2 mods and overlay apps. Use the {@link game} instance. */
 export interface Game {
   /**
    * Subscribes to a game event.
    *
-   * Events are named by the game class and method that raise them, as listed
-   * in the game's reflection data.
+   * Events are named by the game class and method that raise them. Today the
+   * plugin sends `"PlayerPuppet.OnGameAttached"`, at the main menu and on every
+   * save load. Events from any hooked game function arrive with phase P2.
    *
    * @typeParam T - The event payload.
-   * @param name - Event name, for example `"PlayerPuppet.OnDamageReceived"`.
+   * @param name - Event name, for example `"PlayerPuppet.OnGameAttached"`.
    * @param handler - Called for every occurrence. The game does not wait for it.
    * @returns A function that stops the subscription.
    *
    * @example
    * ```ts
-   * const stop = game.on("PlayerPuppet.OnDamageReceived", async (e) => {
-   *   await log(e);
+   * const stop = game.on("PlayerPuppet.OnGameAttached", async () => {
+   *   console.log("A save was loaded");
    * });
    * ```
    */
-  on<T = unknown>(name: string, handler: EventHandler<T>): Unsubscribe;
+  on<T = GameEvent>(name: string, handler: EventHandler<T>): Unsubscribe;
+
+  /**
+   * Reads what the game is showing: menus, photo mode, scenes, the main menu.
+   *
+   * @example
+   * ```ts
+   * const s = await game.state();
+   * if (s.connected && !s.mainMenu) console.log("In a loaded save");
+   * ```
+   */
+  state(): Promise<GameState>;
+
+  /**
+   * Calls a handler whenever the game state changes, and once at the start
+   * with the current state.
+   *
+   * @example
+   * ```ts
+   * game.onState((s) => console.log(s.menu ? "menu open" : "menu closed"));
+   * ```
+   */
+  onState(handler: EventHandler<GameState>): Unsubscribe;
+
+  /**
+   * Calls a bridge method by name. The typed calls such as
+   * {@link Player.position} are built on it.
+   *
+   * @typeParam T - The result type.
+   * @param method - For example `"player.position"`.
+   * @param params - The method's parameters, if any.
+   *
+   * @example
+   * ```ts
+   * const info = await game.call<{ frame: number }>("game.info");
+   * ```
+   */
+  call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
 
   /** The player character. */
   readonly player: Player;
+
+  /** The game's audio. */
+  readonly audio: Audio;
 }
 
-const notImplemented = (what: string): never => {
-  throw new Error(`rednode: ${what} is not implemented yet (design phase)`);
+const notYet = (what: string): never => {
+  throw new Error(`rednode: ${what} arrives with the generic game API (overlay phase O6b)`);
 };
 
+async function call<T>(method: string, params?: Record<string, unknown>): Promise<T> {
+  try {
+    return (await transport().call(method, params)) as T;
+  } catch (err) {
+    throw cleanError(err);
+  }
+}
+
+function toState(raw: Record<string, unknown> | undefined): GameState {
+  const s = (raw ?? {}) as Partial<GameState>;
+  const connected = !!s.connected;
+  return {
+    connected,
+    menu: connected && !!s.menu,
+    photoMode: connected && !!s.photoMode,
+    scene: connected && !!s.scene,
+    mainMenu: connected && !!s.mainMenu,
+    overlay: s.overlay ?? "passive",
+  };
+}
+
+function listen(fn: (m: HostMessage) => void): Unsubscribe {
+  return transport().listen(fn);
+}
+
 /**
- * The running game, as seen from a Tier 2 mod.
+ * The running game, as seen from a Tier 2 mod or an overlay app.
  *
  * @example
  * ```ts
  * import { game } from "rednode";
  *
- * game.on("PlayerPuppet.OnGameAttached", () => {
- *   game.player.setHealth(100);
+ * game.on("PlayerPuppet.OnGameAttached", async () => {
+ *   const p = await game.player.position();
+ *   console.log("Loaded at", p);
  * });
  * ```
  */
 export const game: Game = {
-  on() {
-    return notImplemented("game.on");
+  on<T>(name: string, handler: EventHandler<T>) {
+    return listen((m) => {
+      if (m.event === "game" && m.name === name) {
+        void handler({ name: m.name, value: m.value, frame: m.frame } as T);
+      }
+    });
   },
+  async state() {
+    const s = await transport().state();
+    return toState(s.game as Record<string, unknown>);
+  },
+  onState(handler) {
+    let stopped = false;
+    let last = "";
+    const deliver = (s: GameState) => {
+      const key = JSON.stringify(s);
+      if (stopped || key === last) return;
+      last = key;
+      void handler(s);
+    };
+    const stop = listen((m) => {
+      if (m.event === "state") deliver(toState(m.state as Record<string, unknown>));
+    });
+    void game.state().then(deliver);
+    return () => {
+      stopped = true;
+      stop();
+    };
+  },
+  call,
   player: {
-    getHealth() {
-      return notImplemented("game.player.getHealth");
-    },
-    setHealth() {
-      return notImplemented("game.player.setHealth");
+    position: () => call<Vector3>("player.position"),
+    getHealth: () => notYet("game.player.getHealth"),
+    setHealth: () => notYet("game.player.setHealth"),
+  },
+  audio: {
+    async play(name: string) {
+      await call("audio.play", { name });
     },
   },
 };
