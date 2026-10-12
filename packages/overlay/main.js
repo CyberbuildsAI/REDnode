@@ -358,8 +358,10 @@ function watchAppRoots() {
     try {
       const w = fs.watch(root.dir, { recursive: true }, (_type, file) => {
         const parts = String(file ?? '').split(/[\\/]/);
-        // A package folder itself, or its manifest; other files are hot reload's business.
-        if (file && !(parts.length === 1 || (parts.length === 2 && parts[1] === 'rednode-app.json'))) return;
+        // A package folder itself, its manifest, or any file of a package that was skipped
+        // (its manifest named a file not written yet). Other files are hot reload's business.
+        const skipped = lastManifestError.has(path.join(root.dir, parts[0]));
+        if (file && !(parts.length === 1 || (parts.length === 2 && parts[1] === 'rednode-app.json') || skipped)) return;
         clearTimeout(timer);
         timer = setTimeout(rescanApps, 600);
       });
@@ -936,7 +938,17 @@ function secret(id, op, name, value) {
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Encryption is not available on this PC');
   const all = readSecrets();
   const mine = all[id] ?? {};
-  if (op === 'get') return mine[name] ? safeStorage.decryptString(Buffer.from(mine[name], 'base64')) : null;
+  if (op === 'get') {
+    if (!mine[name]) return null;
+    try {
+      return safeStorage.decryptString(Buffer.from(mine[name], 'base64'));
+    } catch {
+      // Saved under another Windows account or REDnode data folder: it counts as unset,
+      // so the package asks for it again instead of failing.
+      log(`[${id}] The secret ${name} could not be decrypted; it counts as unset`);
+      return null;
+    }
+  }
   if (op === 'set') {
     if (typeof value !== 'string') throw new Error('A secret is a string');
     mine[name] = safeStorage.encryptString(value).toString('base64');
