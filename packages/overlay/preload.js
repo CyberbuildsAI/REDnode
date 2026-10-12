@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('rednode', {
     hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
     /** Gets the theme every window follows, or sets it: 'rednode', 'game' or 'yellow'. */
     theme: (name) => ipcRenderer.invoke('rednode:host:theme', name),
+    /** Gets the kernel MCP server's switch, or turns it on or off. */
+    mcp: (on) => ipcRenderer.invoke('rednode:host:mcp', on),
+    /** Copies the command that adds the MCP server to Claude Code. */
+    copyMcpCommand: () => ipcRenderer.invoke('rednode:host:mcp-command'),
   },
   /** The mod log, for apps built into REDnode. Other apps get an error. New lines arrive as {event: 'mod-log', entries}. */
   logs: {

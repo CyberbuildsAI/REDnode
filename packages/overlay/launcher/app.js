@@ -121,6 +121,17 @@ $('hot').addEventListener('change', async (e) => {
   RednodeUI.notify(on ? 'Mods restart when their files change' : 'Hot reload off', { title: 'Hot reload' });
 });
 
+// The kernel MCP server: lets AI agents such as Claude Code use REDnode while the game runs.
+$('mcp').addEventListener('change', async (e) => {
+  const on = await window.rednode.apps.mcp(e.detail.checked);
+  $('mcp').checked = on;
+  RednodeUI.notify(on ? 'Claude Code can reach REDnode on this PC' : 'MCP server off', { title: 'MCP server' });
+});
+$('mcp-copy').addEventListener('click', async () => {
+  await window.rednode.apps.copyMcpCommand();
+  RednodeUI.notify('Run the copied command once in a terminal to add REDnode to Claude Code', { title: 'MCP server' });
+});
+
 // Theme: every window that uses the UI kit follows it, unless the app chose its own.
 const themeButtons = [...document.querySelectorAll('[data-theme]')];
 function showTheme(name) {
@@ -141,6 +152,7 @@ async function refresh() {
     $('gpu').checked = (await window.rednode.apps.renderPath()) === 'gpu';
     $('hot').checked = await window.rednode.apps.hotReload();
     showTheme(await window.rednode.apps.theme());
+    $('mcp').checked = await window.rednode.apps.mcp();
     const items = await window.rednode.apps.list();
     const list = $('apps');
     const seen = new Set();

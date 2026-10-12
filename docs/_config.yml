@@ -33,6 +33,8 @@ nav:
     url: /overlay.html
   - title: Overlay apps
     url: /overlay-apps.html
+  - title: MCP server
+    url: /mcp.html
   - title: P0 findings
     url: /p0-findings.html
   - title: P1 results

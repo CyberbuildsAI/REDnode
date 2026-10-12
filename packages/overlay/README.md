@@ -11,6 +11,7 @@ npm run overlay -- --apps=demo,signal    # open exactly these apps this time
 npm run overlay -- --render=cpu          # force the CPU path instead of GPU sharing
 npm run overlay -- --hot-reload=off      # don't restart mods and reload apps when their files change
 npm run overlay -- --data-dir=<folder>   # keep settings somewhere else, for tests
+npm run overlay -- --mcp=off             # no kernel MCP server (on by default for developers)
 npm run overlay:package                  # package the host for players (see below)
 ```
 
@@ -22,6 +23,8 @@ Setup, including the Electron download, is in [docs/dev-setup.md](../../docs/dev
 |---|---|
 | [main.js](main.js) | The host: package discovery, off-screen windows, the pipe to the game, frame streaming, input replay, the bridge, game state, hot reload |
 | [mods.js](mods.js) | Node mods: mod processes, the shared group, status, logs |
+| [mcp.js](mcp.js) | The kernel MCP server: REDnode's tools for AI agents such as Claude Code, on `127.0.0.1:41820`. See [docs/mcp.md](../../docs/mcp.md) |
+| [gameapi-lookup.js](gameapi-lookup.js) | Game type and function lookup for the MCP server, from the generated game API types and REDnode's notes |
 | [runtime/runner.js](runtime/runner.js) | A mod process (Electron `utilityProcess`). Runs each of its mods on a worker thread and watches for hangs |
 | [runtime/worker.js](runtime/worker.js) | Starts one mod on its thread: maps `import "rednode"` to the SDK and carries its calls to the host |
 | [builder/](builder/) | The page that shows windows built by Node mods with `ui.window` |

@@ -35,7 +35,7 @@ if (build.status !== 0) throw new Error('Building the rednode package failed');
 // Apps and mods go to the game separately.
 rmSync(work, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-for (const f of ['main.js', 'preload.js', 'mods.js']) cpSync(join(overlay, f), join(stage, f));
+for (const f of ['main.js', 'preload.js', 'mods.js', 'mcp.js', 'gameapi-lookup.js']) cpSync(join(overlay, f), join(stage, f));
 for (const d of ['launcher', 'modlog', 'builder']) cpSync(join(overlay, d), join(stage, d), { recursive: true });
 cpSync(join(repo, 'packages', 'ui', 'src'), join(stage, 'ui'), { recursive: true });
 
@@ -48,10 +48,30 @@ const dist = join(repo, 'packages', 'rednode', 'dist');
 for (const f of readdirSync(dist)) if (f.endsWith('.js')) cpSync(join(dist, f), join(sdk, f));
 writeFileSync(join(sdk, 'package.json'), JSON.stringify({ type: 'module' }, null, 2));
 cpSync(join(overlay, 'runtime'), join(resources, 'runtime'), { recursive: true });
+// Game API types and REDnode's notes, for the MCP server's gameapi_lookup.
+const gameapi = join(resources, 'gameapi');
+mkdirSync(gameapi, { recursive: true });
+cpSync(join(repo, 'packages', 'rednode', 'src', 'generated', 'game.d.ts'), join(gameapi, 'game.d.ts'));
+cpSync(join(repo, 'gameapi', 'notes'), join(gameapi, 'notes'), { recursive: true });
 writeFileSync(
   join(stage, 'package.json'),
-  JSON.stringify({ name: pkg.name, version: pkg.version, description: pkg.description, license: pkg.license, main: 'main.js' }, null, 2),
+  JSON.stringify(
+    {
+      name: pkg.name,
+      version: pkg.version,
+      description: pkg.description,
+      license: pkg.license,
+      main: 'main.js',
+      dependencies: pkg.dependencies,
+    },
+    null,
+    2,
+  ),
 );
+// The host's runtime dependencies (the MCP SDK), without dev tools.
+console.log("Installing the host's dependencies...");
+const deps = spawnSync('npm install --omit=dev --no-audit --no-fund --prefer-offline', { cwd: stage, stdio: 'inherit', shell: true });
+if (deps.status !== 0) throw new Error("Installing the host's dependencies failed");
 
 // 3. Package with Electron.
 console.log(`Packaging the host with Electron ${electronVersion}...`);
@@ -65,7 +85,7 @@ const [out] = await packager({
   electronVersion,
   appVersion: pkg.version,
   asar: true,
-  extraResource: [sdk, join(resources, 'runtime')],
+  extraResource: [sdk, join(resources, 'runtime'), gameapi],
   overwrite: true,
   quiet: true,
   win32metadata: {

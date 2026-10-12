@@ -14,6 +14,7 @@
 //   npm run overlay -- --apps=demo,signal    # open exactly these apps this time
 //   npm run overlay -- --hot-reload=off      # do not restart mods when their files change
 //   npm run overlay -- --data-dir=<folder>   # settings and positions somewhere else, for tests
+//   npm run overlay -- --mcp=on|off          # the kernel MCP server for AI agents (mcp.js)
 // Players: the plugin starts the packaged host with the game:
 //   REDnode-overlay.exe --apps-dir=<plugin>\apps --parent-pid=<game> --log=<file>
 
@@ -24,6 +25,9 @@ const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
 const { createMods } = require('./mods');
+const { createMcp } = require('./mcp');
+const { createLookup } = require('./gameapi-lookup');
+const crypto = require('node:crypto');
 
 // REDNODE_OVERLAY_PIPE lets tests use a private pipe instead of the game's.
 const PIPE = process.env.REDNODE_OVERLAY_PIPE || '\\\\.\\pipe\\rednode-overlay';
@@ -65,6 +69,16 @@ const BUILDER_DIR = path.join(__dirname, 'builder');
 // Restart a mod, or reload an app's page, when its files change. On for developers;
 // for players a launcher switch, off by default. --hot-reload=on|off overrides both.
 const hotReloadArg = arg('hot-reload');
+// The kernel MCP server (mcp.js): on for developers; for players a launcher switch,
+// off by default. --mcp=on|off overrides both.
+const mcpArg = arg('mcp');
+const MCP_PORT = 41820;
+// Game API types and notes for gameapi_lookup. Packaged, they sit in resources/gameapi.
+const GAMEAPI_DIR = app.isPackaged ? path.join(process.resourcesPath, 'gameapi') : null;
+const TYPES_FILE = GAMEAPI_DIR
+  ? path.join(GAMEAPI_DIR, 'game.d.ts')
+  : path.join(__dirname, '..', 'rednode', 'src', 'generated', 'game.d.ts');
+const NOTES_DIR = GAMEAPI_DIR ? path.join(GAMEAPI_DIR, 'notes') : path.join(__dirname, '..', '..', 'gameapi', 'notes');
 
 // ---------- logging ----------
 
@@ -120,6 +134,10 @@ let lastStateJson = '';
 
 /** Node mods (mods.js), created when the app is ready. */
 let mods = null;
+/** The kernel MCP server (mcp.js), created when the app is ready. */
+let mcp = null;
+/** The plugin's newest perf report, for the MCP perf tool. */
+let lastGamePerf = null;
 /** Windows built by Node mods, by key '<mod id>~<window id>': { modId, win, spec } */
 const built = new Map();
 let hotReload = false;
@@ -496,6 +514,7 @@ function onGameMessage(m) {
       return;
     }
     case 'perf': {
+      lastGamePerf = m;
       const host = hostPerf();
       toAllPages({ event: 'perf', game: m, host });
       logPerf(m, host);
@@ -720,10 +739,10 @@ ipcMain.handle('rednode:apps:list', (event) => {
   return appList();
 });
 
-ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
-  fromLauncher(event);
+// Opens or closes an app, or starts or stops a mod, and remembers it. The launcher and the MCP server use it.
+function setPackageOpen(id, open) {
   const entry = apps.get(id);
-  if (!entry || entry.pinned) throw new Error(`No app "${id}"`);
+  if (!entry || entry.pinned) throw new Error(`No app or mod "${id}"`);
   settings.apps[id] = { ...settings.apps[id], open: !!open };
   writeJson('settings.json', settings);
   if (entry.manifest.entry) {
@@ -731,7 +750,82 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
     else closeApp(id);
   }
   if (entry.manifest.main) mods.setEnabled(id, !!open);
+}
+
+ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
+  fromLauncher(event);
+  setPackageOpen(id, open);
   return appList();
+});
+
+// ---------- the kernel MCP server ----------
+
+function mcpConfig() {
+  const enabled = mcpArg ? mcpArg !== 'off' : app.isPackaged ? !!settings.mcp?.enabled : true;
+  return { enabled, port: Number(settings.mcp?.port) || MCP_PORT, token: settings.mcp?.token };
+}
+
+// The command that adds this server to Claude Code, for every project on this PC.
+function mcpCommand() {
+  const c = mcpConfig();
+  return `claude mcp add --transport http --scope user rednode http://127.0.0.1:${c.port}/mcp --header "Authorization: Bearer ${c.token}"`;
+}
+
+function mcpHost() {
+  const lookup = createLookup(TYPES_FILE, NOTES_DIR);
+  return {
+    log,
+    version: VERSION,
+    logs: () => mods.recentLog(),
+    apps: () =>
+      appList().map((a) => ({
+        ...a,
+        windows: [...windows.values()]
+          .filter((w) => w.app.manifest.id === a.id || w.app.manifest.id.startsWith(`${a.id}~`))
+          .map((w) => w.app.manifest.id),
+      })),
+    setOpen: setPackageOpen,
+    restart: (id) => {
+      if (!mods.has(id)) throw new Error(`No mod "${id}"`);
+      mods.restart(id);
+    },
+    state: () => ({ ...hostState(), theme: undefined }),
+    perf: () => {
+      const metrics = app.getAppMetrics();
+      return {
+        game: lastGamePerf,
+        host: {
+          memoryMB: Math.round(metrics.reduce((n, p) => n + (p.memory?.workingSetSize ?? 0), 0) / 1024),
+          cpuPercent: Math.round(metrics.reduce((n, p) => n + (p.cpu?.percentCPUUsage ?? 0), 0)),
+          processes: metrics.length,
+          renderPath,
+        },
+        modProcesses: mods.memorySummary(metrics) || 'none',
+      };
+    },
+    lookup,
+    webContentsOf: (id) => {
+      const w = windowOfApp(id);
+      return w && !w.win.isDestroyed() ? w.win.webContents : null;
+    },
+    call: bridgeCall,
+  };
+}
+
+ipcMain.handle('rednode:host:mcp', (event, on) => {
+  fromLauncher(event);
+  if (typeof on === 'boolean') {
+    settings.mcp = { ...settings.mcp, enabled: on };
+    writeJson('settings.json', settings);
+    mcp.configure(mcpConfig());
+  }
+  return mcpConfig().enabled;
+});
+
+ipcMain.handle('rednode:host:mcp-command', (event) => {
+  fromLauncher(event);
+  clipboard.writeText(mcpCommand());
+  return true;
 });
 
 ipcMain.handle('rednode:mods:set-shared', (event, id, shared) => {
@@ -1040,6 +1134,13 @@ app.whenReady().then(() => {
     if (entry.manifest.main) mods.add(entry, { enabled: shouldOpen(entry), shared: settings.apps[entry.manifest.id]?.shared });
   }
   setHotReload(hotReloadArg ? hotReloadArg !== 'off' : app.isPackaged ? !!settings.hotReload : true);
+  // A token is made once and kept, so Claude Code's saved setup keeps working.
+  if (!settings.mcp?.token) {
+    settings.mcp = { ...settings.mcp, token: crypto.randomBytes(24).toString('base64url') };
+    writeJson('settings.json', settings);
+  }
+  mcp = createMcp(mcpHost());
+  mcp.configure(mcpConfig());
   // Mod memory, for comparing a process per mod with the shared group.
   setInterval(() => {
     const line = mods.memorySummary(app.getAppMetrics());
@@ -1073,4 +1174,7 @@ app.on('window-all-closed', () => {
   if (windowed) app.quit();
 });
 
-app.on('will-quit', () => mods?.stopAll());
+app.on('will-quit', () => {
+  mods?.stopAll();
+  mcp?.stop();
+});
