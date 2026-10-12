@@ -173,6 +173,7 @@ struct GpuWindow
     UINT64 readbackFence = 0; // fence value after which the readback holds data
     bool readbackPending = false;
     bool alphaStale = false;      // a frame arrived since the last readback was taken
+    LARGE_INTEGER lastRepaintAsk{}; // when the host was last asked to repaint this window
     LARGE_INTEGER lastReadback{};
 };
 
@@ -988,6 +989,14 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
             RecordUpload(*w, slot);
             RecordShared(*w, slot);
             RecordReadback(*w);
+            // A window that is shown but has never had a whole frame (its frames were
+            // given back before drawing started, or during a loading screen) would stay
+            // invisible until its page repaints by itself. Ask for one, once a second.
+            if (!w->texReady && SecondsSince(w->lastRepaintAsk) >= 1.0)
+            {
+                QueryPerformanceCounter(&w->lastRepaintAsk);
+                SendJson("{\"event\":\"repaint\",\"window\":" + std::to_string(w->id) + "}");
+            }
         }
     }
     if (g.failed)

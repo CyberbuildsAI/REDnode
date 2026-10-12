@@ -556,10 +556,13 @@ function onGameMessage(m) {
       toAllPages(m);
       mods?.broadcast(m);
       return;
-    case 'repaint':
-      // The game has started drawing and threw away the frames it got before.
-      for (const w of windows.values()) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
+    case 'repaint': {
+      // The game has started drawing and threw away the frames it got before, or
+      // shows one window that has nothing to draw yet: send fresh frames.
+      const target = m.window ? [windows.get(m.window)].filter(Boolean) : [...windows.values()];
+      for (const w of target) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
       return;
+    }
     default:
       break;
   }
