@@ -11,7 +11,7 @@ Status: **passed.** The probe plugin loads, both tier paths work, and the game-t
 | RED4ext | 1.30.0 |
 | redscript | Present, run by RED4ext as `scc` |
 | Other mods | ArchiveXL, Codeware, TweakXL, audioware, CET and about 10 more, managed by Vortex |
-| REDnode | 0.1.0, the P1 probe from [native/](https://github.com/CyberbuildsAI/REDnode/tree/main/native), built with MSVC 14.44 |
+| REDnode | 0.1.0, the P1 probe from [native/](https://github.com/Edgemodders/REDnode/tree/main/native), built with MSVC 14.44 |
 
 The probe was deployed by hand with `tools/deploy-native.ps1`, not through Vortex. Both sessions used the same build.
 
@@ -121,5 +121,5 @@ Session 1 ran while Steam was syncing saves from the cloud, which may explain it
 
 ## Next
 
-- Decide the Tier 2 IPC transport (see the open decisions in [native/README.md](https://github.com/CyberbuildsAI/REDnode/blob/main/native/README.md)). That starts P2.
+- Decide the Tier 2 IPC transport (see the open decisions in [native/README.md](https://github.com/Edgemodders/REDnode/blob/main/native/README.md)). That starts P2.
 - Work out how to tell a real session start from the main-menu attach.

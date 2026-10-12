@@ -2,7 +2,7 @@
   "id": "perf",
   "name": "Perf",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "What the overlay costs: game frame rate, overlay CPU and GPU time per frame, upload volume, host memory and CPU.",
   "entry": "index.html",
   "kind": "window",

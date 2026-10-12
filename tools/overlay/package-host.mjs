@@ -49,7 +49,7 @@ const [out] = await packager({
   overwrite: true,
   quiet: true,
   win32metadata: {
-    CompanyName: 'CyberbuildsAI',
+    CompanyName: 'Edgemodders',
     ProductName: 'REDnode overlay',
     FileDescription: 'REDnode overlay host',
     OriginalFilename: 'REDnode-overlay.exe',

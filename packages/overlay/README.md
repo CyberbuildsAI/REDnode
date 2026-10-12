@@ -40,7 +40,7 @@ Every folder in the apps folder with a `rednode-app.json` is an app. In the repo
   "id": "native",
   "name": "Native button",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "A borderless, game-style button and menu.",
   "entry": "index.html",
   "kind": "window",

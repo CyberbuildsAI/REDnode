@@ -2,7 +2,7 @@
   "id": "state",
   "name": "Game state",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "Shows what REDnode reads from the game for hideWith: menu, photo mode, scene tier and main menu.",
   "entry": "index.html",
   "kind": "window",

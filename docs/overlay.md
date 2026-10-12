@@ -203,7 +203,7 @@ Built 2026-10-11, REDnode 0.4.0. Window logic is covered by 19 unit tests in `na
 
 ### O2 UI kit: test
 
-Built 2026-10-11, REDnode 0.5.0. The kit is [`packages/ui`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/ui): 12 components as markup, two themes, keyboard navigation, and UI sounds through the new bridge call `audio.play`. Both test apps were checked against a mock of the plugin. Gamepad navigation is left for later, because the game also reads the controller.
+Built 2026-10-11, REDnode 0.5.0. The kit is [`packages/ui`](https://github.com/Edgemodders/REDnode/tree/main/packages/ui): 12 components as markup, two themes, keyboard navigation, and UI sounds through the new bridge call `audio.play`. Both test apps were checked against a mock of the plugin. Gamepad navigation is left for later, because the game also reads the controller.
 
 The host now opens two apps: **Kit**, a titled window with every widget, and **Native**, a borderless game-style button at the lower right.
 

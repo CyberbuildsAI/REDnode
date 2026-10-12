@@ -26,12 +26,12 @@ Follow [docs/dev-setup.md](docs/dev-setup.md) top to bottom. Whenever you instal
 - **Git identity:** set per repo to `CyberbuildsAI` with the GitHub no-reply email (see dev-setup). Never change the global identity.
 - **Never commit game files** or data extracted from them: DLLs, archives, scripts, assets, TweakDB, raw RTTI dumps (`rtti-dump*`). `.gitignore` covers the common cases.
   - **One exception, agreed with the user on 2026-10-11:** `gameapi/<game version>/rtti.json` holds base-game type signatures (names, types, flags, enum values) for the published game API reference, like NativeDB. Produce it only with the REDnode dumper on a base-game run and import it with `npm run gameapi:import`. Nothing else from the game goes in.
-- **Shared theme:** the REDnode HUD VS Code theme lives in [REDcode](https://github.com/CyberbuildsAI/REDcode) at `extensions/rednode-hud-theme` (package `cyberbuildsai.rednode-hud-theme`). The copy that used to be in `tools/vscode-theme` here was removed on 2026-10-11; edit the theme in REDcode only.
+- **Shared theme:** the REDnode HUD VS Code theme lives in [REDcode](https://github.com/Edgemodders/REDcode) at `extensions/rednode-hud-theme` (package `cyberbuildsai.rednode-hud-theme`). The copy that used to be in `tools/vscode-theme` here was removed on 2026-10-11; edit the theme in REDcode only.
 - **Writing style:** plain, short sentences. Tables for comparisons and lists of facts. Use the design doc's terms: Tier 1 (sync interceptors, in-process), Tier 2 (async Node mods, out of process), declarative rules, phases P0 to P4, and the `rednode` package name. Mark anything unverified as unverified.
 
 ## Docs site
 
-- `docs/` is published by GitHub Pages at https://cyberbuildsai.github.io/REDnode/. It is the human-facing documentation, so it must look polished.
+- `docs/` is published by GitHub Pages at https://edgemodders.github.io/REDnode/. It is the human-facing documentation, so it must look polished.
 - `.github/workflows/pages.yml` builds and deploys the site on every push to `main`: TypeDoc generates the API reference into `docs/api`, `tools/gameapi/build.mjs` generates the game API reference into `docs/game`, then Jekyll renders `docs/`. Never commit `docs/api` or `docs/game`.
 - The game API reference is REDnode's own ground truth for game types. Its descriptions live in `gameapi/notes/<NativeName>.md` (format in `gameapi/notes/README.md`). When a test shows how a game type behaves, add or update its note. `npm run docs:game` builds it locally, about a minute.
 - Give every exported symbol in `packages/rednode/src` a TSDoc comment with an `@example` where it helps. That is the source of the API reference.

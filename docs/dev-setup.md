@@ -65,7 +65,7 @@ The first configure clones RED4ext.SDK at the pinned commit, so it needs network
 ## 3. Repository and GitHub
 
 ```powershell
-git clone https://github.com/CyberbuildsAI/REDnode.git "$env:USERPROFILE\source\repos\REDnode"
+git clone https://github.com/Edgemodders/REDnode.git "$env:USERPROFILE\source\repos\REDnode"
 cd "$env:USERPROFILE\source\repos\REDnode"
 
 # Repo-local identity, so a different global identity is left alone
@@ -78,7 +78,7 @@ npm run typecheck
 
 Pushing needs Git Credential Manager signed in as `CyberbuildsAI`. If a push fails with `Permission ... denied to <other account>`, the machine has another GitHub account cached. Remove the `github.com` entry in Windows Credential Manager and push again to get a sign-in prompt.
 
-GitHub Pages serves `docs/` from `main`: https://cyberbuildsai.github.io/REDnode/. It is configured in the repository settings, not in code.
+GitHub Pages serves `docs/` from `main`: https://edgemodders.github.io/REDnode/. It is configured in the repository settings, not in code.
 
 ## 4. Game install for testing
 
@@ -118,7 +118,7 @@ git clone --depth 1 https://github.com/WopsS/RED4ext.SDK.git
 
 ## 6. Docs site
 
-The site at https://cyberbuildsai.github.io/REDnode/ is built and deployed by `.github/workflows/pages.yml` on every push to `main`. In the repository settings, **Settings > Pages > Source** must be set to **GitHub Actions**.
+The site at https://edgemodders.github.io/REDnode/ is built and deployed by `.github/workflows/pages.yml` on every push to `main`. In the repository settings, **Settings > Pages > Source** must be set to **GitHub Actions**.
 
 | Tool | Version | Install |
 |---|---|---|
@@ -152,11 +152,11 @@ Edit `tools/brand/brand.html` to change the banner. Re-run the script after chan
 
 ## 8. VS Code theme
 
-The REDnode HUD color theme for VS Code lives in the [REDcode](https://github.com/CyberbuildsAI/REDcode) repository, at `extensions/rednode-hud-theme`, because REDcode is the VS Code environment REDnode mods are built in. Build or install it from there (`npm run theme:package` in REDcode). This repository no longer carries a copy.
+The REDnode HUD color theme for VS Code lives in the [REDcode](https://github.com/Edgemodders/REDcode) repository, at `extensions/rednode-hud-theme`, because REDcode is the VS Code environment REDnode mods are built in. Build or install it from there (`npm run theme:package` in REDcode). This repository no longer carries a copy.
 
 ## 9. Game API reference
 
-The game API reference at https://cyberbuildsai.github.io/REDnode/game/ is generated from a base-game RTTI dump, committed as `gameapi/<game version>/rtti.json`, plus REDnode's notes in `gameapi/notes/`.
+The game API reference at https://edgemodders.github.io/REDnode/game/ is generated from a base-game RTTI dump, committed as `gameapi/<game version>/rtti.json`, plus REDnode's notes in `gameapi/notes/`.
 
 | Tool | Version | Install |
 |---|---|---|

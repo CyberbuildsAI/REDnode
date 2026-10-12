@@ -2,7 +2,7 @@
   "id": "stress",
   "name": "Stress",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "Worst case for the overlay: redraws every pixel of a large window every frame. Switch it on to measure, then off.",
   "entry": "index.html",
   "kind": "window",

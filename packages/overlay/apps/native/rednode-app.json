@@ -2,7 +2,7 @@
   "id": "native",
   "name": "Native button",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "A borderless, game-style button and menu that look like part of the game UI.",
   "entry": "index.html",
   "kind": "window",

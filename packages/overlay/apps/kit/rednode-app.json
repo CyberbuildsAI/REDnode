@@ -2,7 +2,7 @@
   "id": "kit",
   "name": "UI kit",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "Every @rednode/ui widget in one titled window, in both themes.",
   "entry": "index.html",
   "kind": "window",

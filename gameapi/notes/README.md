@@ -1,6 +1,6 @@
 # Game API notes
 
-REDnode's own notes on game types. The generator (`npm run docs:game`) merges them into the game API reference at https://cyberbuildsai.github.io/REDnode/game/.
+REDnode's own notes on game types. The generator (`npm run docs:game`) merges them into the game API reference at https://edgemodders.github.io/REDnode/game/.
 
 The type data only has names, types and flags. These notes add what it cannot: what a type is for, when a callback runs, and the traps.
 

@@ -2,7 +2,7 @@
   "id": "signal",
   "name": "Signal",
   "version": "0.1.0",
-  "author": "CyberbuildsAI",
+  "author": "Edgemodders",
   "description": "A small round HUD widget with a transparent middle. Clicks there pass through.",
   "entry": "index.html",
   "kind": "window",

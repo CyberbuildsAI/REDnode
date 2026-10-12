@@ -13,4 +13,4 @@ Runs when the player puppet is attached to the game world. It does **not** mean 
 | Open the load-save list | No |
 | Save the game | No |
 
-Tested on 2.31 with a `@wrapMethod` probe. See [P1 results](https://cyberbuildsai.github.io/REDnode/p1-results.html).
+Tested on 2.31 with a `@wrapMethod` probe. See [P1 results](https://edgemodders.github.io/REDnode/p1-results.html).

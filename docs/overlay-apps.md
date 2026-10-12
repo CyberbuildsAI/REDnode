@@ -64,7 +64,7 @@ An app is a folder with a manifest and a page. Put it in the apps folder: `packa
 </html>
 ```
 
-Start the game, press F10, open the **REDNODE** launcher tab at the lower left and switch **Hello Night City** on. Load a save and click the button. All manifest fields are listed in the [overlay host README](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay#apps-and-manifests).
+Start the game, press F10, open the **REDNODE** launcher tab at the lower left and switch **Hello Night City** on. Load a save and click the button. All manifest fields are listed in the [overlay host README](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay#apps-and-manifests).
 
 | Rule | Why |
 |---|---|
@@ -74,7 +74,7 @@ Start the game, press F10, open the **REDNODE** launcher tab at the lower left a
 
 ## A titled window from markup
 
-The [UI kit](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/ui) turns markup into widgets. This is the test app [`apps/kit`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay/apps/kit), cut down:
+The [UI kit](https://github.com/Edgemodders/REDnode/tree/main/packages/ui) turns markup into widgets. This is the test app [`apps/kit`](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/kit), cut down:
 
 ```html
 <rn-window id="win" title="UI kit // O2" draggable>
@@ -120,7 +120,7 @@ The grey checkerboard in these captures is the transparent part of the page. In 
 
 ## A native-looking button
 
-No window frame at all: a borderless page with one game-style button and its menu. The rest of the page is transparent, so it looks like part of the game's UI. From [`apps/native`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay/apps/native):
+No window frame at all: a borderless page with one game-style button and its menu. The rest of the page is transparent, so it looks like part of the game's UI. From [`apps/native`](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/native):
 
 ```html
 <body theme="game">
@@ -149,7 +149,7 @@ Any element with `data-rednode-drag` is a drag handle; here, a small striped gri
 
 ## A HUD widget
 
-A HUD widget is drawn over the game but never takes input, like the game's own HUD. Set `"kind": "hud"` in the manifest, and list in `"hideWith"` when the game should hide it. From [`apps/coords`](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay/apps/coords):
+A HUD widget is drawn over the game but never takes input, like the game's own HUD. Set `"kind": "hud"` in the manifest, and list in `"hideWith"` when the game should hide it. From [`apps/coords`](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/coords):
 
 ```json
 {
@@ -243,6 +243,6 @@ The bridge is small during the overlay phases. Phase O6 grows it into the full `
 
 | Where | What |
 |---|---|
-| [UI kit reference](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/ui) | Every component, attribute and event, themes, keyboard keys |
-| [Overlay host](https://github.com/CyberbuildsAI/REDnode/tree/main/packages/overlay) | Running the host, the app list, the demo apps |
+| [UI kit reference](https://github.com/Edgemodders/REDnode/tree/main/packages/ui) | Every component, attribute and event, themes, keyboard keys |
+| [Overlay host](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay) | Running the host, the app list, the demo apps |
 | [Overlay design](overlay.md) | How the overlay works, test results, and the plan |

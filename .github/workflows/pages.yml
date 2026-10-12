@@ -3,7 +3,7 @@
 #   2. tools/gameapi/build.mjs generates the game API reference into docs/game
 #      from gameapi/<version>/rtti.json and gameapi/notes (never committed).
 #   3. Jekyll renders docs/ with the HUD layout and copies docs/api and docs/game as-is.
-#   4. The result is deployed to https://cyberbuildsai.github.io/REDnode/
+#   4. The result is deployed to https://edgemodders.github.io/REDnode/
 # Requires Settings > Pages > Source: GitHub Actions.
 
 name: Docs site
