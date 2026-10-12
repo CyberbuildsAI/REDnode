@@ -172,6 +172,7 @@ struct GpuWindow
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT readbackFootprint{};
     UINT64 readbackFence = 0; // fence value after which the readback holds data
     bool readbackPending = false;
+    bool alphaStale = false;      // a frame arrived since the last readback was taken
     LARGE_INTEGER lastReadback{};
 };
 
@@ -798,9 +799,18 @@ void RecordShared(GpuWindow& aWin, UINT aSlot)
     g.slotShared[aSlot].push_back(std::move(src));
     g.slotAcks[aSlot].push_back(frame.frameId);
     g_perf.sharedCopies += 1;
+    aWin.alphaStale = true;
+}
 
-    // A few times a second, copy the window to the CPU for click-through.
-    if (!aWin.readbackPending && SecondsSince(aWin.lastReadback) >= 0.2)
+// Copies the window to the CPU for click-through, at most 5 times a second. Runs
+// until the newest frame has been read: a page that stops repainting right after
+// opening would otherwise keep the alpha of a half-drawn first frame, and clicks
+// on it would fall through to the game. (Found in the O6a test.)
+void RecordReadback(GpuWindow& aWin)
+{
+    if (!aWin.alphaStale || !aWin.texShaderState || aWin.readbackPending)
+        return;
+    if (SecondsSince(aWin.lastReadback) >= 0.2)
     {
         const D3D12_RESOURCE_DESC texDesc = aWin.texture->GetDesc();
         UINT64 total = 0;
@@ -839,6 +849,7 @@ void RecordShared(GpuWindow& aWin, UINT aSlot)
         g.list->ResourceBarrier(1, &back);
         aWin.readbackPending = true;
         aWin.readbackFence = g.fenceValue + 1; // signalled at the end of this frame
+        aWin.alphaStale = false;
         QueryPerformanceCounter(&aWin.lastReadback);
     }
 }
@@ -912,7 +923,18 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
     SyncWindows(views);
     if (mode == Mode::Hidden || (views.empty() && mode != Mode::Interactive))
     {
-        DropSharedExcept({}); // nothing is drawn: give every shared texture back now
+        // Nothing is drawn: give every shared texture back now, both those waiting
+        // and those copied in the last frames, once the GPU is done with them.
+        DropSharedExcept({});
+        const UINT64 done = g.fence->GetCompletedValue();
+        for (UINT s = 0; s < FramesInFlight; ++s)
+        {
+            if (g.slotAcks[s].empty() || done < g.slotFence[s])
+                continue;
+            g.slotShared[s].clear();
+            AckFrames(g.slotAcks[s]);
+            g.slotAcks[s].clear();
+        }
         return;
     }
     DropSharedExcept(views); // windows hidden with the game's UI
@@ -965,6 +987,7 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
         {
             RecordUpload(*w, slot);
             RecordShared(*w, slot);
+            RecordReadback(*w);
         }
     }
     if (g.failed)
