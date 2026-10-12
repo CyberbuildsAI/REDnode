@@ -25,6 +25,8 @@ export { game } from "./game.js";
 export type { Game, GameEvent, GameState, EventHandler, Unsubscribe, Player, Audio, Vector3 } from "./game.js";
 export { ui } from "./ui.js";
 export { api } from "./api.js";
+export { pkg, secrets, kernel } from "./pkg.js";
+export type { PackageInfo, KernelMcp } from "./pkg.js";
 export type { GameRef, ApiExtras } from "./api.js";
 export type {
   Anchor,

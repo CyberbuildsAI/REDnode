@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('rednode', {
     hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
     /** Gets the theme every window follows, or sets it: 'rednode', 'game' or 'yellow'. */
     theme: (name) => ipcRenderer.invoke('rednode:host:theme', name),
+    /** Grants or withdraws a permission a package asks for, such as 'mcp'. */
+    grant: (id, permission, granted) => ipcRenderer.invoke('rednode:apps:grant', id, permission, granted),
     /** Gets the kernel MCP server's switch, or turns it on or off. */
     mcp: (on) => ipcRenderer.invoke('rednode:host:mcp', on),
     /** Copies the command that adds the MCP server to Claude Code. */
@@ -44,6 +46,11 @@ contextBridge.exposeInMainWorld('rednode', {
   logs: {
     recent: () => ipcRenderer.invoke('rednode:logs:recent'),
     copy: (text) => ipcRenderer.invoke('rednode:logs:copy', text),
+  },
+  /** This app's own secrets and the kernel's tools; used by `secrets` and `kernel` in the rednode package. */
+  pkg: {
+    secret: (op, name, value) => ipcRenderer.invoke('rednode:pkg:secret', op, name, value),
+    mcp: () => ipcRenderer.invoke('rednode:pkg:mcp'),
   },
   /** For the host's builder page, which shows windows built by Node mods. Other pages get an error. */
   builder: {

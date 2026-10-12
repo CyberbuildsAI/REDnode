@@ -325,6 +325,21 @@ Every node has `set(props)`, which updates the open window at once.
 | Hot reload | With the launcher's **Hot reload** switch on, saving a mod's file restarts the mod, and saving an app's file reloads its page |
 | `.mjs` | Use the `.mjs` extension for `import` syntax, or add a `package.json` with `"type": "module"` |
 
+## Data, secrets and the kernel
+
+| Call | Gives | Where |
+|---|---|---|
+| `pkg.id`, `pkg.dir`, `pkg.dataDir` | This package's id, its folder in the apps folder, and a data folder of its own outside it, which survives updates. Write files to `dataDir`, never to `dir`: hot reload watches `dir` | Node mods |
+| `secrets.get(name)`, `secrets.set(name, value)`, `secrets.delete(name)` | Secrets such as an API key, encrypted with the player's Windows account and kept by the host. A package reads only its own | Node mods and apps |
+| `kernel.mcp()` | The address and a token for the [kernel MCP server](mcp.md), for an AI agent in the package. The package must list `"permissions": ["mcp"]` in its manifest, and the player must allow it in the launcher | Node mods and apps |
+
+```js
+import { pkg, secrets, kernel } from 'rednode';
+
+await secrets.set('api-key', key);
+const { url, headers } = await kernel.mcp(); // rejects until the player allows it
+```
+
 ## The game API
 
 `api` calls any game function by name: global functions, the static functions of a class, and the methods of game objects. It is typed from the game's own type data, the same data as the [game API reference](game/), so an editor completes every class, method and enum member. It works the same in Node mods and in apps.

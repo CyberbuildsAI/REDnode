@@ -20,7 +20,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, clipboard, ipcMain, protocol, utilityProcess } = require('electron');
+const { app, BrowserWindow, clipboard, ipcMain, protocol, safeStorage, utilityProcess } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -55,8 +55,17 @@ const renderArg = arg('render');
 const APP_ROOTS = [
   { dir: path.join(__dirname, 'launcher'), single: true, builtin: true, pinned: true },
   { dir: path.join(__dirname, 'modlog'), single: true, builtin: true },
-  { dir: arg('apps-dir') ?? path.join(__dirname, 'apps') },
+  // --apps-dir may list several folders, separated by ";", for example REDnode's
+  // examples and another repo's packages during development.
+  ...(arg('apps-dir') ?? path.join(__dirname, 'apps'))
+    .split(';')
+    .filter(Boolean)
+    .map((dir) => ({ dir })),
 ];
+// What a package may ask for in its manifest's "permissions"; the player grants each in the launcher.
+const PERMISSIONS = {
+  mcp: "REDnode's tools for AI agents (the kernel MCP server)",
+};
 // The UI kit, served to every app as rednode://ui/rednode-ui.js.
 const UI_DIR = app.isPackaged ? path.join(__dirname, 'ui') : path.join(__dirname, '..', 'ui', 'src');
 // The rednode package (built from packages/rednode), served to apps as rednode://sdk/index.js
@@ -217,6 +226,9 @@ function readManifest(dir) {
     }
   }
   if (m.isolation !== undefined && !['process', 'any'].includes(m.isolation)) problems.push('isolation must be process or any');
+  if (m.permissions !== undefined && (!Array.isArray(m.permissions) || m.permissions.some((p) => !(p in PERMISSIONS)))) {
+    problems.push(`permissions must be a list of ${Object.keys(PERMISSIONS).join(', ')}`);
+  }
   if (m.anchor !== undefined && !ANCHORS.includes(m.anchor)) problems.push(`anchor must be one of ${ANCHORS.join(', ')}`);
   if (m.kind !== undefined && !['window', 'hud'].includes(m.kind)) problems.push('kind must be window or hud');
   if (m.hideWith !== undefined && (!Array.isArray(m.hideWith) || m.hideWith.some((h) => !HIDE_WITH.includes(h)))) {
@@ -232,6 +244,7 @@ function readManifest(dir) {
     entry: m.entry ?? null,
     main: m.main ?? null,
     isolation: m.isolation ?? 'any',
+    permissions: m.permissions ?? [],
     kind: m.kind ?? 'window',
     width: m.width,
     height: m.height,
@@ -733,6 +746,7 @@ function appList() {
         app: !!m.entry,
         open: isEnabled(entry),
         mod: m.main ? mods.info(m.id, metrics) : null,
+        permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
       };
     });
 }
@@ -763,10 +777,101 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
 
 // ---------- the kernel MCP server ----------
 
+// The external switch (Claude Code on the PC) and packages granted "mcp" each keep the server running.
+// Packages get their own token, made each run, so the switch can stay off for them.
+const packageTokens = new Map(); // package id -> token
 function mcpConfig() {
-  const enabled = mcpArg ? mcpArg !== 'off' : app.isPackaged ? !!settings.mcp?.enabled : true;
-  return { enabled, port: Number(settings.mcp?.port) || MCP_PORT, token: settings.mcp?.token };
+  const external = mcpArg ? mcpArg !== 'off' : app.isPackaged ? !!settings.mcp?.enabled : true;
+  const internal = new Set(
+    [...packageTokens].filter(([id]) => isGranted(id, 'mcp') && apps.has(id)).map(([, token]) => token),
+  );
+  return {
+    enabled: external || internal.size > 0,
+    external,
+    port: Number(settings.mcp?.port) || MCP_PORT,
+    token: settings.mcp?.token,
+    internal,
+  };
 }
+
+function isGranted(id, permission) {
+  const entry = apps.get(id);
+  return !!entry && entry.manifest.permissions.includes(permission) && !!settings.apps[id]?.granted?.includes(permission);
+}
+
+// ---------- what a package may use: its data folder, its secrets, the kernel's tools ----------
+
+/** A folder of the package's own, outside the apps folder, that survives updates. */
+function dataDirOf(id) {
+  const dir = path.join(app.getPath('userData'), 'packages', id);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+// Secrets, such as an API key, encrypted with the Windows account's key (safeStorage)
+// and kept per package: a package reads only its own.
+function readSecrets() {
+  return readJson('secrets.json', {});
+}
+function secret(id, op, name, value) {
+  if (typeof name !== 'string' || !/^[\w.-]{1,64}$/.test(name)) throw new Error('A secret name is 1 to 64 letters, digits, _ . or -');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Encryption is not available on this PC');
+  const all = readSecrets();
+  const mine = all[id] ?? {};
+  if (op === 'get') return mine[name] ? safeStorage.decryptString(Buffer.from(mine[name], 'base64')) : null;
+  if (op === 'set') {
+    if (typeof value !== 'string') throw new Error('A secret is a string');
+    mine[name] = safeStorage.encryptString(value).toString('base64');
+  } else if (op === 'delete') {
+    delete mine[name];
+  } else {
+    throw new Error(`Unknown secret operation ${op}`);
+  }
+  all[id] = mine;
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(dataFile('secrets.json'), JSON.stringify(all, null, 2));
+  return null;
+}
+
+/** The kernel MCP server's address and a token for one package, if the player granted it. */
+function mcpFor(id) {
+  if (!isGranted(id, 'mcp')) {
+    const entry = apps.get(id);
+    throw new Error(
+      entry?.manifest.permissions.includes('mcp')
+        ? `Allow "${entry.manifest.name}" to use REDnode's tools in the REDnode launcher first`
+        : 'This package does not ask for the "mcp" permission in its rednode-app.json',
+    );
+  }
+  if (!packageTokens.has(id)) packageTokens.set(id, crypto.randomBytes(24).toString('base64url'));
+  const c = mcpConfig();
+  mcp.configure(c);
+  return { url: `http://127.0.0.1:${c.port}/mcp`, headers: { Authorization: `Bearer ${packageTokens.get(id)}` } };
+}
+
+// The package a page belongs to: its app, or the mod that built it.
+function packageOf(event) {
+  const w = windowFor(event.sender);
+  if (!w) throw new Error('Unknown window');
+  return w.app.built ? built.get(w.app.built)?.modId : w.app.manifest.id;
+}
+
+ipcMain.handle('rednode:pkg:secret', (event, op, name, value) => secret(packageOf(event), op, name, value));
+ipcMain.handle('rednode:pkg:mcp', (event) => mcpFor(packageOf(event)));
+
+ipcMain.handle('rednode:apps:grant', (event, id, permission, granted) => {
+  fromLauncher(event);
+  const entry = apps.get(id);
+  if (!entry || !entry.manifest.permissions.includes(permission)) throw new Error(`"${id}" does not ask for ${permission}`);
+  const list = new Set(settings.apps[id]?.granted ?? []);
+  if (granted) list.add(permission);
+  else list.delete(permission);
+  settings.apps[id] = { ...settings.apps[id], granted: [...list] };
+  writeJson('settings.json', settings);
+  log(`${granted ? 'Granted' : 'Withdrew'} ${permission} for ${id}`);
+  mcp.configure(mcpConfig());
+  return appList();
+});
 
 // The command that adds this server to Claude Code, for every project on this PC.
 function mcpCommand() {
@@ -822,7 +927,7 @@ ipcMain.handle('rednode:host:mcp', (event, on) => {
     writeJson('settings.json', settings);
     mcp.configure(mcpConfig());
   }
-  return mcpConfig().enabled;
+  return mcpConfig().external;
 });
 
 ipcMain.handle('rednode:host:mcp-command', (event) => {
@@ -1003,6 +1108,7 @@ function watchPackage(entry) {
   try {
     const watcher = fs.watch(entry.dir, { recursive: true }, (_type, file) => {
       if (file && /(^|[\\/])node_modules([\\/]|$)/.test(file) && !entry.manifest.main) return;
+      if (file && /(^|[\\/])\./.test(file)) return; // dot folders and files belong to tools, not to the package
       clearTimeout(timer);
       timer = setTimeout(() => {
         log(`Changed: ${id}${file ? ` (${file})` : ''}. Reloading.`);
@@ -1116,6 +1222,14 @@ app.whenReady().then(() => {
     if (n) log(`Released ${n} shared frame(s) the game did not answer`);
   }, 500);
   discoverApps();
+  // A token is made once and kept, so Claude Code's saved setup keeps working.
+  if (!settings.mcp?.token) {
+    settings.mcp = { ...settings.mcp, token: crypto.randomBytes(24).toString('base64url') };
+    writeJson('settings.json', settings);
+  }
+  mcp = createMcp(mcpHost());
+  mcp.configure(mcpConfig());
+  // Mods start below; one may ask for the kernel's tools at once (mcpFor).
   mods = createMods({
     app,
     utilityProcess,
@@ -1125,6 +1239,9 @@ app.whenReady().then(() => {
     sdk: path.join(SDK_DIR, 'index.js'),
     call: bridgeCall,
     state: hostState,
+    dataDir: dataDirOf,
+    secret,
+    mcpFor,
     ui,
     changed: notifyLauncher,
     onLog: onModLog,
@@ -1137,13 +1254,6 @@ app.whenReady().then(() => {
     if (entry.manifest.main) mods.add(entry, { enabled: shouldOpen(entry), shared: settings.apps[entry.manifest.id]?.shared });
   }
   setHotReload(hotReloadArg ? hotReloadArg !== 'off' : app.isPackaged ? !!settings.hotReload : true);
-  // A token is made once and kept, so Claude Code's saved setup keeps working.
-  if (!settings.mcp?.token) {
-    settings.mcp = { ...settings.mcp, token: crypto.randomBytes(24).toString('base64url') };
-    writeJson('settings.json', settings);
-  }
-  mcp = createMcp(mcpHost());
-  mcp.configure(mcpConfig());
   // Mod memory, for comparing a process per mod with the shared group.
   setInterval(() => {
     const line = mods.memorySummary(app.getAppMetrics());

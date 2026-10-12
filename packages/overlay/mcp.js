@@ -229,7 +229,10 @@ function createMcp(host) {
       res.writeHead(404).end();
       return;
     }
-    if (req.headers.authorization !== `Bearer ${current.token}`) {
+    const auth = req.headers.authorization ?? '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    const ok = (current.external && token === current.token) || current.internal?.has(token);
+    if (!token || !ok) {
       res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'A valid token is required' }));
       return;
     }
@@ -265,7 +268,7 @@ function createMcp(host) {
   }
 
   return {
-    /** Starts, stops or moves the server to match aConfig: { enabled, port, token }. */
+    /** Starts, stops or moves the server to match aConfig: { enabled, external, port, token, internal }. */
     configure(aConfig) {
       const same = server && current.port === aConfig.port;
       current = { ...aConfig };

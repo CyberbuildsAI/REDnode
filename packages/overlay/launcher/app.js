@@ -56,6 +56,21 @@ function makeRow(item) {
 
   if (item.description) root.append(el('div', 'desc', item.description));
 
+  // Permissions the package asks for: the player allows each one.
+  const grants = new Map(); // permission name -> toggle
+  for (const p of item.permissions ?? []) {
+    const line = el('div', 'perm');
+    line.append(el('span', 'perm-what', `Asks for ${p.what}`));
+    const allow = document.createElement('rn-toggle');
+    allow.setAttribute('label', 'Allowed');
+    allow.addEventListener('change', (e) =>
+      act(item.name, () => window.rednode.apps.grant(item.id, p.name, e.detail.checked)),
+    );
+    line.append(allow);
+    root.append(line);
+    grants.set(p.name, allow);
+  }
+
   let update;
   if (item.mod) {
     const mod = el('div', 'mod');
@@ -102,6 +117,10 @@ function makeRow(item) {
         ? `${kind} · built into REDnode`
         : [kind, it.version && `v${it.version}`, it.author].filter(Boolean).join(' · ');
       open.checked = it.open;
+      for (const p of it.permissions ?? []) {
+        const t = grants.get(p.name);
+        if (t) t.checked = p.granted;
+      }
       update?.(it);
     },
   };

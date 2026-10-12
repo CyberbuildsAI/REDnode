@@ -12,6 +12,7 @@ npm run overlay -- --render=cpu          # force the CPU path instead of GPU sha
 npm run overlay -- --hot-reload=off      # don't restart mods and reload apps when their files change
 npm run overlay -- --data-dir=<folder>   # keep settings somewhere else, for tests
 npm run overlay -- --mcp=off             # no kernel MCP server (on by default for developers)
+npm run overlay -- --apps-dir="a;b"      # several apps folders, for example another repo's packages
 npm run overlay:package                  # package the host for players (see below)
 ```
 
@@ -75,6 +76,7 @@ Every folder in the apps folder with a `rednode-app.json` is a package: an overl
 | `entry` | An overlay app: the page to load, relative to the folder |
 | `main` | A Node mod: the file to run, relative to the folder. Use `.mjs` for `import` syntax |
 | `isolation` | Node mods: `process` makes the mod always run in its own process, so the player cannot put it in the shared group. Use it for mods with native addons |
+| `permissions` | Powers the package asks for, which the player allows in the launcher. Today `mcp`: the kernel MCP server's tools, through `kernel.mcp()` |
 | `width`, `height` | Window size in page pixels, 1 to 4096. Needed with `entry` |
 | `anchor` | `top-left` (default), `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom` or `bottom-right` |
 | `x`, `y` | Offset from the anchor in reference pixels (1080p). `bottom-right` with x -40 is 40 px from the right edge |

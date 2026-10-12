@@ -13,7 +13,10 @@ const { registerHooks } = require('node:module');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const { id, dir, main, sdk } = workerData;
+const { id, dir, main, sdk, dataDir } = workerData;
+
+// This package, for `pkg` in the rednode package.
+globalThis[Symbol.for('rednode.package')] = Object.freeze({ id, dir, dataDir });
 const sdkUrl = pathToFileURL(sdk).href;
 
 registerHooks({
@@ -38,6 +41,8 @@ function request(message) {
 globalThis[Symbol.for('rednode.transport')] = {
   call: (method, params) => request({ t: 'call', method, params }),
   state: () => request({ t: 'state' }),
+  secret: (op, name, value) => request({ t: 'secret', op, name, value }),
+  mcp: () => request({ t: 'mcp' }),
   listen(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);

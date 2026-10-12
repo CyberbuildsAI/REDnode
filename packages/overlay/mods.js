@@ -209,6 +209,15 @@ function createMods(host) {
       case 'state':
         reply(p, id, msg.rid, host.state());
         return;
+      case 'secret':
+      case 'mcp':
+        try {
+          const result = msg.t === 'secret' ? host.secret(id, msg.op, msg.name, msg.value) : host.mcpFor(id);
+          reply(p, id, msg.rid, result);
+        } catch (err) {
+          reply(p, id, msg.rid, undefined, err.message);
+        }
+        return;
       case 'ui':
         if (msg.op === 'open') host.ui.open(id, String(msg.window), msg.spec);
         else if (msg.op === 'update') host.ui.update(id, String(msg.window), String(msg.node), msg.props ?? {});
@@ -239,7 +248,11 @@ function createMods(host) {
     modLog(id, 'info', `Starting ${m.entry.manifest.main} in ${key === SHARED ? 'the shared process' : 'its own process'}`);
     setStatus(id, 'starting');
     const { manifest } = m.entry;
-    p.proc.postMessage({ t: 'start', mod: { id, dir: m.entry.dir, main: manifest.main }, sdk: host.sdk });
+    p.proc.postMessage({
+      t: 'start',
+      mod: { id, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id) },
+      sdk: host.sdk,
+    });
   }
 
   // Stops a mod. With thenStart, starts it again once its worker is gone (a reload).
