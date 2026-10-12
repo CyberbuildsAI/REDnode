@@ -628,6 +628,9 @@ void OnLeaveInteractive()
                               ",\"x\":" + std::to_string(int(d->x)) + ",\"y\":" + std::to_string(int(d->y)) + "}");
         g_capture = g_dragging = 0;
         SetHover(actions, 0);
+        // Input goes back to the game, so no window keeps keyboard focus. Without
+        // this, clicking the same window again changed nothing and it stayed dimmed.
+        SetFocus(actions, 0);
     }
     Run(actions);
 }

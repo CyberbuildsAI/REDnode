@@ -207,6 +207,24 @@ int main()
     Check(!SentContains(R"("window":4)"), "a transparent patch clicks through");
     HandleWindowCommand(R"({"cmd":"window.close","window":4})");
 
+    // Leaving interactive mode clears the focus, so clicking the same window
+    // again refocuses it. (Found in the O5 test: Signal sometimes stayed dimmed.)
+    HandleWindowCommand(R"({"cmd":"window.open","window":5,"x":300,"y":300,"width":100,"height":100})");
+    SubmitFrame(5, 100, 100, Frame(100, 100));
+    SetMode(Mode::Interactive);
+    OnMouseMove(350, 350);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    g_sent.clear();
+    OnLeaveInteractive();
+    Check(SentContains(R"({"event":"focus","window":0})"), "leaving interactive mode clears the focus");
+    g_sent.clear();
+    OnMouseMove(350, 350);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(SentContains(R"({"event":"focus","window":5})"), "clicking the same window again focuses it again");
+    HandleWindowCommand(R"({"cmd":"window.close","window":5})");
+
     // Closing.
     SetMode(Mode::Interactive);
     HandleWindowCommand(R"({"cmd":"window.close","window":2})");
