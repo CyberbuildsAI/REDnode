@@ -353,6 +353,7 @@ Built 2026-10-12: plugin 0.9.0, host 0.2.0, `rednode` 0.1.0. Tested against a st
 | Killing the shared process | All three mods show CRASHED, their windows close, and they restart 2 s later |
 | Hot reload | Saving `mod.mjs` restarts the mod with the new code in about a second |
 | Memory (host log, `Mod processes:`) | About 80 MB per own process; three mods in the shared process about 92 MB |
+| Mod log app | New lines arrive live; a crash shows in red with only the mod's own stack lines; **Errors only** and **Copy** put the crash on the clipboard |
 
 New in the plugin: shared frames are given back at once when nothing draws them, opened textures are reused, and the perf line splits the overlay CPU time into **GPU wait** (waiting for the frame from three frames ago) and **opening** (opening shared textures).
 
@@ -361,14 +362,15 @@ In the game, do these in order, with a 30-second pause after each, timed on a ph
 1. Start the game and load a save. Stand still in gameplay for **60 seconds**. **Hello mod** sits at the right edge, the **Coords HUD** at the top: both show the same X, Y and Z, and change together when you walk.
 2. **F10** for interactive mode. In Hello mod, press **Play sound**: a sound plays. Switch **Follow** off: the position stops changing. Switch it on again. Drag Hello mod by its title.
 3. Open the launcher (the REDNODE tab, bottom left). Hello mod and Ticker mod show **RUNNING · own process** and their memory; Crash mod is off. Switch **Hot reload** on. Then either tell me "edit" in chat and I change Hello mod's file in the game folder, or open `red4ext\plugins\REDnode\apps\hello-mod\mod.mjs` in Notepad and change `first version` to anything, then save. Within a few seconds, Hello mod's window comes back with the new text.
-4. Switch **Crash mod** on. Its window opens at the left. Press **Throw an error**: its window closes, the launcher shows **CRASHED** and the error, and Hello mod keeps updating. Press **Restart** in the launcher.
-5. In Crash mod, press **Hang forever**. Hello mod keeps updating. After about 10 seconds the launcher shows **NOT RESPONDING**. Press **Restart**.
-6. Switch **Shared process** on for all three mods. Each restarts; the launcher then shows **shared process (3 mods)** and one memory figure.
-7. In Crash mod, press **Kill the process**. All three mods show **CRASHED** and their windows close; about 2 seconds later all three are running again.
-8. Press **F10** until the overlay is hidden. Wait 30 seconds. Press **F10** to come back to passive.
-9. Open the inventory for 30 seconds: the Coords HUD hides, Hello mod stays. Close it.
-10. Load a save. Hello mod's **Saves loaded** count goes up by one.
-11. Quit the game.
+4. In the launcher, switch **Mod log** on. It opens at the bottom right with every line the mods printed so far. Then switch **Crash mod** on. Its window opens at the left. Press **Throw an error**: its window closes, the launcher shows **CRASHED**, the Mod log shows the error in red, and Hello mod keeps updating. Press **Restart** in the launcher.
+5. In the Mod log, switch **Errors only** on and press **Copy**. Paste it into this chat: it should be the crash and the line in `mod.mjs` that threw. Switch **Errors only** off.
+6. In Crash mod, press **Hang forever**. Hello mod keeps updating. After about 10 seconds the launcher shows **NOT RESPONDING**. Press **Restart**.
+7. Switch **Shared process** on for all three mods. Each restarts; the launcher then shows **shared process (3 mods)** and one memory figure.
+8. In Crash mod, press **Kill the process**. All three mods show **CRASHED** and their windows close; about 2 seconds later all three are running again.
+9. Press **F10** until the overlay is hidden. Wait 30 seconds. Press **F10** to come back to passive.
+10. Open the inventory for 30 seconds: the Coords HUD hides, Hello mod and the Mod log stay. Close it.
+11. Load a save. Hello mod's **Saves loaded** count goes up by one.
+12. Quit the game.
 
 After the test, switch **Shared process** off again if you want each mod in its own process.
 
