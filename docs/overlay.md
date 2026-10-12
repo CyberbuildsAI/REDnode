@@ -304,6 +304,43 @@ O1 to O4 make the feature usable. O5 makes it cheap. O6 joins it to the rest of 
 
 Order agreed on 2026-10-12: [REDclaude](https://github.com/Edgemodders/REDclaude), an in-game Claude assistant built as an overlay app, comes right after O6. O7 follows it.
 
+### O6 One runtime: plan
+
+Agreed 2026-10-12. Node mods and overlay apps run in the same host, use the same `rednode` package and get the same answers. This also covers most of P2 (the pipe bridge and the Node SDK), and builds what [REDclaude](https://github.com/Edgemodders/REDclaude) needs: live game queries, mod logs and hot reload. O6 has two test gates, O6a and O6b.
+
+**O6a Runtime**
+
+| Piece | How |
+|---|---|
+| Node mods in the host | A Node mod runs in an Electron `utilityProcess`: full Node and npm, outside the game and outside the host's main process |
+| Process per mod, or a shared group | By default each mod gets its own process. The player can put mods in a shared group to save memory: one process, each mod in its own worker thread. A mod author can require its own process with `"isolation": "process"` |
+| Manifest | `rednode-app.json` gets `"main"` for Node code, beside `"entry"` for HTML. A package can have both |
+| One `rednode` package | The same `game` API in both places. Mods `import { game } from "rednode"`. Apps import it from `rednode://sdk/index.js`, through an import map so the import line is the same |
+| Events | `game.on` covers the events the plugin already sees: session attach (main menu and save load) and UI state. Events from hooked game functions stay in P2 |
+| UI builder | `ui.window({ title, children: [ui.button("Apply", onClick)] })` from a Node mod. The host renders it with the UI kit; clicks and changes go back to the mod |
+| Mod logs | `console.log` from a mod goes to `red4ext/logs/rednode-mods.log`, tagged with the mod id. The launcher shows a mod's errors |
+| Hot reload | When a mod's files change, the host restarts that mod and reopens its windows. Always on for developers, a launcher switch for players |
+| Launcher | Lists mods beside apps: on and off, the shared-process switch, the state (running, crashed, not responding) and a restart button |
+| O5 follow-ups | Acknowledge shared frames at once while a window is not drawn. Split the overlay CPU time into its parts (the GPU fence wait, opening shared handles, the rest) and reuse opened shared textures |
+
+**O6b Game API**
+
+| Piece | How |
+|---|---|
+| One generic call | `rtti.call` calls any global function, static function or method by name, after checking the arguments against the game's type data, on the game thread between frames |
+| Values | bool, numbers, CName, String, enums by name, TweakDBID, structs, arrays and Vector4 convert to and from JSON. Other types give an error that names the type |
+| Object references | Game objects come back as `{ $ref, $type }`. The plugin holds them weakly; all are cleared on each session attach |
+| Generated types | TypeScript types generated from `gameapi/2.31/rtti.json` (15,830 classes, about 52,000 functions), so calls are typed. Size and editor speed measured first |
+| Hand-written calls | `player.position` and `audio.play` become thin wrappers over `rtti.call` |
+
+| Risk | Note |
+|---|---|
+| Calling any game function | Type checks catch wrong types, not wrong values. A blocklist of dangerous functions may be needed |
+| Object lifetime | Weak references, cleared on each session attach (unverified that this is enough) |
+| Generated types size | Measured before deciding how to split them |
+| Memory per mod | Measured in the O6a test, for a process per mod and for a shared group |
+
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:
