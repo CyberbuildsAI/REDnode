@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6a Runtime passed in game.** O1 to O6a have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. Next: O6b Game API. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6b Game API built, in-game test pending.** O1 to O6a have all passed; the O4 scene threshold is still open (see the O4 result). O6a runs Node mods in the host beside overlay apps, with one `rednode` package for both. O6b adds `api`: any game function, typed. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -396,6 +396,35 @@ What I read from the logs afterwards: `rednode-overlay.log` (the perf lines with
 | Log times were UTC | Now local time, like the player's clock |
 | Windows hidden with the game's UI lose their texture | A page that does not repaint by itself could stay invisible after a menu closes. The host now repaints every window when the game's UI state changes. Not seen in the test: Coords repaints every half second |
 
+
+### O6b Game API: test
+
+Built 2026-10-12: plugin 0.10.0, host 0.3.0, `rednode` 0.2.0. Checked against a stand-in for the game: the SDK's calls, references and releases (11 checks), and the two samples, which agreed on the values and showed a change made through `GiveItem` in both. The plugin side, where the calls really happen, is new in this test. JSON parsing has 17 unit tests.
+
+| Piece | What it does |
+|---|---|
+| `rtti.call`, `rtti.get`, `rtti.release` in the plugin | Call any game function by name, read a property, drop references. Arguments are checked against the game's types first; a crash inside the call fails the call |
+| `api` in the `rednode` package | The same calls as typed JavaScript: `api.GetPlayer(...)`, `api.GameInstance.GetStatsSystem(...)`, `player.GetEntityID()` |
+| Generated types | `tools/gameapi/types.mjs` turns `gameapi/2.31/rtti.json` into 9 MB of TypeScript: 15,830 classes, 1,524 enums, 802 global functions. It builds in under a second, type-checks in under two, and has no errors even with `skipLibCheck` off. Not committed: the package build generates it |
+| `game` helpers | `player.position`, `audio.play`, and the new `player.getHealth` and `player.setHealth` are built on `api` now |
+| **Vitals** app | A HUD widget under the Coords HUD: V's health, level and money, read through `api` from a web page |
+| **Game API mod** | The same three values from Node, plus **Give 100 eddies**, **Wrong argument type** and **Use the player from before** |
+
+In the game, do these in order, with a 30-second pause after each:
+
+1. Start the game and load a save. **Vitals** sits under the Coords HUD and shows **HP**, **LVL** and **€$**. The **Game API mod** window at the left shows the same three values. Hello mod and Coords still show V's position, now through the generic API.
+2. Compare with the game: HP with the health bar, then open the character screen for the level and the inventory for the money (Vitals hides while a menu is open). Close the menu.
+3. **F10** for interactive mode. In the Game API mod, press **Give 100 eddies**. Both money values go up by 100, and the game may show its own money notification.
+4. Press **Wrong argument type**. The mod shows "Refused, as it should be:" and the reason. Nothing happens in the game.
+5. Press **Use the player from before**. It shows "Still valid" and V's position.
+6. In Hello mod, press **Play sound**: the sound now goes through the generic API.
+7. **Cursor check, carried over from O6a:** open the **Mod log** and switch **Crash mod** on in the launcher. As soon as Crash mod's window appears, click inside it a few times on its text and between its buttons, without pressing a button. The cursor should stay, and interactive mode should not end.
+8. Switch Crash mod off again. Press **F10** until the overlay is hidden, wait 30 seconds, then **F10** back to passive.
+9. Get hurt a little, for example a fall: HP drops in both Vitals and the mod.
+10. Load a different save. Then press **Use the player from before** in the Game API mod: it should now say "that game object no longer exists". The values update for the new save.
+11. Quit the game.
+
+What I read afterwards: `rednode-mods.log` (the mod's calls and errors), the plugin log (any `rtti.call` crash lines), and `rednode-overlay.log` (no "Released ... shared frame(s)" lines while hidden, and no interactive mode ending by itself).
 
 ### UI kit
 
