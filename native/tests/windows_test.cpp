@@ -46,6 +46,11 @@ uint32_t GetUiState()
 {
     return g_uiState;
 }
+uint64_t g_now = 1000;
+uint64_t NowMs()
+{
+    return g_now;
+}
 } // namespace detail
 } // namespace rednode::overlay
 
@@ -245,6 +250,35 @@ int main()
     HandleWindowCommand(R"({"cmd":"window.close","window":2})");
     Check(SentContains(R"("frames":[13])"), "closing a window gives its waiting shared frame back");
     HandleWindowCommand(R"({"cmd":"window.open","window":2,"x":300,"y":200,"width":200,"height":200})");
+
+    // A double-click on a title bar (a drag handle) is sent to the page, to roll the window up.
+    SetMode(Mode::Interactive);
+    HandleWindowCommand(R"({"cmd":"window.open","window":7,"x":1200,"y":100,"width":300,"height":200,"draggable":true})");
+    HandleWindowCommand(R"({"cmd":"window.drag","window":7,"regions":[0,0,300,30]})");
+    SubmitFrame(7, 300, 200, Frame(300, 200));
+    g_sent.clear();
+    OnMouseMove(1250, 110);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(!SentContains("title-dblclick"), "one click on a title bar is not a double-click");
+    g_now += 300;
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(SentContains(R"({"event":"title-dblclick","window":7,"x":50,"y":10})"), "two quick clicks on a title bar are");
+    g_sent.clear();
+    g_now += 300;
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    g_now += 600;
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(!SentContains("title-dblclick"), "two slow clicks are not");
+    g_now += 100;
+    OnMouseMove(1290, 110);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    Check(!SentContains("title-dblclick"), "a second click 40 px away is not");
+    HandleWindowCommand(R"({"cmd":"window.close","window":7})");
 
     // Closing.
     SetMode(Mode::Interactive);

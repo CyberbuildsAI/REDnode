@@ -212,7 +212,13 @@ h1 { margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space:
 .close[hidden] { display: none; }
 .close:hover { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
 .body { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
-footer:empty { display: none; }`,
+footer:empty { display: none; }
+/* Rolled up: only the title bar shows; the rest of the page is transparent and clicks through. */
+:host([rolled]) .body, :host([rolled]) footer { display: none; }
+/* Pages often stretch a window to the page (inset: 0); rolled up it takes only its title's height. */
+:host([rolled]) { bottom: auto !important; height: auto !important; min-height: 0 !important; }
+:host([rolled]) header { border-bottom: 0; }
+:host([rolled]) .mark { background: transparent; box-shadow: inset 0 0 0 2px var(--rn-title-mark); }`,
         `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><button class="close" hidden aria-label="Close">✕</button></header>
 <div class="body" part="body"><slot></slot></div><footer><slot name="footer"></slot></footer>`,
       );
@@ -221,12 +227,51 @@ footer:empty { display: none; }`,
         const ev = new CustomEvent('close', { cancelable: true, bubbles: true, composed: true });
         if (this.dispatchEvent(ev)) this.hidden = true;
       });
-      // Dim the title when the overlay window loses focus.
+      // Dim the title when the overlay window loses focus. A double-click on the
+      // title bar rolls the window up to its title bar; the REDnode plugin sees
+      // presses on drag handles first and reports the double-click.
       window.rednode?.on?.((m) => {
         if (m.event === 'focus') this.classList.toggle('unfocused', !m.focused);
+        if (m.event === 'title-dblclick') {
+          const r = this.$('header').getBoundingClientRect();
+          if (m.x >= r.left && m.x < r.right && m.y >= r.top && m.y < r.bottom) this.toggleRollup();
+        }
+      });
+      // Outside the game (the host's --window mode), a real double-click does the same.
+      this.$('header').addEventListener('dblclick', (e) => {
+        if (!e.target.closest?.('.close')) this.toggleRollup();
       });
     }
-    attributeChangedCallback() {
+    connectedCallback() {
+      this.restoreRollup();
+    }
+    // The saved state is kept per page and title; a title set later (mod windows) restores it then.
+    restoreRollup() {
+      if (this.hasAttribute('no-rollup') || !this.isConnected) return;
+      try {
+        this.toggleAttribute('rolled', localStorage.getItem(this.rollupKey()) === '1');
+      } catch {
+        // storage is a convenience
+      }
+    }
+    rollupKey() {
+      return `rn-rolled:${location.pathname}:${this.getAttribute('title') || ''}`;
+    }
+    /** Rolls the window up to its title bar, or back down. Emits "rollup" with { rolled }. */
+    toggleRollup() {
+      if (this.hasAttribute('no-rollup')) return;
+      const rolled = !this.hasAttribute('rolled');
+      this.toggleAttribute('rolled', rolled);
+      playSound(soundFor(this, 'press'));
+      try {
+        localStorage.setItem(this.rollupKey(), rolled ? '1' : '0');
+      } catch {
+        // storage is a convenience
+      }
+      this.emit('rollup', { rolled });
+    }
+    attributeChangedCallback(name) {
+      if (name === 'title') this.restoreRollup();
       this.$('h1').textContent = this.getAttribute('title') || '';
       const grip = this.$('.grip');
       if (this.bool('draggable')) grip.setAttribute('data-rednode-drag', '');

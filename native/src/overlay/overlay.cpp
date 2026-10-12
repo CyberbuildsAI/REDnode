@@ -83,6 +83,11 @@ void Update(uint64_t aFrame)
     detail::PollGameState(aFrame);
 }
 
+uint64_t detail::NowMs()
+{
+    return GetTickCount64();
+}
+
 void ClearGameRefs()
 {
     detail::ClearRefs();

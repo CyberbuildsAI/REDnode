@@ -591,6 +591,12 @@ function onGameMessage(m) {
       toAllPages(m);
       mods?.broadcast(m);
       return;
+    case 'title-dblclick': {
+      // A double-click on a window's title bar: the page decides (rn-window rolls up).
+      const w = windows.get(m.window);
+      if (w) toPage(w, m);
+      return;
+    }
     case 'repaint': {
       // The game has started drawing and threw away the frames it got before, or
       // shows one window that has nothing to draw yet: send fresh frames.

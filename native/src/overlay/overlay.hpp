@@ -51,6 +51,7 @@ enum class Mode : int
 };
 Mode GetMode();
 void SetMode(Mode aMode);
+uint64_t NowMs(); // a millisecond clock, for double-clicks
 const char* ModeName(Mode aMode);
 
 void Log(const char* aFormat, ...);

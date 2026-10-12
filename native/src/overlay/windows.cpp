@@ -27,6 +27,8 @@
 #include "overlay.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -78,6 +80,12 @@ uint32_t g_hover = 0;
 uint32_t g_capture = 0; // the window that got the mouse press, gets the release
 uint32_t g_dragging = 0;
 float g_dragOffsetX = 0, g_dragOffsetY = 0;
+// The last press on a drag handle, to tell a double-click on a title bar.
+uint32_t g_handleWindow = 0;
+uint64_t g_handleTime = 0;
+float g_handleX = 0, g_handleY = 0;
+constexpr uint64_t DoubleClickMs = 450;
+constexpr float DoubleClickSlop = 6.0f; // reference pixels the cursor may move between the clicks
 std::atomic_bool g_compositorActive{false}; // false until Present is hooked
 float g_mouseX = 0, g_mouseY = 0;
 
@@ -139,6 +147,37 @@ Hit HitTest(float aX, float aY)
         return hit;
     }
     return {};
+}
+
+// Which windows lie under a point, front to back, and what the plugin sees there.
+// Logged on every press in interactive mode, to explain where a click went.
+std::string DescribePoint(float aX, float aY)
+{
+    std::string out;
+    for (auto it = g_windows.rbegin(); it != g_windows.rend(); ++it)
+    {
+        const Window& w = *it;
+        const float lx = aX - w.x;
+        const float ly = aY - w.y;
+        if (!w.placed || lx < 0 || ly < 0 || lx >= float(w.width) || ly >= float(w.height))
+            continue;
+        char buf[160];
+        if (w.alpha.empty())
+        {
+            std::snprintf(buf, sizeof(buf), " %u(%ux%u at %.0f,%.0f: no alpha map%s)", w.id, w.width, w.height, lx, ly,
+                          w.hud ? ", hud" : "");
+        }
+        else
+        {
+            const auto px = std::min(uint32_t(lx), w.alphaWidth - 1);
+            const auto py = std::min(uint32_t(ly), w.alphaHeight - 1);
+            std::snprintf(buf, sizeof(buf), " %u(%ux%u at %.0f,%.0f: alpha %u, map %ux%u%s)", w.id, w.width, w.height,
+                          lx, ly, w.alpha[size_t(py) * w.alphaWidth + px], w.alphaWidth, w.alphaHeight,
+                          w.hud ? ", hud" : "");
+        }
+        out += buf;
+    }
+    return out.empty() ? " none" : out;
 }
 
 void BringToFront(uint32_t aId)
@@ -571,6 +610,8 @@ void OnMouseButton(bool aDown, const char* aButton)
         if (aDown)
         {
             const Hit hit = HitTest(g_mouseX, g_mouseY);
+            Log("Overlay: press at %.0f,%.0f went to window %u; under it:%s", g_mouseX, g_mouseY,
+                hit.window ? hit.window->id : 0u, DescribePoint(g_mouseX, g_mouseY).c_str());
             if (!hit.window)
             {
                 // Empty screen: give input back to the game.
@@ -585,6 +626,26 @@ void OnMouseButton(bool aDown, const char* aButton)
                 SetFocus(actions, id);
                 if (hit.onDragHandle && std::string_view(aButton) == "left")
                 {
+                    // A second press on the same title bar, quickly and in place: a
+                    // double-click, which the page uses to roll the window up.
+                    const uint64_t now = NowMs();
+                    const bool twice = g_handleWindow == id && now - g_handleTime <= DoubleClickMs &&
+                                       std::abs(g_mouseX - g_handleX) <= DoubleClickSlop &&
+                                       std::abs(g_mouseY - g_handleY) <= DoubleClickSlop;
+                    if (twice)
+                    {
+                        g_handleWindow = 0;
+                        Send(actions, "{\"event\":\"title-dblclick\",\"window\":" + std::to_string(id) +
+                                          ",\"x\":" + std::to_string(int(hit.localX)) +
+                                          ",\"y\":" + std::to_string(int(hit.localY)) + "}");
+                    }
+                    else
+                    {
+                        g_handleWindow = id;
+                        g_handleTime = now;
+                        g_handleX = g_mouseX;
+                        g_handleY = g_mouseY;
+                    }
                     g_dragging = id;
                     g_dragOffsetX = g_mouseX - w->x;
                     g_dragOffsetY = g_mouseY - w->y;

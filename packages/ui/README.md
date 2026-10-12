@@ -14,6 +14,10 @@ Status: **phase O2 of the [HTML overlay](../../docs/overlay.md).** Web component
 
 The overlay host serves the kit to every app at `rednode://ui/rednode-ui.js`. It is one plain script with no build step and no dependencies. Working examples: [apps/kit](../overlay/apps/kit/) (every widget) and [apps/native](../overlay/apps/native/) (a borderless, game-style button).
 
+## Rolling windows up
+
+Double-click an `rn-window`'s title bar to roll it up to the title bar, and again to roll it down. Each window remembers its state. In the game the REDnode plugin reports the double-click, because it handles presses on title bars for dragging. The window emits `rollup` with `{ rolled }`; `toggleRollup()` does the same from code, and the `no-rollup` attribute turns it off for a window.
+
 ## Themes
 
 Put `theme="rednode"` (the default), `theme="game"` or `theme="yellow"` on any element. Everything inside it follows.

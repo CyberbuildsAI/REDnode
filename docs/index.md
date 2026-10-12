@@ -21,7 +21,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | P0 Research | RED4ext side done. Cyber Engine Tweaks analysis deferred |
 | P1 Proof | Done. Passed in game on 2026-10-11. See [P1 results](p1-results.md) |
 | HTML overlay | O1 to O6 passed in game: Node mods run beside overlay apps, and `api` calls any game function, typed. Next after REDagent: O7 Display. See [HTML overlay](overlay.md) |
-| REDagent | An in-game assistant, powered by Claude, that writes, runs and fixes REDnode mods with the player. Phase C1, the [kernel MCP server](mcp.md) in this repo, passed in game; Claude Code can use the running game. Next: C2, the chat in the game. Its own repo and design: [Edgemodders/REDagent](https://github.com/Edgemodders/REDagent) |
+| REDagent | An in-game assistant, powered by Claude, that writes, runs and fixes REDnode mods with the player. C1, the [kernel MCP server](mcp.md) in this repo, and C2, the chat in the game, passed in game. Next: C3, authoring. Its own repo and design: [Edgemodders/REDagent](https://github.com/Edgemodders/REDagent) |
 | P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge, the Node SDK and the generated game API. Events from hooked game functions are still to do |
 | P3 Rules | Not started |
 | P4 Tier 1 | Not started |
