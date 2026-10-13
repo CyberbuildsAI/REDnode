@@ -53,6 +53,9 @@
   --rn-title-line: var(--rn-line);
   --rn-title-hover-bg: var(--rn-accent);
   --rn-title-hover-fg: var(--rn-on-accent);
+  /* Scrollbars: thin, a quiet thumb that lights up on hover. */
+  --rn-scroll-thumb: color-mix(in srgb, var(--rn-dim) 40%, transparent);
+  --rn-scroll-thumb-hover: var(--rn-accent-2);
 }
 [theme="game"] {
   --rn-bg: rgba(12, 6, 8, .86);
@@ -82,6 +85,8 @@
   --rn-title-line: var(--rn-line);
   --rn-title-hover-bg: var(--rn-accent);
   --rn-title-hover-fg: var(--rn-on-accent);
+  --rn-scroll-thumb: color-mix(in srgb, var(--rn-accent) 40%, transparent);
+  --rn-scroll-thumb-hover: var(--rn-accent);
 }
 [theme="yellow"] {
   --rn-bg: rgba(8, 9, 13, .9);
@@ -111,7 +116,15 @@
   --rn-title-line: rgba(8, 9, 13, .4);
   --rn-title-hover-bg: #08090d;
   --rn-title-hover-fg: #fcee0a;
-}`;
+  --rn-scroll-thumb: color-mix(in srgb, var(--rn-accent) 45%, transparent);
+  --rn-scroll-thumb-hover: var(--rn-accent);
+}
+/* Every scrollbar on the page, not only those inside the kit's components. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rn-scroll-thumb); }
+::-webkit-scrollbar-thumb:hover { background: var(--rn-scroll-thumb-hover); }
+::-webkit-scrollbar-button { display: none; }`;
 
   function installGlobals() {
     if (document.getElementById('rn-ui-globals')) return;
@@ -147,10 +160,10 @@
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset: 2px; }
 .label { font: 600 12px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim); }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--rn-line); }
-::-webkit-scrollbar-thumb:hover { background: var(--rn-dim); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rn-scroll-thumb); }
+::-webkit-scrollbar-thumb:hover { background: var(--rn-scroll-thumb-hover); }
 ::-webkit-scrollbar-button { display: none; }`;
 
   /** Plays a UI sound through the game, if the app runs in the overlay host. Never throws. */
