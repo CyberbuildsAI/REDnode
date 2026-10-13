@@ -31,6 +31,8 @@ For EDGEbuilder's phase B1 (browse and drop) and B2 (position).
 | Minimum versions: the handler API and targets 1.9.0, `Entity/AfterAttach` 1.14.0. The redscript module is `Codeware`; `Codeware.Require(version)` checks at run time | `git log` of the repo; `scripts/Facade.reds` | REDnode's redscript part needs Codeware 1.14 or later and compiles only when it is installed. The exact `@if(ModuleExists(...))` syntax is redscript's: **to confirm** |
 | No Codeware example spawns an entity with a mesh component attached; the nearest adds a mesh to the player | wiki "Components", "Spawning dynamic entities" | Spawn, attach in `Entity/Initialize`, and the mesh appearing is what the W1 test proves |
 
+**Codeware stays optional** (agreed with the user on 2026-10-13). REDnode itself never needs it: `$new`, `$set` and resource references are plain REDnode plugin code. Only the entity events and `api.spawn` use Codeware. Their redscript part is compiled only when Codeware is installed; without it, those calls fail with a clear message ("needs Codeware 1.14 or later"), and a package that uses them says so with W2's `requires`. Rebuilding Codeware's entity hooks inside REDnode would duplicate a maintained MIT library and risk the two clashing in players' games.
+
 **The test proves:** a mod spawns a crate in front of V, with its mesh set by path, moves it every frame without dropping frames, and removes it; the entity events arrive for it and only it.
 
 ## W2 Packaging
