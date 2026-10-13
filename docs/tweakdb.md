@@ -1,6 +1,6 @@
 # TweakDB API
 
-Status: **planned**, agreed with the user on 2026-10-13 ("We need to do it"). Phases T1 to T3, after W2's in-game test. The decisions below still need the user's OK.
+Status: **planned**, agreed with the user on 2026-10-13 ("We need to do it"). Phases T1 to T3, right after W2's in-game test and before overlay phase O7 Display. The user chose the recommended answers below on 2026-10-13: reads in the plugin, writes through TweakXL, undo per package.
 
 TweakDB is the game's database of tuning data: items, weapons, vehicles, characters, perks, status effects, UI icons. It holds **records** (`Items.Preset_Yinglong_Default`, of a type such as `gamedataWeaponItem_Record`) and **flats**, the single values inside them (`Items.money.quality`). Most gameplay mods change TweakDB.
 
@@ -34,7 +34,7 @@ await tweakdb.batch((b) => {
 });
 ```
 
-| Decision | Recommended | Why |
+| Decision | Decided | Why |
 |---|---|---|
 | How to read | The REDnode plugin reads TweakDB itself, through the RED4ext SDK (`TweakDB::GetFlatValue`, `GetRecord`, `GetRecordsByType`). A flat comes with its own type, so `get` needs no type and converts with REDnode's existing JSON conversion | No dependency for the common case. Faster than one getter call per flat |
 | How to write | Through TweakXL, declared with `"requires": { "tweakxl": ">=1.10" }` (W2) | TweakXL is the maintained standard: it handles record inheritance and the extra flats records need, and its edits work with every other TweakXL mod. The SDK could write too, but REDnode would copy that logic and could clash with TweakXL in players' games, as rebuilding Codeware would have (see [World API](world.md)) |
@@ -62,4 +62,4 @@ await tweakdb.batch((b) => {
 
 ## Order
 
-After W2's in-game test. Its place relative to overlay phase O7 Display is to be agreed with the user.
+Decided with the user on 2026-10-13: right after W2's in-game test, then overlay phase O7 Display.
