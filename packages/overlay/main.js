@@ -482,7 +482,7 @@ function openInGame(w) {
     draggable: m.kind !== 'hud',
   });
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
-  w.win.webContents.invalidate(); // send a full frame now
+  repaint(w.win.webContents); // send a full frame now
 }
 
 function connect() {
@@ -674,7 +674,7 @@ function onGameMessage(m) {
       uiState = next;
       // A window hidden with the game's UI loses its texture in the game. Repaint every
       // window, so one that is shown again gets a frame even if its page is idle.
-      if (changed) for (const w of windows.values()) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
+      if (changed) for (const w of windows.values()) if (!w.win.isDestroyed()) repaint(w.win.webContents);
       toAllPages(m);
       stateChanged();
       return;
@@ -693,7 +693,7 @@ function onGameMessage(m) {
       // The game has started drawing and threw away the frames it got before, or
       // shows one window that has nothing to draw yet: send fresh frames.
       const target = m.window ? [windows.get(m.window)].filter(Boolean) : [...windows.values()];
-      for (const w of target) if (!w.win.isDestroyed()) w.win.webContents.invalidate();
+      for (const w of target) if (!w.win.isDestroyed()) repaint(w.win.webContents);
       return;
     }
     default:
@@ -706,6 +706,21 @@ function onGameMessage(m) {
 
 // Sends a GPU texture handle instead of pixels. The texture stays ours until
 // the game answers frame-done, or a second has passed.
+// Makes a page send a new frame. invalidate() alone sends nothing with GPU sharing
+// when the page has not changed (seen in the C3 test: the launcher and REDagent
+// stayed invisible), so a 1-pixel, almost transparent mark is drawn for two
+// frames. Its alpha is below the plugin's click-through threshold.
+const REPAINT_SCRIPT = `(() => {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;background:rgba(0,0,0,0.01);pointer-events:none;z-index:2147483647';
+  document.documentElement.appendChild(d);
+  requestAnimationFrame(() => requestAnimationFrame(() => d.remove()));
+})()`;
+function repaint(wc) {
+  wc.invalidate();
+  wc.executeJavaScript(REPAINT_SCRIPT, true).catch(() => {});
+}
+
 function sendShared(windowId, texture) {
   const info = texture.textureInfo;
   const handle = info.handle?.ntHandle;

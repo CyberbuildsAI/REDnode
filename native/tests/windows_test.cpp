@@ -134,6 +134,16 @@ int main()
     Check(SentContains(R"("window":1,"type":"mouseMove","x":300,"y":200)"), "transparent pixels click through to the window below");
     Check(SentContains(R"("window":2,"type":"mouseLeave")"), "the window the mouse left gets mouseLeave");
 
+    // A window that has drawn nothing yet (no alpha map) is invisible: it never catches
+    // input meant for the window below it.
+    HandleWindowCommand(R"({"cmd":"window.open","window":4,"x":120,"y":120,"width":100,"height":100})");
+    g_sent.clear();
+    OnMouseMove(150, 150);
+    Check(SentContains(R"("window":1,"type":"mouseMove","x":50,"y":50)") && !SentContains(R"("window":4)"),
+          "a window with nothing drawn lets input through");
+    HandleWindowCommand(R"({"cmd":"window.close","window":4})");
+    OnMouseMove(400, 300);
+
     g_sent.clear();
     OnMouseButton(true, "left");
     Check(SentContains(R"({"event":"focus","window":1})"), "a click focuses the window");

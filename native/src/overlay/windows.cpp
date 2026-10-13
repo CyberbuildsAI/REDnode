@@ -128,7 +128,10 @@ Hit HitTest(float aX, float aY)
         const float ly = aY - w.y;
         if (lx < 0 || ly < 0 || lx >= float(w.width) || ly >= float(w.height))
             continue;
-        if (!w.alpha.empty())
+        // No alpha map yet: nothing of the window has been drawn, so nothing of it can
+        // be clicked. (An invisible window used to catch every click in its rectangle.)
+        if (w.alpha.empty())
+            continue;
         {
             const auto px = std::min(uint32_t(lx), w.alphaWidth - 1);
             const auto py = std::min(uint32_t(ly), w.alphaHeight - 1);

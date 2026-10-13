@@ -170,6 +170,7 @@ struct GpuWindow
     // Alpha readback for click-through on GPU-shared windows.
     ComPtr<ID3D12Resource> readback;
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT readbackFootprint{};
+    UINT64 readbackBytes = 0;     // the copy's size: rows are padded, except the last
     UINT64 readbackFence = 0; // fence value after which the readback holds data
     bool readbackPending = false;
     bool alphaStale = false;      // a frame arrived since the last readback was taken
@@ -816,6 +817,7 @@ void RecordReadback(GpuWindow& aWin)
         const D3D12_RESOURCE_DESC texDesc = aWin.texture->GetDesc();
         UINT64 total = 0;
         g.device->GetCopyableFootprints(&texDesc, 0, 1, 0, &aWin.readbackFootprint, nullptr, nullptr, &total);
+        aWin.readbackBytes = total;
         if (!aWin.readback || aWin.readback->GetDesc().Width < total)
         {
             D3D12_HEAP_PROPERTIES heap{};
@@ -865,8 +867,20 @@ void CollectReadbacks()
             continue;
         w.readbackPending = false;
         uint8_t* data = nullptr;
-        D3D12_RANGE range{0, SIZE_T(w.readbackFootprint.Footprint.RowPitch) * w.readbackFootprint.Footprint.Height};
-        if (SUCCEEDED(w.readback->Map(0, &range, reinterpret_cast<void**>(&data))))
+        // Only the copy's own bytes: RowPitch x Height runs past the end of the buffer
+        // when rows are padded (any width not a multiple of 64), and Map then fails.
+        // Every such window had no alpha map, so its transparent parts caught clicks
+        // (found in the C3 test).
+        D3D12_RANGE range{0, SIZE_T(w.readbackBytes)};
+        const HRESULT hr = w.readback->Map(0, &range, reinterpret_cast<void**>(&data));
+        if (FAILED(hr))
+        {
+            static bool reported = false;
+            if (!reported)
+                Log("Overlay: reading a window's transparency failed (0x%08lX)", static_cast<unsigned long>(hr));
+            reported = true;
+        }
+        else
         {
             SubmitAlpha(w.id, w.readbackFootprint.Footprint.Width, w.readbackFootprint.Footprint.Height,
                         data + w.readbackFootprint.Offset, w.readbackFootprint.Footprint.RowPitch);
