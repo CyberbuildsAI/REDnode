@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 # REDnode's one version, shared by every part, is in VERSION at the repo root
 # (tools/version.mjs sets it). The plugin reports it in its log and to RED4ext.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" REDNODE_VERSION LIMIT_COUNT 1)
+string(STRIP "${REDNODE_VERSION}" REDNODE_VERSION) # a checkout may give it a CR
 project(REDnode VERSION ${REDNODE_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
