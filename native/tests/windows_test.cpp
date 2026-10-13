@@ -206,6 +206,21 @@ int main()
     g_uiState = 0;
     HandleWindowCommand(R"({"cmd":"window.close","window":3})");
 
+    // Pin to HUD: a window that is not on the HUD shows only in interactive mode.
+    HandleWindowCommand(R"({"cmd":"window.open","window":5,"x":10,"y":10,"width":100,"height":100,"onHud":false})");
+    SetMode(Mode::Passive);
+    Check(View(5).id == 0, "a window not pinned to the HUD is hidden during gameplay");
+    SetMode(Mode::Interactive);
+    Check(View(5).id == 5, "and shown while the player interacts");
+    HandleWindowCommand(R"({"cmd":"window.hud","window":5,"onHud":true})");
+    SetMode(Mode::Passive);
+    Check(View(5).id == 5, "pinned to the HUD, it stays during gameplay");
+    HandleWindowCommand(R"({"cmd":"window.open","window":6,"kind":"hud","x":10,"y":10,"width":100,"height":100,"onHud":false})");
+    Check(View(6).id == 6, "a HUD widget is always on the HUD");
+    HandleWindowCommand(R"({"cmd":"window.close","window":5})");
+    HandleWindowCommand(R"({"cmd":"window.close","window":6})");
+    SetMode(Mode::Passive); // as before this block
+
     // Changed rectangles: only the changed part is uploaded, and alpha follows it.
     HandleWindowCommand(R"({"cmd":"window.open","window":4,"x":0,"y":0,"width":100,"height":100})");
     SubmitFrame(4, 100, 100, Frame(100, 100));

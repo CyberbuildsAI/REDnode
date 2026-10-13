@@ -16,6 +16,9 @@
 //      point of the window, so "bottom-right" with x -20 puts the window 20 px from the right edge.
 //      "kind":"hud" makes a window that is drawn but never takes input or focus.
 //      "hideWith":["menu","photo-mode","scene","main-menu"] hides it while the game shows those.
+//      "onHud":false shows it only in interactive mode, not during gameplay (passive mode).
+//      HUD widgets are always on the HUD. Default true.
+//   {"cmd":"window.hud","window":1,"onHud":true}   changes onHud ("Pin to HUD")
 //   {"cmd":"window.drag","window":1,"regions":[x,y,w,h, ...]}   page pixels
 //   {"cmd":"window.close","window":1}
 // Plugin -> host events:
@@ -55,6 +58,7 @@ struct Window
     bool placed = false;              // false until the screen size is known
     bool hud = false;                 // drawn, never takes input or focus
     uint32_t hideWith = 0;            // StateMenu | StatePhotoMode | ... from gamestate.cpp
+    bool onHud = true;                // drawn in passive mode too, not only in interactive mode
     uint32_t width = 0, height = 0;
     bool draggable = true;
     std::vector<DragRegion> dragRegions;
@@ -326,6 +330,7 @@ void HandleWindowCommand(const std::string& aJson)
                 return json::String(aJson, "kind", kind) && kind == "hud";
             }();
             w->draggable = !w->hud && json::Bool(aJson, "draggable", true);
+            w->onHud = w->hud || json::Bool(aJson, "onHud", true);
             w->hideWith = 0;
             for (const auto& [name, bit] : {std::pair{"\"menu\"", StateMenu}, std::pair{"\"photo-mode\"", StatePhotoMode},
                                             std::pair{"\"scene\"", StateScene}, std::pair{"\"main-menu\"", StateMainMenu}})
@@ -336,6 +341,10 @@ void HandleWindowCommand(const std::string& aJson)
             }
             w->placed = false;
             Place(*w, GetScreen());
+        }
+        else if (cmd == "window.hud" && w)
+        {
+            w->onHud = w->hud || json::Bool(aJson, "onHud", true);
         }
         else if (cmd == "window.drag" && w)
         {
@@ -545,9 +554,10 @@ std::vector<WindowView> SnapshotWindows()
     std::vector<WindowView> out;
     out.reserve(g_windows.size());
     const uint32_t state = GetUiState();
+    const bool passive = GetMode() == Mode::Passive;
     for (const auto& w : g_windows)
     {
-        if (w.placed && !(w.hideWith & state))
+        if (w.placed && !(w.hideWith & state) && (w.onHud || !passive))
             out.push_back({w.id, w.x, w.y, w.width, w.height});
     }
     return out;

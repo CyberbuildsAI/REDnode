@@ -55,6 +55,7 @@ const renderArg = arg('render');
 const APP_ROOTS = [
   { dir: path.join(__dirname, 'launcher'), single: true, builtin: true, pinned: true },
   { dir: path.join(__dirname, 'modlog'), single: true, builtin: true },
+  { dir: path.join(__dirname, 'manager'), single: true, builtin: true, manager: true },
   // --apps-dir may list several folders, separated by ";", for example REDnode's
   // examples and another repo's packages during development.
   ...(arg('apps-dir') ?? path.join(__dirname, 'apps'))
@@ -272,13 +273,77 @@ function discoverApps() {
           log(`Skipped ${dir}: app id "${manifest.id}" is already used by ${apps.get(manifest.id).dir}`);
           continue;
         }
-        apps.set(manifest.id, { manifest, dir, builtin: !!root.builtin, pinned: !!root.pinned });
+        apps.set(manifest.id, { manifest, dir, builtin: !!root.builtin, pinned: !!root.pinned, manager: !!root.manager });
       } catch (err) {
         log(`Skipped an app: ${err.message}`);
       }
     }
   }
   log(`Found ${apps.size} app(s): ${[...apps.keys()].join(', ')}`);
+}
+
+// ---------- pins: Pin to launcher and Pin to HUD (O8) ----------
+//
+// Only packages pinned to the launcher are listed there; the Mod Manager lists all.
+// Only windows pinned to the HUD stay on screen during gameplay (passive mode);
+// the others show while the player interacts. The packages installed when O8 first
+// ran keep both pins, so nothing changes for them; packages found later start
+// unpinned and count as new until the Mod Manager lists them. HUD widgets are
+// always on the HUD. (In the code, "pinned" means a built-in that is always open.)
+
+function seedPins() {
+  if (settings.pinsSeeded) return;
+  for (const [id, entry] of apps) {
+    if (entry.manager) continue; // new with O8 itself
+    settings.apps[id] = { inLauncher: true, onHud: true, seen: true, ...settings.apps[id] };
+  }
+  settings.pinsSeeded = true;
+  writeJson('settings.json', settings);
+}
+
+const isInLauncher = (entry) => entry.builtin || !!settings.apps[entry.manifest.id]?.inLauncher;
+const isOnHud = (entry) => entry.pinned || entry.manifest.kind === 'hud' || !!settings.apps[entry.manifest.id]?.onHud;
+const isNew = (entry) => !entry.builtin && !settings.apps[entry.manifest.id]?.seen;
+
+// The package a window belongs to: its app, or for a mod's window, the mod.
+function ownerOf(w) {
+  if (w.app.built) return apps.get(built.get(w.app.built)?.modId);
+  return apps.get(w.app.manifest.id);
+}
+function windowOnHud(w) {
+  if (w.app.pinned || w.app.manifest.kind === 'hud') return true;
+  const owner = ownerOf(w);
+  return owner ? isOnHud(owner) : true;
+}
+
+function setPin(id, where, on) {
+  const entry = apps.get(id);
+  if (!entry || entry.pinned) throw new Error(`No app or mod "${id}"`);
+  if (where !== 'launcher' && where !== 'hud') throw new Error('A pin is "launcher" or "hud"');
+  if (where === 'launcher' && entry.builtin) return; // built-ins are always in the launcher
+  settings.apps[id] = { ...settings.apps[id], [where === 'launcher' ? 'inLauncher' : 'onHud']: !!on, seen: true };
+  writeJson('settings.json', settings);
+  if (where === 'hud') {
+    for (const w of windows.values()) {
+      if (ownerOf(w) === entry) sendJson({ cmd: 'window.hud', window: w.id, onHud: windowOnHud(w) });
+    }
+  }
+  log(`${on ? 'Pinned' : 'Unpinned'} ${id} ${on ? 'to' : 'from'} the ${where === 'hud' ? 'HUD' : 'launcher'}`);
+  notifyLauncher();
+}
+
+function markSeen(ids) {
+  let changed = false;
+  for (const id of ids) {
+    const entry = apps.get(id);
+    if (!entry || !isNew(entry)) continue;
+    settings.apps[id] = { ...settings.apps[id], seen: true };
+    changed = true;
+  }
+  if (changed) {
+    writeJson('settings.json', settings);
+    notifyLauncher();
+  }
 }
 
 // ---------- packages added, changed or removed while the host runs ----------
@@ -480,6 +545,7 @@ function openInGame(w) {
     kind: m.kind,
     hideWith: m.hideWith,
     draggable: m.kind !== 'hud',
+    onHud: windowOnHud(w),
   });
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
   repaint(w.win.webContents); // send a full frame now
@@ -668,6 +734,8 @@ function onGameMessage(m) {
       mode = m.mode;
       log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
       if (mode !== 'interactive') onFocus(0);
+      // Windows not pinned to the HUD appear and disappear with the mode: give them a frame.
+      if (m.event === 'overlay') for (const w of windows.values()) if (!w.win.isDestroyed()) repaint(w.win.webContents);
       toAllPages(m);
       stateChanged();
       return;
@@ -859,7 +927,7 @@ ipcMain.on('rednode:drag-regions', (event, regions) => {
 
 function fromLauncher(event) {
   const w = windowFor(event.sender);
-  if (!w?.app.pinned) throw new Error('Only the REDnode launcher can manage apps');
+  if (!w?.app.pinned && !w?.app.manager) throw new Error('Only the REDnode launcher and Mod Manager can manage apps');
 }
 
 function isEnabled(entry) {
@@ -883,6 +951,10 @@ function appList() {
         builtin: entry.builtin,
         app: !!m.entry,
         open: isEnabled(entry),
+        inLauncher: isInLauncher(entry),
+        onHud: isOnHud(entry),
+        isNew: isNew(entry),
+        manager: !!entry.manager,
         mod: m.main ? mods.info(m.id, metrics) : null,
         closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
         permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
@@ -911,6 +983,18 @@ function setPackageOpen(id, open) {
 ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   fromLauncher(event);
   setPackageOpen(id, open);
+  return appList();
+});
+
+ipcMain.handle('rednode:apps:pin', (event, id, where, on) => {
+  fromLauncher(event);
+  setPin(id, where, on);
+  return appList();
+});
+
+ipcMain.handle('rednode:apps:seen', (event, ids) => {
+  fromLauncher(event);
+  markSeen(Array.isArray(ids) ? ids.map(String) : []);
   return appList();
 });
 
@@ -1111,6 +1195,7 @@ function mcpHost() {
           .map((w) => w.app.manifest.id),
       })),
     setOpen: setPackageOpen,
+    setPin,
     captureGame,
     restart: (id) => {
       if (!mods.has(id)) throw new Error(`No mod "${id}"`);
@@ -1204,7 +1289,7 @@ function notifyLauncher() {
   launcherQueued = true;
   setImmediate(() => {
     launcherQueued = false;
-    for (const w of windows.values()) if (w.app.pinned) toPage(w, { event: 'apps' });
+    for (const w of windows.values()) if (w.app.pinned || w.app.manager) toPage(w, { event: 'apps' });
   });
 }
 
@@ -1450,6 +1535,7 @@ app.whenReady().then(() => {
     if (n) log(`Released ${n} shared frame(s) the game did not answer`);
   }, 500);
   discoverApps();
+  seedPins();
   // A token is made once and kept, so Claude Code's saved setup keeps working.
   if (!settings.mcp?.token) {
     settings.mcp = { ...settings.mcp, token: crypto.randomBytes(24).toString('base64url') };

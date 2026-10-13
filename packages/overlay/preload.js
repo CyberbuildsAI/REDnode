@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('rednode', {
   state: () => ipcRenderer.invoke('rednode:state'),
   /** Closes this app, as switching it off in the launcher does. The UI kit's window close button uses it. */
   close: () => ipcRenderer.send('rednode:app:close'),
-  /** Installed apps and mods. Only the built-in REDnode launcher may use these; other apps get an error. */
+  /** Installed apps and mods. Only the built-in launcher and Mod Manager may use these; other apps get an error. */
   apps: {
     list: () => ipcRenderer.invoke('rednode:apps:list'),
     setOpen: (id, open) => ipcRenderer.invoke('rednode:apps:set-open', id, open),
@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('rednode', {
     setShared: (id, shared) => ipcRenderer.invoke('rednode:mods:set-shared', id, shared),
     /** Restarts a Node mod. */
     restart: (id) => ipcRenderer.invoke('rednode:mods:restart', id),
+    /** Pins a package to the launcher (where "launcher") or its windows to the HUD (where "hud"), or unpins it. */
+    pin: (id, where, on) => ipcRenderer.invoke('rednode:apps:pin', id, where, on),
+    /** Marks packages as seen in the Mod Manager, so they no longer count as new. */
+    seen: (ids) => ipcRenderer.invoke('rednode:apps:seen', ids),
     /** Shows a Node mod's window that the player closed. */
     showWindow: (id, win) => ipcRenderer.invoke('rednode:apps:show-window', id, win),
     /** Gets the render path, or sets it to 'gpu' (GPU sharing) or 'cpu'. */

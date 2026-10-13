@@ -186,7 +186,16 @@ async function refresh() {
     $('hot').checked = await window.rednode.apps.hotReload();
     showTheme(await window.rednode.apps.theme());
     $('mcp').checked = await window.rednode.apps.mcp();
-    const items = await window.rednode.apps.list();
+    const all = await window.rednode.apps.list();
+    // Only packages pinned to the launcher, the Mod Manager first; a crashed one shows
+    // even unpinned, so an error never hides. The Mod Manager lists everything.
+    const items = all
+      .filter((i) => i.manager || i.inLauncher || i.mod?.status === 'crashed')
+      .sort((a, b) => Number(b.manager) - Number(a.manager));
+    const hidden = all.length - items.length;
+    const fresh = all.filter((i) => i.isNew).length;
+    $('more').hidden = !hidden && !fresh;
+    $('more-text').textContent = [hidden && `${hidden} more in the Mod Manager`, fresh && `${fresh} new`].filter(Boolean).join(' · ');
     const list = $('apps');
     const seen = new Set();
     for (const item of items) {
@@ -207,11 +216,13 @@ async function refresh() {
     const order = items.map((i) => rows.get(i.id).root);
     if (order.some((r, i) => list.children[i] !== r)) list.replaceChildren(...order);
     if (!items.length) list.innerHTML = '<p class="empty">Nothing installed.</p>';
-    $('count').textContent = `· ${items.filter((a) => a.open).length}/${items.length}`;
+    $('count').textContent = `· ${all.filter((a) => a.open).length}/${all.length}`;
   } finally {
     refreshing = false;
   }
 }
+
+$('more-open').addEventListener('click', () => act('Mod Manager', () => window.rednode.apps.setOpen('modmanager', true)));
 
 $('toggle').addEventListener('click', () => {
   panel.hidden = !panel.hidden;

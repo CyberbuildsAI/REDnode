@@ -70,10 +70,13 @@ function createMcp(host) {
         title: 'Apps and mods',
         description:
           'Lists the installed overlay apps and Node mods: open or running, a mod\'s state (running, crashed, not-responding), process and memory, and its last error. ' +
-          'With action open, close or restart, changes one, as the launcher does. Window ids for window_text and window_image are listed too.',
+          'With an action, opens, closes or restarts one, or pins it to the launcher or the HUD, as the launcher and Mod Manager do. Window ids for window_text and window_image are listed too.',
         inputSchema: {
-          action: z.enum(['list', 'open', 'close', 'restart']).optional().describe('Default list'),
-          id: z.string().optional().describe('The app or mod id, for open, close and restart'),
+          action: z
+            .enum(['list', 'open', 'close', 'restart', 'pin-launcher', 'unpin-launcher', 'pin-hud', 'unpin-hud'])
+            .optional()
+            .describe('Default list. pin-launcher lists a package in the launcher; pin-hud keeps its windows on screen during gameplay'),
+          id: z.string().optional().describe('The app or mod id, for every action but list'),
         },
         annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       },
@@ -82,7 +85,9 @@ function createMcp(host) {
           if (!id) return fail(`${action} needs an id`);
           try {
             if (action === 'restart') host.restart(id);
-            else host.setOpen(id, action === 'open');
+            else if (action.endsWith('-launcher') || action.endsWith('-hud')) {
+              host.setPin(id, action.endsWith('-hud') ? 'hud' : 'launcher', action.startsWith('pin'));
+            } else host.setOpen(id, action === 'open');
           } catch (err) {
             return fail(err.message);
           }

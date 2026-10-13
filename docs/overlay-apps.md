@@ -14,6 +14,15 @@ Status: **developer preview.** See the [overlay design](overlay.md) for how it w
 
 In the game, **F10** cycles three modes: passive (your window is drawn, the game gets input), interactive (your window gets input) and hidden. **Esc**, or a click on empty screen, returns input to the game.
 
+The player decides where your package shows, in the built-in **Mod Manager** (opened from the launcher):
+
+| Pin | What it means |
+|---|---|
+| **Pin to launcher** | Your package is listed in the launcher. Every package is listed in the Mod Manager anyway |
+| **Pin to HUD** | Your windows stay on screen during gameplay (passive mode). Unpinned, they show only while the player interacts (F10). HUD widgets are always on the HUD |
+
+A package installed after REDnode 0.14.0 starts with neither pin, and the launcher counts it as new until the player has seen it in the Mod Manager. Tell your players to pin it if it should stay on screen.
+
 ## Your first app
 
 An app is a folder with a manifest and a page. Put it in the apps folder: `packages/overlay/apps/` in the repo, or `red4ext/plugins/REDnode/apps/` in the game folder.
@@ -64,7 +73,7 @@ An app is a folder with a manifest and a page. Put it in the apps folder: `packa
 </html>
 ```
 
-Start the game, press F10, open the **REDNODE** launcher tab at the lower left and switch **Hello Night City** on. Load a save and click the button. All manifest fields are listed in the [overlay host README](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay#apps-and-manifests).
+Start the game, press F10, open the **REDNODE** launcher tab at the lower left, open the **Mod Manager**, find **Hello Night City** and switch it on (pin it to the launcher to find it there next time). Load a save and click the button. All manifest fields are listed in the [overlay host README](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay#apps-and-manifests).
 
 | Rule | Why |
 |---|---|

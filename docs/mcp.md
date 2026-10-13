@@ -21,7 +21,7 @@ The server listens only on `127.0.0.1`, port 41820, and every request needs the 
 | Tool | Gives | Changes anything |
 |---|---|---|
 | `logs` | What Node mods printed, newest last: all, one mod, or errors only. The same lines as the Mod log app | No |
-| `apps` | The installed apps and mods: open or running, a mod's state, process, memory and last error, and its window ids. With `open`, `close` or `restart`, changes one as the launcher does | Only with an action |
+| `apps` | The installed apps and mods: open or running, a mod's state, process, memory and last error, its pins, and its window ids. With `open`, `close` or `restart`, changes one as the launcher does; with `pin-launcher`, `unpin-launcher`, `pin-hud` or `unpin-hud`, pins it as the Mod Manager does | Only with an action |
 | `game_state` | Whether REDnode is linked to the game, what the game shows (menu, photo mode, scene, main menu), the overlay mode | No |
 | `perf` | The game's frame rate, the overlay's cost per frame, the host's memory and each mod process's memory | No |
 | `gameapi_lookup` | Game types and functions with the TypeScript signatures `api` uses, and REDnode's notes. An exact name (`StatsSystem` or `gameStatsSystem`) gives the declaration; part of a name searches | No |

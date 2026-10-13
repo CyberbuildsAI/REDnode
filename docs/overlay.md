@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6 One runtime passed in game.** O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDagent, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6 One runtime passed in game. O8 Mod Manager is built; its in-game test is pending** ([steps](#o8-mod-manager-test)). O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDagent, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -459,6 +459,32 @@ Agreed with the user on 2026-10-13, to come after REDagent's C4 test and before 
 | For agents | The kernel MCP server's `apps` tool gains the pins, so REDagent can pin a package it made |
 
 No new game API is needed: the host already has the package list, status and memory the launcher shows.
+
+Decided with the user on 2026-10-13: packages installed when O8 first runs keep both pins (nothing changes for them); packages found later start with neither.
+
+### O8 Mod Manager: built
+
+| Piece | Where |
+|---|---|
+| Mod Manager | `packages/overlay/manager/`, a built-in app (`modmanager`). A table of every package, 14 rows a page: pins (L, H), name with a NEW badge, kind, status, memory, version, author. Search (name, id, author, description), kind and state filters (on, off, errors, new), sorting by any column, a details panel (switches, permissions, Show for closed windows, last error, last lines), and bulk actions on ticked rows. Its own close button closes it |
+| Pins | The host keeps `inLauncher`, `onHud` and `seen` per package in `settings.json`. The first start seeds every package already installed with both pins (`pinsSeeded`). `rednode:apps:pin` and `rednode:apps:seen` for the launcher and the Mod Manager; the MCP `apps` tool gains `pin-launcher`, `unpin-launcher`, `pin-hud` and `unpin-hud` |
+| Launcher | Lists the Mod Manager first, then packages pinned to it, and any crashed package. A line above the list says how many more are in the Mod Manager and how many are new, with **Open** |
+| Plugin 0.14.0 | `window.open` takes `onHud`, and `window.hud` changes it. A window not on the HUD is left out of the drawn windows in passive mode. The host repaints every window when the mode changes, so one that appears has a frame |
+
+Tested in the mock game with 35 dummy packages: the first start seeded the 46 packages then installed with both pins; 5 added later showed as new and unpinned, and the launcher said "5 more in the Mod Manager · 5 new". Opening the Mod Manager cleared "new" in the launcher. The New filter listed the five; pinning one to the launcher listed it there. Search found the Hello mod, and its Pin to HUD switch sent `window.hud` to the plugin. The plugin's hiding rule has unit tests.
+
+### O8 Mod Manager: test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Every package you had is still in the launcher, and the Hello mod still shows during gameplay. Mark.
+2. F10, open the launcher: **Mod Manager** is first. Switch it on. Mark.
+3. In the Mod Manager: sort by a column, search "hello", try the filters, and page through with **Next**. Mark.
+4. Select the Hello mod. Switch **Pin to HUD** off, press F10 until passive: the Hello mod window disappears; F10 to interactive: it is back. Pin it again. Mark.
+5. Unpin something from the launcher in the table (**L**): it leaves the launcher, which now says "1 more in the Mod Manager". Pin it back. Mark.
+6. Tick two or three rows and use a bulk action, such as **Off** then **On**. Mark.
+7. Ask REDagent to make a small new app. When it appears, the launcher says "1 new"; open the Mod Manager and find it with the **New** filter. Mark.
+8. Close the Mod Manager with its close button: the launcher shows it off. Quit the game.
 
 ### UI kit
 

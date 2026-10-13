@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mod Manager</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  html, body { margin: 0; width: 980px; height: 600px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 0; }
+  [hidden] { display: none !important; }
+  .status { font: 11px var(--rn-mono); letter-spacing: .08em; color: var(--rn-dim); }
+
+  /* Search, filters and paging */
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar rn-input { width: 240px; }
+  .chips { display: flex; gap: 4px; }
+  .chip { font: 600 11px var(--rn-mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+    padding: 4px 8px; color: var(--rn-dim); border: 1px solid var(--rn-line); background: transparent; }
+  .chip:hover { color: var(--rn-fg); }
+  .chip.on { color: var(--rn-on-accent); background: var(--rn-accent); border-color: var(--rn-accent); }
+  .spacer { flex: 1; }
+  .pages { display: flex; align-items: center; gap: 6px; font: 11px var(--rn-mono); color: var(--rn-dim); }
+  rn-button::part(button) { min-height: 24px; padding: 2px 9px; font-size: 11px; }
+
+  /* The table and the details beside it */
+  .main { flex: 1; min-height: 0; display: flex; gap: 12px; }
+  .table-wrap { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--rn-line); background: var(--rn-panel); }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+  th { position: sticky; top: 0; z-index: 1; background: var(--rn-panel-2); text-align: left; padding: 6px 8px;
+    font: 600 10px var(--rn-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--rn-dim);
+    border-bottom: 1px solid var(--rn-line); white-space: nowrap; cursor: pointer; user-select: none; }
+  th.sorted { color: var(--rn-accent); }
+  th.nosort { cursor: default; }
+  td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--rn-line) 60%, transparent);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr { cursor: pointer; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--rn-accent-2) 6%, transparent); }
+  tr.selected td { background: color-mix(in srgb, var(--rn-accent) 12%, transparent); }
+  td.name b { font-weight: 600; }
+  td .new { margin-left: 6px; font: 700 9px var(--rn-mono); letter-spacing: .1em; color: var(--rn-on-accent); background: var(--rn-accent); padding: 1px 4px; }
+  td.dim, .dim { color: var(--rn-dim); }
+  td.mono { font: 12px var(--rn-mono); }
+  .st-running, .st-open { color: var(--rn-ok); }
+  .st-crashed, .st-not-responding { color: var(--rn-danger); }
+  .st-starting { color: var(--rn-accent-2); }
+  .st-off, .st-stopped { color: var(--rn-dim); }
+  .pin { width: 22px; height: 20px; padding: 0; border: 1px solid var(--rn-line); background: transparent; color: var(--rn-dim);
+    font: 700 10px var(--rn-mono); cursor: pointer; }
+  .pin.on { border-color: var(--rn-accent); color: var(--rn-accent); background: color-mix(in srgb, var(--rn-accent) 12%, transparent); }
+  .pin:disabled { opacity: .35; cursor: default; }
+  input[type=checkbox] { accent-color: var(--rn-accent); margin: 0; cursor: pointer; }
+  .empty { padding: 16px; color: var(--rn-dim); }
+
+  .bulk { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border: 1px dashed var(--rn-line);
+    font: 11px var(--rn-mono); color: var(--rn-dim); }
+
+  .details { width: 260px; flex: none; overflow-x: hidden; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+    padding: 10px 12px; border: 1px solid var(--rn-line); background: var(--rn-panel); }
+  .details h2 { margin: 0; font: 700 16px var(--rn-display); letter-spacing: .06em; text-transform: uppercase; color: var(--rn-accent); overflow-wrap: anywhere; }
+  .details .meta { font: 11px var(--rn-mono); color: var(--rn-dim); overflow-wrap: anywhere; }
+  .details .desc { font-size: 14px; line-height: 1.4; }
+  .details .section { font: 600 10px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim);
+    border-top: 1px solid var(--rn-line); padding-top: 8px; }
+  .details .err { font: 11px/1.35 var(--rn-mono); color: var(--rn-danger); white-space: pre-wrap; word-break: break-word; }
+  .details .log { font: 11px/1.35 var(--rn-mono); color: var(--rn-dim); white-space: pre-wrap; word-break: break-word; }
+  .details .perm { font-size: 13px; }
+  .details .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <rn-window title="Mod Manager" draggable closable>
+    <span class="status" slot="status" id="summary"></span>
+    <div class="bar">
+      <rn-input id="search" placeholder="Search name, id, author..."></rn-input>
+      <div class="chips" id="kinds"></div>
+      <div class="chips" id="states"></div>
+      <span class="spacer"></span>
+      <div class="pages"><span id="range"></span><rn-button id="prev" variant="ghost">Prev</rn-button><rn-button id="next" variant="ghost">Next</rn-button></div>
+    </div>
+    <div class="bulk" id="bulk" hidden>
+      <span id="bulk-count"></span>
+      <rn-button data-bulk="on" variant="ghost">On</rn-button>
+      <rn-button data-bulk="off" variant="ghost">Off</rn-button>
+      <rn-button data-bulk="launcher" variant="ghost">Pin to launcher</rn-button>
+      <rn-button data-bulk="unlauncher" variant="ghost">Unpin from launcher</rn-button>
+      <rn-button data-bulk="hud" variant="ghost">Pin to HUD</rn-button>
+      <rn-button data-bulk="unhud" variant="ghost">Unpin from HUD</rn-button>
+      <rn-button data-bulk="shared" variant="ghost">Shared process</rn-button>
+      <rn-button data-bulk="own" variant="ghost">Own process</rn-button>
+      <span class="spacer"></span>
+      <rn-button data-bulk="clear" variant="ghost">Clear</rn-button>
+    </div>
+    <div class="main">
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col style="width:28px"><col style="width:30px"><col style="width:30px"><col>
+            <col style="width:88px"><col style="width:96px"><col style="width:58px"><col style="width:60px"><col style="width:96px">
+          </colgroup>
+          <thead><tr id="head"></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>No package matches.</div>
+      </div>
+      <div class="details" id="details"><div class="dim">Select a package to see its details.</div></div>
+    </div>
+  </rn-window>
+<script src="app.js"></script>
+</body>
+</html>

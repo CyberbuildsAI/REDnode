@@ -40,6 +40,9 @@
   .st-crashed, .st-not-responding { color: var(--rn-danger); }
   .controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .err { font: 11px/1.35 var(--rn-mono); color: var(--rn-danger); white-space: pre-wrap; word-break: break-word; }
+  .more { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; margin-bottom: 8px;
+    font: 11px var(--rn-mono); color: var(--rn-dim); border: 1px dashed var(--rn-line); }
+  .more rn-button::part(button) { min-height: 22px; padding: 2px 8px; font-size: 11px; }
   .closed-line { display: flex; align-items: center; gap: 8px; font: 11px var(--rn-mono); color: var(--rn-dim); }
   .closed-line rn-button::part(button) { min-height: 22px; padding: 2px 8px; font-size: 11px; }
   .log { font: 11px/1.35 var(--rn-mono); color: var(--rn-dim); white-space: pre-wrap; word-break: break-word;
@@ -54,6 +57,7 @@
   <div class="dock">
     <rn-window id="panel" title="REDnode apps and mods" hidden>
       <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
+      <div class="more" id="more" hidden><span id="more-text"></span><rn-button id="more-open" variant="ghost">Open</rn-button></div>
       <div id="apps"><p class="empty">Looking for apps...</p></div>
       <div slot="footer" class="footer">
         <div class="switches">
