@@ -18,6 +18,8 @@ The overlay host serves the kit to every app at `rednode://ui/rednode-ui.js`. It
 
 Double-click an `rn-window`'s title bar to roll it up to the title bar, and again to roll it down. Each window remembers its state. In the game the REDnode plugin reports the double-click, because it handles presses on title bars for dragging. The window emits `rollup` with `{ rolled }`; `toggleRollup()` does the same from code, and the `no-rollup` attribute turns it off for a window.
 
+In Developer mode (the launcher's switch), every `rn-window` shows a debug button next to close. It opens the debugger for that window: Chromium's DevTools for the page, or the Node debugger for a mod window whose mod runs with the debugger. `no-debug` hides it for a window.
+
 ## Themes
 
 Put `theme="rednode"` (the default), `theme="game"` or `theme="yellow"` on any element. Everything inside it follows.
@@ -36,7 +38,7 @@ Themes are CSS custom properties, so an app can adjust one: `--rn-bg`, `--rn-pan
 
 | Element | Attributes | Events (`detail`) |
 |---|---|---|
-| `rn-window` | `title`, `draggable` (title area becomes the drag handle), `closable`. Slots: default, `status` (right of the title), `footer` | `close` (cancelable; hides the window unless cancelled) |
+| `rn-window` | `title`, `draggable` (title area becomes the drag handle), `closable`, `no-debug` (no debug button in Developer mode). Slots: default, `status` (right of the title), `footer` | `close` (cancelable; hides the window unless cancelled) |
 | `rn-panel` | `title` | |
 | `rn-button` | `variant`: `ghost` or `danger`; `disabled`; `sound`, `hover-sound` | normal `click` |
 | `rn-toggle` | `label`, `checked`, `disabled`, `sound` | `change` (`{ checked }`) |

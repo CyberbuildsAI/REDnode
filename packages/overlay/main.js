@@ -922,7 +922,7 @@ function modLogFile() {
 }
 
 function hostState() {
-  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme() };
+  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer };
 }
 
 ipcMain.handle('rednode:call', (_event, method, params) => bridgeCall(method, params));
@@ -932,7 +932,7 @@ ipcMain.handle('rednode:state', () => hostState());
 // Drag handles reported by preload.js: flat [x, y, w, h, ...] in page pixels.
 ipcMain.on('rednode:drag-regions', (event, regions) => {
   const w = windowFor(event.sender);
-  if (!w || !Array.isArray(regions) || w.app.debugTarget) return; // the debugger's title bar is the host's
+  if (!w || !Array.isArray(regions) || w.app.debugger) return; // the debugger's title bar is the host's
   w.dragRegions = regions.map((n) => Math.round(Number(n) || 0));
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
 });
@@ -1013,7 +1013,7 @@ const DEBUGGER_BAR = 30; // the title bar the host adds above DevTools, in page 
 // The windows of a package: its app window and its mod windows, never debuggers.
 function windowsOfPackage(id) {
   return [...windows.values()].filter(
-    (w) => !w.app.debugTarget && (w.app.manifest.id === id || w.app.manifest.id.startsWith(`${id}~`)),
+    (w) => !w.app.debugger && (w.app.manifest.id === id || w.app.manifest.id.startsWith(`${id}~`)),
   );
 }
 
@@ -1035,14 +1035,123 @@ function openDebugger(target, where) {
     },
     dir: __dirname,
     builtin: true,
+    debugger: true,
     debugTarget: target.id,
   });
 }
 
+// ---------- Node mod debugging ----------
+//
+// A mod with its Debug switch on runs alone with Node's inspector (mods.js). Its DevTools
+// is Chromium's own Node front end, loaded from the devtools:// scheme Electron serves.
+
+function nodeDevToolsUrl(inspector) {
+  return `devtools://devtools/bundled/js_app.html?ws=${encodeURIComponent(inspector.replace(/^ws:\/\//, ''))}`;
+}
+
+const nodeDebuggerKey = (id) => `debugger~node~${id}`;
+
+function openNodeDebugger(id, where) {
+  const info = mods.has(id) ? mods.info(id, []) : null;
+  if (!info?.inspector) throw new Error(`"${id}" is not running with the debugger. Turn its Debug switch on first.`);
+  const name = apps.get(id)?.manifest.name ?? id;
+  if (where === 'desktop' && !windowed) {
+    // A normal window on the desktop, shown without taking focus from the game.
+    const win = new BrowserWindow({
+      width: 1000,
+      height: 640,
+      show: false,
+      title: `Node debugger: ${name}`,
+      backgroundColor: '#08090d',
+      // preload.js hides Node's "internal" console context here too.
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },
+    });
+    win.loadURL(nodeDevToolsUrl(info.inspector));
+    win.once('ready-to-show', () => win.showInactive());
+    log(`Node debugger for ${id} opened on the desktop`);
+    return;
+  }
+  const key = nodeDebuggerKey(id);
+  const open = windowOfApp(key);
+  if (open && open.app.inspector === info.inspector) return;
+  if (open) closeApp(key); // the mod restarted: its inspector has a new address
+  openApp({
+    manifest: {
+      id: key, name: `Node debugger: ${name}`, entry: 'devtools', kind: 'window', width: 1000, height: 620,
+      anchor: 'center', x: 0, y: 0, hideWith: [], permissions: [], provides: [],
+    },
+    dir: __dirname,
+    builtin: true,
+    debugger: true,
+    inspector: info.inspector,
+  });
+  log(`Node debugger for ${id} opened in the game`);
+}
+
+// A restarted mod has a new inspector address: its in-game debugger follows it, and
+// closes when the Debug switch goes off.
+function syncNodeDebuggers() {
+  for (const w of [...windows.values()]) {
+    if (!w.app.inspector) continue;
+    const id = w.app.manifest.id.slice('debugger~node~'.length);
+    const info = mods.has(id) ? mods.info(id, []) : null;
+    if (!info?.debug) closeApp(w.app.manifest.id);
+    else if (info.inspector && info.inspector !== w.app.inspector) openNodeDebugger(id, 'overlay');
+  }
+}
+
+ipcMain.handle('rednode:mods:debug', (event, id, on) => {
+  fromLauncher(event);
+  if (!mods.has(id)) throw new Error(`No mod "${id}"`);
+  mods.setDebug(id, !!on);
+  if (!on) closeApp(nodeDebuggerKey(id));
+  return appList();
+});
+
+ipcMain.handle('rednode:mods:inspect', (event, id, where) => {
+  fromLauncher(event);
+  openNodeDebugger(String(id), where === 'desktop' ? 'desktop' : 'overlay');
+  return true;
+});
+
+ipcMain.handle('rednode:mods:copy-inspector', (event, id) => {
+  fromLauncher(event);
+  const inspector = mods.has(id) ? mods.info(id, []).inspector : null;
+  if (!inspector) throw new Error(`"${id}" is not running with the debugger`);
+  clipboard.writeText(inspector);
+  return inspector;
+});
+
+// ---------- Developer mode ----------
+//
+// Off by default. On, every rn-window title bar shows a debug button next to close.
+
+ipcMain.handle('rednode:host:developer', (event, on) => {
+  fromLauncher(event);
+  if (typeof on === 'boolean' && on !== !!settings.developer) {
+    settings.developer = on;
+    writeJson('settings.json', settings);
+    log(`Developer mode: ${on ? 'on' : 'off'}`);
+    toAllPages({ event: 'developer', on });
+  }
+  return !!settings.developer;
+});
+
+// A window's own debug button: the Node debugger for a mod window whose mod runs with
+// the debugger, otherwise Chromium's DevTools for the page.
+ipcMain.handle('rednode:app:debug', (event) => {
+  if (!settings.developer) throw new Error('Developer mode is off');
+  const w = windowFor(event.sender);
+  if (!w || w.app.debugger) return false;
+  const modId = w.app.built ? built.get(w.app.built)?.modId : null;
+  if (modId && mods.has(modId) && mods.info(modId, []).inspector) openNodeDebugger(modId, 'overlay');
+  else openDebugger(w, 'overlay');
+  return true;
+});
+
 // DevTools runs in the debugger window's own page: the main page of an off-screen
 // window is what REDnode draws and sends input to. (A webview inside a page, as in
 // Electron's example, painted once and took no input off screen: found in the mock.)
-// The host adds a REDnode title bar above it, with a close button and a drag area.
 function attachDevTools(w) {
   const target = windows.get(w.app.debugTarget);
   if (!target || target.win.isDestroyed()) return;
@@ -1050,6 +1159,12 @@ function attachDevTools(w) {
   target.win.webContents.setDevToolsWebContents(wc);
   // Undocked: DevTools fills the view, instead of leaving room for a page beside it.
   target.win.webContents.openDevTools({ mode: 'detach', activate: false });
+  dressDebugger(w);
+}
+
+// The REDnode title bar above a DevTools page, with a close button and a drag area.
+function dressDebugger(w) {
+  const wc = w.win.webContents;
   w.dragRegions = [0, 0, w.app.manifest.width - DEBUGGER_BAR - 8, DEBUGGER_BAR];
   if (connected) sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
   wc.on('dom-ready', () => {
@@ -1121,7 +1236,7 @@ ipcMain.handle('rednode:apps:show-window', (event, id, win) => {
 // An app's own close button: the same as switching it off in the launcher.
 ipcMain.on('rednode:app:close', (event) => {
   const w = windowFor(event.sender);
-  if (w?.app.debugTarget) {
+  if (w?.app.debugger) {
     closeApp(w.app.manifest.id);
     return;
   }
@@ -1427,6 +1542,7 @@ function mcpHost() {
       const w = windowOfApp(id);
       return w && !w.win.isDestroyed() ? w.win.webContents : null;
     },
+    consoleOf: (id) => windowOfApp(id)?.console ?? null,
     call: bridgeCall,
   };
 }
@@ -1692,14 +1808,17 @@ function openApp(entry) {
     windowStats.delete(id);
   });
   win.webContents.on('console-message', ({ level, message, lineNumber, sourceId }) => {
-    if (entry.debugTarget) return; // DevTools' own messages, not the app's
+    if (entry.debugger) return; // DevTools' own messages, not the app's
     if (level === 'error') log(`[${m.id}] page error: ${message}`);
     // The last 200 messages, for the MCP server's window_console tool.
     w.console.push({ time: Date.now(), level, message, line: lineNumber, source: sourceId });
     if (w.console.length > 200) w.console.shift();
   });
   if (entry.debugTarget) attachDevTools(w);
-  else win.loadFile(path.join(entry.dir, m.entry), entry.query ? { query: entry.query } : undefined);
+  else if (entry.inspector) {
+    dressDebugger(w);
+    win.loadURL(nodeDevToolsUrl(entry.inspector));
+  } else win.loadFile(path.join(entry.dir, m.entry), entry.query ? { query: entry.query } : undefined);
   if (connected) openInGame(w);
   log(`Opened ${m.id}`);
   notifyLauncher();
@@ -1779,7 +1898,10 @@ app.whenReady().then(() => {
     post: postToPages,
     agent: (id, msg) => onAgent(id, msg, (m) => mods.toMod(id, m)),
     ui,
-    changed: notifyLauncher,
+    changed: () => {
+      notifyLauncher();
+      syncNodeDebuggers();
+    },
     onLog: onModLog,
   });
   if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {

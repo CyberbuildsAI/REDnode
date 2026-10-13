@@ -4,7 +4,37 @@
 
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
+
+// The Node debugger (a mod with its Debug switch on) is Chromium's DevTools page talking
+// to the mod's worker over a WebSocket. Loading an ES module makes Node add a context
+// named "internal", and DevTools picks it for the console, where the mod's globals are
+// missing. Hide it before DevTools connects, so the console starts in the mod's context.
+if (location.protocol === 'devtools:' && /[?&]ws=/.test(location.search)) {
+  webFrame.executeJavaScript(`(() => {
+    const Base = window.WebSocket;
+    const hidden = new Set();
+    const keep = (data) => {
+      try {
+        const m = JSON.parse(data);
+        if (m.method === 'Runtime.executionContextCreated' && m.params.context.name === 'internal') {
+          hidden.add(m.params.context.id);
+          return false;
+        }
+        if (m.method === 'Runtime.executionContextDestroyed') return !hidden.has(m.params.executionContextId);
+      } catch {}
+      return true;
+    };
+    window.WebSocket = class extends Base {
+      set onmessage(fn) {
+        super.onmessage = fn && ((e) => keep(e.data) && fn.call(this, e));
+      }
+      get onmessage() {
+        return super.onmessage;
+      }
+    };
+  })()`);
+}
 
 const listeners = new Set();
 ipcRenderer.on('rednode:event', (_event, message) => {
@@ -19,16 +49,26 @@ contextBridge.exposeInMainWorld('rednode', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  /** Connection and game state: { connected, mode, windowed, version, game, theme }. */
+  /** Connection and game state: { connected, mode, windowed, version, game, theme, developer }. */
   state: () => ipcRenderer.invoke('rednode:state'),
   /** Closes this app, as switching it off in the launcher does. The UI kit's window close button uses it. */
   close: () => ipcRenderer.send('rednode:app:close'),
+  /** Opens the debugger for this window. Only in Developer mode; the UI kit's window debug button uses it. */
+  debug: () => ipcRenderer.invoke('rednode:app:debug'),
   /** Installed apps and mods. Only the built-in launcher and Mod Manager may use these; other apps get an error. */
   apps: {
     list: () => ipcRenderer.invoke('rednode:apps:list'),
     setOpen: (id, open) => ipcRenderer.invoke('rednode:apps:set-open', id, open),
     /** Moves a Node mod into the shared mod process, or back to its own. */
     setShared: (id, shared) => ipcRenderer.invoke('rednode:mods:set-shared', id, shared),
+    /** Runs a Node mod with Node's inspector on, in its own process, or back to normal. Restarts it. */
+    setDebug: (id, on) => ipcRenderer.invoke('rednode:mods:debug', id, on),
+    /** Opens the Node debugger for a mod running with the debugger: in the game ("overlay", default) or on the desktop. */
+    inspectMod: (id, where) => ipcRenderer.invoke('rednode:mods:inspect', id, where),
+    /** Copies a debugged mod's inspector address, for VS Code or REDcode. */
+    copyInspector: (id) => ipcRenderer.invoke('rednode:mods:copy-inspector', id),
+    /** Gets Developer mode, or turns it on or off. On, window title bars show a debug button. */
+    developer: (on) => ipcRenderer.invoke('rednode:host:developer', on),
     /** Restarts a Node mod. */
     restart: (id) => ipcRenderer.invoke('rednode:mods:restart', id),
     /** Pins a package to the launcher (where "launcher") or its windows to the HUD (where "hud"), or unpins it. */

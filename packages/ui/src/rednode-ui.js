@@ -146,9 +146,17 @@
   function applyPlayerTheme(theme) {
     if (!appTheme && typeof theme === 'string' && theme) document.documentElement.setAttribute('theme', theme);
   }
-  window.rednode?.state?.().then((s) => applyPlayerTheme(s?.theme), () => {});
+  // Developer mode (the launcher's switch) shows a debug button on every rn-window.
+  function applyDeveloper(on) {
+    document.documentElement.toggleAttribute('rn-developer', !!on && !!window.rednode?.debug);
+  }
+  window.rednode?.state?.().then((s) => {
+    applyPlayerTheme(s?.theme);
+    applyDeveloper(s?.developer);
+  }, () => {});
   window.rednode?.on?.((m) => {
     if (m.event === 'theme') applyPlayerTheme(m.theme);
+    if (m.event === 'developer') applyDeveloper(m.on);
   });
 
   // ---------- shared helpers ----------
@@ -220,10 +228,15 @@ header { display: flex; align-items: center; gap: 10px; padding: 9px 12px 8px 14
 .mark { width: 8px; height: 8px; background: var(--rn-title-mark); flex: none; }
 :host(.unfocused) .mark { background: var(--rn-dim); }
 h1 { margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 15px var(--rn-display); letter-spacing: .1em; text-transform: var(--rn-title-case); }
-.close { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid var(--rn-title-line);
+.close, .debug { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid var(--rn-title-line);
   background: transparent; color: var(--rn-title-dim); font: 14px var(--rn-mono); cursor: pointer; }
 .close[hidden] { display: none; }
-.close:hover { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
+.close:hover, .debug:hover { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
+/* The debug button shows only in Developer mode. */
+.debug { display: none; }
+:host-context(html[rn-developer]) .debug { display: grid; }
+:host([no-debug]) .debug { display: none !important; }
+.debug svg { width: 14px; height: 14px; }
 .body { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 footer:empty { display: none; }
 /* Rolled up: only the title bar shows; the rest of the page is transparent and clicks through. */
@@ -232,7 +245,7 @@ footer:empty { display: none; }
 :host([rolled]) { bottom: auto !important; height: auto !important; min-height: 0 !important; }
 :host([rolled]) header { border-bottom: 0; }
 :host([rolled]) .mark { background: transparent; box-shadow: inset 0 0 0 2px var(--rn-title-mark); }`,
-        `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><button class="close" hidden aria-label="Close">✕</button></header>
+        `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><button class="debug" title="Debug this window" aria-label="Debug"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="6" height="8" rx="3"/><path d="M6 5V3.5h4V5M5 8H2m12 0h-3M5 11H2.5m11 0H11M5.5 6 3 4m7.5 2L13 4M8 7v6"/></svg></button><button class="close" hidden aria-label="Close">✕</button></header>
 <div class="body" part="body"><slot></slot></div><footer><slot name="footer"></slot></footer>`,
       );
       this.$('.close').addEventListener('click', () => {
@@ -243,6 +256,12 @@ footer:empty { display: none; }
         // launcher shows it off and can open it again. Otherwise hide this window.
         if (window.rednode?.close && document.querySelectorAll('rn-window').length === 1) window.rednode.close();
         else this.hidden = true;
+      });
+      // Opens the debugger for this window: Chromium's DevTools, or the Node debugger for
+      // a mod window whose mod runs with the debugger.
+      this.$('.debug').addEventListener('click', () => {
+        playSound(soundFor(this, 'press'));
+        window.rednode?.debug?.().catch?.(() => {});
       });
       // Dim the title when the overlay window loses focus. A double-click on the
       // title bar rolls the window up to its title bar; the REDnode plugin sees
@@ -256,7 +275,7 @@ footer:empty { display: none; }
       });
       // Outside the game (the host's --window mode), a real double-click does the same.
       this.$('header').addEventListener('dblclick', (e) => {
-        if (!e.target.closest?.('.close')) this.toggleRollup();
+        if (!e.target.closest?.('.close, .debug')) this.toggleRollup();
       });
     }
     connectedCallback() {

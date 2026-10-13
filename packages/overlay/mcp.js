@@ -6,7 +6,7 @@
 //                                Authorization: Bearer <token> (see the launcher)
 //
 // Tools: logs, apps, game_state, perf, gameapi_lookup, window_text, window_image,
-// game_image, api_call, api_get. See docs/mcp.md.
+// window_console, game_image, api_call, api_get. See docs/mcp.md.
 
 'use strict';
 
@@ -21,7 +21,7 @@ REDnode runs overlay apps (web pages drawn on top of the game) and Node mods (No
 - apps: the installed apps and mods, their state and memory; open, close, restart.
 - game_state, perf: what the game shows, and what the overlay costs.
 - gameapi_lookup: game types and functions with the exact signatures api uses. Look before calling.
-- window_text, window_image: what an overlay window shows.
+- window_text, window_image: what an overlay window shows. window_console: what its page logged.
 - game_image: the game's screen as the player sees it, with or without the overlay.
 - api_call, api_get: live calls into the game. Game objects come back as {"$ref": n, "$type": "..."}; pass {"$ref": n} back as self. Most functions take the game instance first: pass {}. 64-bit numbers are strings. References die when a save loads.
 api_call can change the player's game, such as their money or health: ask before changes the user did not request.
@@ -33,7 +33,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 
 /**
  * @param {object} host  functions from main.js: log, version, logs, apps, setOpen, restart,
- *                       state, perf, lookup, webContentsOf, captureGame, call
+ *                       state, perf, lookup, webContentsOf, consoleOf, captureGame, call
  */
 function createMcp(host) {
   let server = null;
@@ -175,6 +175,40 @@ function createMcp(host) {
         } catch (err) {
           return fail(err.message);
         }
+      },
+    );
+
+    mcp.registerTool(
+      'window_console',
+      {
+        title: 'Window console',
+        description:
+          "What an overlay window's page logged with console.log, console.error and the like, and its uncaught errors: " +
+          'the last 200 messages since the window opened, oldest first. (Node mods log to logs instead.)',
+        inputSchema: {
+          id: z.string().describe('The app id, or a mod window id such as "hello-mod~main"'),
+          level: z.enum(['debug', 'info', 'warning', 'error']).optional().describe('Only this level and above'),
+          limit: z.number().int().min(1).max(200).optional().describe('The newest this many. Default 50'),
+        },
+        annotations: READ,
+      },
+      async ({ id, level, limit }) => {
+        const all = host.consoleOf(id);
+        if (!all) return fail(`No open window "${id}". Use apps to list them.`);
+        const order = ['debug', 'info', 'warning', 'error'];
+        const min = level ? order.indexOf(level) : 0;
+        const picked = all.filter((m) => order.indexOf(m.level) >= min).slice(-(limit ?? 50));
+        if (!picked.length) return text(`No console messages from "${id}"${level ? ` at ${level} or above` : ''}.`);
+        return text(
+          picked
+            .map((m) => {
+              const where = m.source ? ` (${String(m.source).split('/').pop()}:${m.line})` : '';
+              const d = new Date(m.time); // local time, as in the host log
+              const time = `${d.toTimeString().slice(0, 8)}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+              return `${time} ${m.level}: ${m.message}${where}`;
+            })
+            .join('\n'),
+        );
       },
     );
 

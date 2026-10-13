@@ -88,7 +88,9 @@ function createMods(host) {
     return m.entry.manifest.isolation !== 'process';
   }
 
+  // A mod being debugged always runs alone: Node has one inspector per process.
   function processKey(m) {
+    if (m.debug) return `debug:${m.entry.manifest.id}`;
     return m.shared && canShare(m) ? SHARED : `own:${m.entry.manifest.id}`;
   }
 
@@ -98,7 +100,7 @@ function createMods(host) {
     let p = processes.get(key);
     if (p) return p;
     const proc = host.utilityProcess.fork(host.runner, [], {
-      serviceName: key === SHARED ? 'REDnode mods (shared)' : `REDnode mod ${key.slice(4)}`,
+      serviceName: key === SHARED ? 'REDnode mods (shared)' : `REDnode mod ${key.slice(key.indexOf(':') + 1)}`,
     });
     p = { key, proc, mods: new Set(), crashes: [], stopping: false };
     processes.set(key, p);
@@ -148,6 +150,15 @@ function createMods(host) {
       case 'from-mod':
         onModMessage(p, msg.id, msg.message);
         return;
+      case 'inspector': {
+        // A debugged mod's worker opened Node's inspector: its address, for DevTools or VS Code.
+        const m = mods.get(msg.id);
+        if (!m || m.gen !== msg.gen) return;
+        m.inspector = msg.url;
+        host.log(`Debugger for ${msg.id}: ${msg.url}`);
+        host.changed();
+        return;
+      }
       default:
         return;
     }
@@ -262,12 +273,13 @@ function createMods(host) {
     m.stopping = false;
     m.gen = ++starts;
     m.log.length = 0;
+    m.inspector = null;
     modLog(id, 'info', `Starting ${m.entry.manifest.main} in ${key === SHARED ? 'the shared process' : 'its own process'}`);
     setStatus(id, 'starting');
     const { manifest } = m.entry;
     p.proc.postMessage({
       t: 'start',
-      mod: { id, gen: m.gen, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id), appsDirs: host.appsDirs },
+      mod: { id, gen: m.gen, dir: m.entry.dir, main: manifest.main, dataDir: host.dataDir(id), appsDirs: host.appsDirs, debug: m.debug },
       sdk: host.sdk,
     });
   }
@@ -280,7 +292,12 @@ function createMods(host) {
     host.ui.closeAll(id);
     if (m.stopping) return; // already asked; the answer starts it again if thenStart
     const p = m.process && processes.get(m.process);
-    if (p) {
+    if (p?.key.startsWith('debug:')) {
+      // Node cannot end a worker while a debugger is attached to it (found in testing),
+      // so a debugged mod, alone in its process, stops with the process.
+      m.stopping = true;
+      onStatus(p, { id, gen: m.gen, status: 'stopped' }); // ends the empty process
+    } else if (p) {
       m.stopping = true;
       p.proc.postMessage({ t: 'stop', id });
     } else {
@@ -311,8 +328,18 @@ function createMods(host) {
         process: null,
         pendingStart: false,
         stopping: false,
+        debug: false,
       });
       if (enabled) start(entry.manifest.id);
+    },
+
+    /** Runs a mod with Node's inspector on, in a process of its own, or back to normal. */
+    setDebug(id, on) {
+      const m = mods.get(id);
+      if (!m || m.debug === !!on) return;
+      m.debug = !!on;
+      if (m.enabled) restart(id, on ? 'Restarting with the debugger' : 'Restarting without the debugger');
+      host.changed();
     },
 
     has: (id) => mods.has(id),
@@ -377,6 +404,9 @@ function createMods(host) {
         memoryMB: mem ? Math.round(mem.memory.workingSetSize / 1024) : null,
         processMods: p ? p.mods.size : 0,
         log: m.log.slice(-5),
+        debug: m.debug,
+        // The inspector's WebSocket address while the mod runs with the debugger.
+        inspector: (m.debug && m.process && m.inspector) || null,
       };
     },
 
@@ -386,7 +416,7 @@ function createMods(host) {
       for (const p of processes.values()) {
         const mem = metrics.find((x) => x.pid === p.proc.pid);
         const mb = mem ? Math.round(mem.memory.workingSetSize / 1024) : '?';
-        const label = p.key === SHARED ? `shared [${[...p.mods].join(', ')}]` : `${p.key.slice(4)} (own)`;
+        const label = p.key === SHARED ? `shared [${[...p.mods].join(', ')}]` : `${p.key.slice(p.key.indexOf(':') + 1)} (${p.key.startsWith('debug:') ? 'debug' : 'own'})`;
         parts.push(`${label} ${mb} MB`);
       }
       return parts.join('; ');

@@ -505,6 +505,38 @@ Use the **Test timer**: Start, then Mark after each step.
 |---|---|
 | The cursor flickered or disappeared more often | The player switched to the desktop (Alt+Tab) often during this test. The plugin draws its own cursor in interactive mode, moved by the game's raw mouse input. Two likely causes, **unverified**: raw input that arrives while the desktop is in front moved the overlay's cursor, and the click that brings the game back counted as a click on empty screen, which leaves interactive mode (one switch from interactive straight to passive at 06:22:59 fits). **Changed in plugin 0.14.1:** input that arrives while another window is in front is ignored, buttons are ignored for 300 ms after the game comes back to the front, and the plugin logs "Overlay: the game left the front" and "came back to the front". **Confirmed in the C5 test (2026-10-13):** about 25 switches to the desktop and back in interactive mode, and the overlay stayed interactive every time |
 
+### O9 Debugger: built
+
+REDnode 0.16.0. Every step of the plan works in the mock game; the in-overlay DevTools is no longer unverified there, but still needs the in-game test.
+
+| Piece | Where |
+|---|---|
+| Window debugger | The host gives an app's page (or a mod's builder window) its DevTools: in the game, a built-in window whose own page becomes that DevTools (`setDevToolsWebContents`, then `openDevTools({ mode: 'detach' })`), with a REDnode title bar the host adds (drag area and close); on the desktop, DevTools' own window, opened without taking focus. A first try put DevTools in a `webview` inside a page, as Electron's example does: off screen it painted once and took no input |
+| Mod Manager | Details: **Window debugger** (In the game, On the desktop) for a package with a window; for a Node mod, the **Debug (Node inspector)** switch, then the inspector's address with **Copy**, and **Node debugger** (In the game, On the desktop). **Shared process** waits while Debug is on |
+| Node mods | Debug on restarts the mod alone in its own process (`debug:<id>`); its worker opens Node's inspector itself (`inspector.open(0, '127.0.0.1')`), so a debugger attaches to the mod's own thread. Opening the inspector for the whole process (`--inspect`) attached to the runner's main thread: Chromium's DevTools does not show Node worker threads |
+| Node debugger | Chromium's DevTools for Node (`devtools://devtools/bundled/js_app.html?ws=...`) in an overlay window with the same title bar. `preload.js` hides the "internal" context Node adds when it loads an ES module, so the console starts in the mod's context. After a restart (new address) the in-game debugger reopens by itself, and it closes when Debug goes off |
+| Stopping a debugged mod | Node cannot end a worker while a debugger is attached to it (`terminate()` and even `process.exit` hang; found in testing), so a debugged mod stops by ending its process |
+| Developer mode | A launcher switch, saved in settings, off by default. On, every `rn-window` shows a debug button next to close (`no-debug` hides it). It opens the Node debugger for a mod window whose mod runs with Debug on, otherwise the window debugger |
+| For agents | The MCP `window_console` tool: the last 200 console messages and uncaught errors of a window, by level |
+| From 0.15.1, to check in game | 64 windows instead of 16 (the World test window that stayed hidden), and the perf log's game-call timing |
+
+Tested in the mock game: the window debugger in the game and on the desktop (Elements and Styles live; the Console evaluated in the page; the close button); Developer mode put the debug button on the Hello mod window, and it opened the window debugger; Debug on restarted the Hello mod with an inspector, the Node debugger showed the mod's own `console.log` lines, and its console answered `require('node:worker_threads').threadId` with 1 (the mod's worker); **Restart** with the debugger attached stopped and started the mod, and the debugger reconnected; Debug off closed it and the mod went back to a normal process; `window_console` returned a warning typed into the page's console. Breakpoints were not tried in the mock. **Unverified** in the game.
+
+### O9 Debugger: test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Switch the **World test** on in the Mod Manager: its window shows straight away (64 windows). Mark.
+2. F10. In the Mod Manager, select **Coords** (or any app with a window). **Window debugger: In the game**. A debugger window opens with Elements. Click **Console**, type `document.title` and Enter. Close the debugger with its ✕. Mark.
+3. Same, **On the desktop**: a DevTools window opens on the desktop without taking the game's focus. Alt+Tab to it, look, close it, and come back. Mark.
+4. In the launcher, switch **Developer mode** on. Every window's title bar shows a bug button next to close. Click it on the Mod Manager or the launcher window: its debugger opens. Close it. Mark.
+5. In the Mod Manager, select the **Hello mod** and switch **Debug (Node inspector)** on. The mod restarts and an address appears. **Node debugger: In the game**. Click **Play sound** in the Hello mod window: the line "Sound button pressed 1 time(s)" appears in the debugger's Console. Mark.
+6. In the Node debugger, **Sources**, Ctrl+P, type `mod.mjs`, Enter. Click the line number of `presses += 1;` (line 28) to set a breakpoint. Click **Play sound**: the debugger stops on that line and no sound plays. Press the Resume button (or F8): the sound plays. Click the line number again to remove the breakpoint. Mark.
+7. **Restart** the Hello mod in the Mod Manager: the Node debugger reopens on its own. Then switch Debug off: the debugger closes and the mod keeps working. Mark.
+8. Switch Developer mode off: the bug buttons go. Quit the game.
+
+Afterwards I read the logs: the debugger lines, and the perf lines with game calls.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:

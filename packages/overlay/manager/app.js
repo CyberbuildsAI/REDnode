@@ -309,17 +309,33 @@ function renderDetails() {
   );
   if (i.mod) {
     parts.push(
-      toggle('Shared process', i.mod.shared && i.mod.canShare, (on) => act(i.name, () => window.rednode.apps.setShared(i.id, on)), !i.mod.canShare),
+      // A mod being debugged runs alone, so the switch waits until Debug is off.
+      toggle('Shared process', i.mod.shared && i.mod.canShare, (on) => act(i.name, () => window.rednode.apps.setShared(i.id, on)), !i.mod.canShare || i.mod.debug),
     );
     const row = el('div', 'row');
     row.append(el('span', `mono st-${i.mod.status}`, `${statusLabel(i)} · ${processOf(i)} process${i.mod.memoryMB ? ` · ${i.mod.memoryMB} MB` : ''}`));
     if (i.open) row.append(button('Restart', () => act(i.name, () => window.rednode.apps.restart(i.id))));
     parts.push(row);
+    // Node's inspector: the mod restarts alone, with an address VS Code or REDcode can attach to.
+    parts.push(toggle('Debug (Node inspector)', i.mod.debug, (on) => act(i.name, () => window.rednode.apps.setDebug(i.id, on))));
+    if (i.mod.debug && i.mod.inspector) {
+      const addr = el('div', 'row');
+      addr.append(el('span', 'mono dim', i.mod.inspector));
+      addr.append(button('Copy', () => act(i.name, () => window.rednode.apps.copyInspector(i.id))));
+      parts.push(addr);
+      const open = el('div', 'row');
+      open.append(el('span', 'dim', 'Node debugger'));
+      open.append(button('In the game', () => act(i.name, () => window.rednode.apps.inspectMod(i.id, 'overlay'))));
+      open.append(button('On the desktop', () => act(i.name, () => window.rednode.apps.inspectMod(i.id, 'desktop'))));
+      parts.push(open);
+    } else if (i.mod.debug) {
+      parts.push(el('div', 'dim', i.open ? 'Waiting for the inspector...' : 'The inspector starts when the mod runs.'));
+    }
   }
   if (i.hasWindow) {
-    // Chromium's DevTools for its window: in the game, or on the desktop (Alt+Tab).
+    // Chromium's DevTools for its window's page: in the game, or on the desktop (Alt+Tab).
     const row = el('div', 'row');
-    row.append(el('span', 'dim', 'Inspect'));
+    row.append(el('span', 'dim', 'Window debugger'));
     row.append(button('In the game', () => act(i.name, () => window.rednode.apps.inspect(i.id, 'overlay'))));
     row.append(button('On the desktop', () => act(i.name, () => window.rednode.apps.inspect(i.id, 'desktop'))));
     parts.push(row);

@@ -13,6 +13,7 @@
 //   { t: 'from-mod', id, message }               a call, state request or UI message
 //   { t: 'log', id, level, text }                a line the mod printed
 //   { t: 'status', id, gen, status, error? }     running, crashed, not-responding, stopped; gen is the start's number
+//   { t: 'inspector', id, gen, url }             a debugged mod opened Node's inspector
 
 'use strict';
 
@@ -34,8 +35,13 @@ function send(message) {
   port.postMessage(message);
 }
 
+// Node's own notice when a debugged mod opens the inspector is not an error.
+const INSPECTOR_NOTICE = /^(Debugger listening on |For help, see: https:\/\/nodejs\.org)/;
+
 function pipeLines(stream, id, level) {
-  readline.createInterface({ input: stream }).on('line', (text) => send({ t: 'log', id, level, text }));
+  readline.createInterface({ input: stream }).on('line', (text) =>
+    send({ t: 'log', id, level: INSPECTOR_NOTICE.test(text) ? 'info' : level, text }),
+  );
 }
 
 function start(mod, sdk) {
@@ -63,6 +69,8 @@ function start(mod, sdk) {
       }
     } else if (m.t === 'loaded') {
       send({ t: 'status', id: mod.id, gen: mod.gen, status: 'running' });
+    } else if (m.t === 'inspector') {
+      send({ t: 'inspector', id: mod.id, gen: mod.gen, url: m.url });
     } else {
       send({ t: 'from-mod', id: mod.id, message: m });
     }

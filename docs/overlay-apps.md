@@ -463,6 +463,22 @@ await world.remove(id);
 
 The [World test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/world-test) sample spawns a box in front of V, spins it and removes it.
 
+## Debugging
+
+Turn on **Developer mode** in the launcher. Every window built with the UI kit's `rn-window` then shows a debug button next to its close button. It opens Chromium's DevTools for that window's page, drawn in the game as an overlay window: elements, styles, the console, sources and breakpoints. The Mod Manager's details also open it, in the game or on the desktop (**Window debugger**). Add `no-debug` to an `rn-window` that should never show the button.
+
+A Node mod has a **Debug (Node inspector)** switch in the Mod Manager. On, the mod restarts alone in its own process with Node's inspector, and the Mod Manager shows the inspector's address:
+
+| Way to debug | How |
+|---|---|
+| In the game | **Node debugger: In the game** opens Chromium's DevTools for Node as an overlay window. Its console runs in the mod's own thread. In **Sources**, Ctrl+P finds the mod's files; set breakpoints there |
+| On the desktop | **On the desktop** opens the same DevTools in a desktop window. Switch to it with Alt+Tab |
+| VS Code or REDcode | **Copy** the address, then attach with a `node` launch configuration of type `attach` and `"websocketAddress"` set to it |
+
+The inspector does not wait for a debugger, so the mod's first lines have already run when you attach: set breakpoints in code that runs later, such as an event handler or a button's callback. A restart gives the mod a new inspector address: the in-game debugger follows it by itself; reattach a desktop debugger or VS Code. While the mod is stopped at a breakpoint it does not answer: after 10 seconds the Mod Manager shows it as not responding, which is expected. The switch is not saved: the mod runs normally after REDnode restarts.
+
+An AI agent can read a window's console through the kernel MCP server's `window_console` tool.
+
 ## More
 
 | Where | What |

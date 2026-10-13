@@ -13,7 +13,16 @@ const { registerHooks } = require('node:module');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const { id, dir, main, sdk, dataDir, appsDirs } = workerData;
+const { id, dir, main, sdk, dataDir, appsDirs, debug } = workerData;
+
+// The mod's Debug switch (Mod Manager): Node's inspector, opened from this thread so
+// a debugger attaches to the mod's own thread. A free local port; it does not wait
+// for a debugger, so use a debugger statement or a breakpoint set after attaching.
+if (debug) {
+  const inspector = require('node:inspector');
+  inspector.open(0, '127.0.0.1');
+  parentPort.postMessage({ t: 'inspector', url: inspector.url() });
+}
 
 // This package, for `pkg` in the rednode package.
 globalThis[Symbol.for('rednode.package')] = Object.freeze({ id, dir, dataDir, appsDirs });

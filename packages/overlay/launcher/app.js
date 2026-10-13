@@ -165,6 +165,13 @@ $('mcp-copy').addEventListener('click', async () => {
   RednodeUI.notify('Run the copied command once in a terminal to add REDnode to Claude Code', { title: 'MCP server' });
 });
 
+// Developer mode: a debug button on every window's title bar, next to close.
+$('dev').addEventListener('change', async (e) => {
+  const on = await window.rednode.apps.developer(e.detail.checked);
+  $('dev').checked = on;
+  RednodeUI.notify(on ? 'Windows show a debug button next to close' : 'Developer mode off', { title: 'Developer mode' });
+});
+
 // Theme: every window that uses the UI kit follows it, unless the app chose its own.
 const themeButtons = [...document.querySelectorAll('[data-theme]')];
 function showTheme(name) {
@@ -186,6 +193,7 @@ async function refresh() {
     $('hot').checked = await window.rednode.apps.hotReload();
     showTheme(await window.rednode.apps.theme());
     $('mcp').checked = await window.rednode.apps.mcp();
+    $('dev').checked = await window.rednode.apps.developer();
     $('version').textContent = `REDNODE ${(await window.rednode.state()).version}`;
     const all = await window.rednode.apps.list();
     // Only packages pinned to the launcher, the Mod Manager first; a crashed one shows
