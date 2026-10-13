@@ -1,0 +1,8 @@
+{
+  "id": "timer",
+  "name": "Test timer",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A stopwatch for in-game tests. Mark writes the step number and the time to the Mod log and REDnode's log file, so log lines can be matched to what you did. No phone needed.",
+  "main": "mod.mjs"
+}
