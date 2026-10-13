@@ -1,0 +1,14 @@
+{
+  "id": "packaging-test",
+  "name": "Packaging test",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A sample of W2: \"requires\" in rednode-app.json (Codeware, ArchiveXL and one mod that does not exist, so the Mod Manager shows it missing) and kernel.bridge(), which lists and searches the game's archives through REDbridge. Asks for the bridge permission.",
+  "main": "mod.mjs",
+  "permissions": ["bridge"],
+  "requires": {
+    "codeware": ">=1.16",
+    "archivexl": ">=1.23",
+    "not-a-real-mod": "*"
+  }
+}

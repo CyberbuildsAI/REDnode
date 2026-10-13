@@ -31,6 +31,9 @@ const RESTARTS = 3; // a mod process that crashes more often than this in a minu
  * @param {() => object} host.state                         what game.state() answers
  * @param {object} host.ui                                  open(modId, win, spec), update(modId, win, node, props), close(modId, win), closeAll(modId)
  * @param {() => void} host.changed                         a mod's status changed: refresh the launcher
+ * @param {(id, op, method, params) => Promise<unknown>} host.bridgeFor   REDbridge for a mod with the "bridge" permission
+ * @param {(id: string) => object[]} host.requirementsOf     a mod's requires, checked
+ * @param {(id: string) => string | null} host.missingOf     what a mod is missing, in words
  * @param {(entry: object) => void} host.onLog               a mod printed a line: { time, id, level, text }
  */
 function createMods(host) {
@@ -236,6 +239,17 @@ function createMods(host) {
       case 'agent':
         host.agent(id, msg.msg);
         return;
+      case 'bridge':
+        Promise.resolve()
+          .then(() => host.bridgeFor(id, msg.op, msg.method, msg.params))
+          .then(
+            (result) => reply(p, id, msg.rid, result),
+            (err) => reply(p, id, msg.rid, undefined, err?.message || String(err)),
+          );
+        return;
+      case 'requires':
+        reply(p, id, msg.rid, host.requirementsOf(id));
+        return;
       case 'secret':
       case 'mcp':
         try {
@@ -275,6 +289,8 @@ function createMods(host) {
     m.log.length = 0;
     m.inspector = null;
     modLog(id, 'info', `Starting ${m.entry.manifest.main} in ${key === SHARED ? 'the shared process' : 'its own process'}`);
+    const missing = host.missingOf(id);
+    if (missing) modLog(id, 'error', `Missing what its rednode-app.json requires: ${missing}`);
     setStatus(id, 'starting');
     const { manifest } = m.entry;
     p.proc.postMessage({

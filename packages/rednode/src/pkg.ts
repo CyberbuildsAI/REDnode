@@ -47,6 +47,8 @@ export const pkg: PackageInfo = new Proxy({} as PackageInfo, {
 interface SecretTransport {
   secret?(op: string, name: string, value?: string): Promise<unknown>;
   mcp?(): Promise<unknown>;
+  bridge?(op: string, method?: string, params?: unknown): Promise<unknown>;
+  requires?(): Promise<unknown>;
   post?(data: unknown): void;
 }
 
@@ -135,6 +137,48 @@ export interface KernelMcp {
   headers: Record<string, string>;
 }
 
+/**
+ * One entry of a package's `requires` (in its rednode-app.json), checked against
+ * what the game has installed.
+ */
+export interface Requirement {
+  /** The name as installed, such as `Codeware`, or as written when it is missing. */
+  name: string;
+  /** The version range asked for, such as `>=1.16`. */
+  wants: string;
+  /** The installed version, or null when it is missing or its files carry no version. */
+  found: string | null;
+  /** Whether it is installed at all. */
+  installed: boolean;
+  /** Whether it is installed in a version the range allows. */
+  ok: boolean;
+  /** What it is: a RED4ext plugin, a redscript module, a Cyber Engine Tweaks mod, or a framework. */
+  kind: "red4ext" | "redscript" | "cet" | "framework" | null;
+  /** Why it is not ok, such as "not installed", or a note such as "its version is unknown". */
+  note: string;
+}
+
+/** REDbridge, WolvenKit's engine, as `kernel.bridge()` gives it to a package. */
+export interface KernelBridge {
+  /** REDbridge's version, such as `0.5.1`, when known. */
+  readonly version: string | null;
+  /** Where REDnode found it, such as `REDdeck (Code)`. */
+  readonly source: string | null;
+  /**
+   * Calls a REDbridge method with its parameters by name, as REDbridge's docs list
+   * them: `archive.archives`, `archive.search`, `archive.extract`, `cr2w.toJson` and
+   * more. The first call starts REDbridge, which loads the game's archive index in a
+   * few seconds.
+   */
+  call<T = any>(method: string, params?: Record<string, unknown>): Promise<T>;
+}
+
+function hostTransport(name: keyof SecretTransport): SecretTransport {
+  const t = (transport() as SecretTransport)[name] ? (transport() as SecretTransport) : pageBridge();
+  if (!t?.[name]) throw new Error("rednode: the kernel needs the REDnode host");
+  return t;
+}
+
 /** The REDnode kernel's services for this package. */
 export const kernel = {
   /**
@@ -156,6 +200,66 @@ export const kernel = {
     if (!t?.mcp) throw new Error("rednode: the kernel needs the REDnode host");
     try {
       return (await t.mcp()) as KernelMcp;
+    } catch (err) {
+      throw cleanError(err);
+    }
+  },
+
+  /**
+   * REDbridge, WolvenKit's engine, shared by every package that may use it: the
+   * game's archives (list, search, extract), CR2W files as JSON and back, textures
+   * as PNG, hashes. REDnode does not ship REDbridge (GPL-3.0); it uses the copy
+   * REDdeck or REDcode fetched. The package must ask for the `bridge` permission
+   * in its rednode-app.json and the player must allow it in the Mod Manager; this
+   * rejects and says why until then, or when REDbridge is not installed.
+   *
+   * @example
+   * ```ts
+   * import { kernel } from "rednode";
+   *
+   * const bridge = await kernel.bridge();
+   * const archives = await bridge.call("archive.archives");
+   * const found = await bridge.call("archive.search", { query: "player_ma_tpp", limit: 5 });
+   * ```
+   */
+  async bridge(): Promise<KernelBridge> {
+    const t = hostTransport("bridge");
+    let status: { version: string | null; source: string | null };
+    try {
+      status = (await t.bridge!("status")) as { version: string | null; source: string | null };
+    } catch (err) {
+      throw cleanError(err);
+    }
+    return {
+      version: status.version,
+      source: status.source,
+      async call<T = any>(method: string, params?: Record<string, unknown>): Promise<T> {
+        try {
+          return (await t.bridge!("call", method, params ?? {})) as T;
+        } catch (err) {
+          throw cleanError(err);
+        }
+      },
+    };
+  },
+
+  /**
+   * This package's `requires`, checked against what the game has installed: RED4ext
+   * plugins (with their DLL versions), redscript modules, Cyber Engine Tweaks mods,
+   * and RED4ext, CET and redscript themselves. The Mod Manager shows the same.
+   *
+   * @example
+   * ```ts
+   * import { kernel } from "rednode";
+   *
+   * // rednode-app.json: "requires": { "codeware": ">=1.16" }
+   * const missing = (await kernel.requirements()).filter((r) => !r.ok);
+   * if (missing.length) console.log(`Needs ${missing.map((r) => `${r.name} ${r.wants}`).join(", ")}`);
+   * ```
+   */
+  async requirements(): Promise<Requirement[]> {
+    try {
+      return (await hostTransport("requires").requires!()) as Requirement[];
     } catch (err) {
       throw cleanError(err);
     }

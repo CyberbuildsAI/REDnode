@@ -30,7 +30,7 @@ export { agent } from "./agent.js";
 export { world } from "./world.js";
 export type { EntityId, WorldPoint, WorldRotation, SpawnOptions, Spawned, EntityEventName } from "./world.js";
 export type { AgentAnswer, AskOptions, AgentRequest, AgentResult } from "./agent.js";
-export type { PackageInfo, KernelMcp } from "./pkg.js";
+export type { PackageInfo, KernelMcp, KernelBridge, Requirement } from "./pkg.js";
 export type { GameRef, ApiExtras } from "./api.js";
 export type {
   Anchor,

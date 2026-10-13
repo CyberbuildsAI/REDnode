@@ -79,7 +79,11 @@ function statusOf(i) {
   return i.open ? 'open' : 'off';
 }
 const statusLabel = (i) => (i.mod ? STATUS[i.mod.status] ?? i.mod.status.toUpperCase() : i.open ? 'OPEN' : 'OFF');
-const hasError = (i) => !!i.mod && (i.mod.status === 'crashed' || i.mod.status === 'not-responding' || !!i.mod.error);
+// What a package's "requires" asks for and the game does not have.
+const missingOf = (i) => (i.requires ?? []).filter((r) => !r.ok);
+const wantsText = (r) => `${r.name}${r.wants && r.wants !== '*' ? ` ${r.wants}` : ''}`;
+const hasError = (i) =>
+  missingOf(i).length > 0 || (!!i.mod && (i.mod.status === 'crashed' || i.mod.status === 'not-responding' || !!i.mod.error));
 const processOf = (i) => (!i.mod ? '' : i.mod.shared && i.mod.canShare ? 'shared' : 'own');
 
 const COLUMNS = [
@@ -217,7 +221,10 @@ function renderRows() {
       const name = el('td', 'name');
       name.append(el('b', '', i.name));
       if (freshThisVisit.has(i.id)) name.append(el('span', 'new', 'NEW'));
-      name.title = `${i.name} (${i.id})`;
+      const missing = missingOf(i);
+      if (missing.length) name.append(el('span', 'needs', 'NEEDS'));
+      name.title = `${i.name} (${i.id})${missing.length ? `
+Needs ${missing.map(wantsText).join(', ')}` : ''}`;
       const cells = [
         [tick],
         [pinButton(i, 'launcher')],
@@ -347,10 +354,30 @@ function renderDetails() {
     parts.push(row);
   }
 
+  if (i.requires?.length) {
+    // The package's "requires", checked against the game folder.
+    parts.push(el('div', 'section', 'Requires'));
+    for (const r of i.requires) {
+      const line = el('div', `req ${r.ok ? 'ok' : 'missing'}`);
+      line.append(el('span', 'mark', r.ok ? '✓' : '✕'));
+      line.append(el('span', '', wantsText(r)));
+      const detail = r.ok ? (r.found ? `${r.found} installed` : r.note || 'installed') : r.note;
+      line.append(el('span', 'dim', ` · ${detail}`));
+      parts.push(line);
+    }
+  }
   if (i.permissions?.length) {
     parts.push(el('div', 'section', 'Permissions'));
     for (const p of i.permissions) {
       parts.push(el('div', 'perm', `Asks for ${p.what}`));
+      if (p.name === 'bridge' && i.bridge) {
+        // REDbridge is not part of REDnode: say where it was found, or how to get it.
+        parts.push(
+          i.bridge.found
+            ? el('div', 'perm dim', `REDbridge ${i.bridge.version ?? ''} from ${i.bridge.source}${i.bridge.running ? ', running' : ''}`)
+            : el('div', 'perm err', 'REDbridge is not installed. Get it with REDdeck ("Get REDbridge") or REDcode in VS Code.'),
+        );
+      }
       parts.push(toggle('Allowed', p.granted, (on) => act(i.name, () => window.rednode.apps.grant(i.id, p.name, on))));
     }
   }

@@ -56,6 +56,13 @@ function makeRow(item) {
 
   if (item.description) root.append(el('div', 'desc', item.description));
 
+  // What its "requires" asks for and the game does not have; details in the Mod Manager.
+  const missing = (item.requires ?? []).filter((r) => !r.ok);
+  if (missing.length) {
+    const wants = (r) => `${r.name}${r.wants && r.wants !== '*' ? ` ${r.wants}` : ''}`;
+    root.append(el('div', 'err', `Needs ${missing.map((r) => `${wants(r)} (${r.note})`).join(', ')}`));
+  }
+
   // Permissions the package asks for: the player allows each one.
   const grants = new Map(); // permission name -> toggle
   for (const p of item.permissions ?? []) {

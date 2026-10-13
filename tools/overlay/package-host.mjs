@@ -35,7 +35,7 @@ if (build.status !== 0) throw new Error('Building the rednode package failed');
 // Apps and mods go to the game separately.
 rmSync(work, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-for (const f of ['main.js', 'preload.js', 'mods.js', 'mcp.js', 'gameapi-lookup.js']) cpSync(join(overlay, f), join(stage, f));
+for (const f of ['main.js', 'preload.js', 'mods.js', 'mcp.js', 'gameapi-lookup.js', 'gamefiles.js', 'redbridge.js']) cpSync(join(overlay, f), join(stage, f));
 for (const d of ['launcher', 'modlog', 'manager', 'builder']) cpSync(join(overlay, d), join(stage, d), { recursive: true });
 cpSync(join(repo, 'packages', 'ui', 'src'), join(stage, 'ui'), { recursive: true });
 

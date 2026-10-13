@@ -84,3 +84,29 @@ Use the **Test timer**: Start, then Mark after each step. The World test uses Wo
 | `kernel.bridge()` | [#4](https://github.com/Edgemodders/REDnode/issues/4) | How to reach a running REDbridge, behind a `bridge` permission the player grants, like `kernel.mcp()`. The host finds the copy REDdeck or REDcode already fetched and starts it on demand. REDbridge stays its own GPL-3.0 program, reached over JSON-RPC |
 
 **The test proves:** a package that requires something missing says so in the Mod Manager, and a package with the `bridge` permission lists the game's archives through REDbridge.
+
+### W2: built
+
+REDnode 0.17.0. How to use both: [Requirements](overlay-apps.md#requirements) and [The game's files through REDbridge](overlay-apps.md#the-games-files-through-redbridge).
+
+| Piece | Where |
+|---|---|
+| Game folder scan | `packages/overlay/gamefiles.js`: RED4ext plugins with their DLL file versions (read from the version resource, three parts; the fourth is a build number some plugins fill with a date that overflows), redscript modules, CET mods, and RED4ext, CET and redscript. Rescanned at most every 30 seconds. The host finds the game folder from its own place (`<game>/red4ext/plugins/REDnode/host`), or `--game` |
+| `requires` | Checked in the manifest (a bad range is a manifest error). The Mod Manager: **NEEDS** next to the name, the list under **Requires**, and the Errors filter. The launcher: a "Needs ..." line. A Node mod's log: a line at each start. The MCP `apps` tool: each package's `requires`. `kernel.requirements()` in the `rednode` package |
+| REDbridge | `packages/overlay/redbridge.js`: finds `REDbridge.exe` (`REDBRIDGE_EXE`, then the newest copy in REDdeck's or REDcode's storage in VS Code, VS Code Insiders, VSCodium, EDGEkit or Cursor), starts it with `--game` on the first call, and speaks Content-Length framed JSON-RPC on its stdio. One process for every package; it stops after 10 minutes without calls, and exits by itself if the host dies (its stdin closes). `DOTNET_ROOT` is set for it only when .NET 10 is per-user |
+| `kernel.bridge()` | The `bridge` permission. `kernel.bridge()` resolves with `{ version, source, call(method, params) }`, or rejects with why (not allowed, or not installed and how to get it). The Mod Manager shows where REDbridge was found |
+| Sample | `apps/packaging-test`: requires Codeware, ArchiveXL and `not-a-real-mod`; lists and searches the archives |
+
+Tested in the mock game, with the real game folder: Codeware 1.20.3 and ArchiveXL 1.27.3 found, `not-a-real-mod` missing, shown in the table, details, the mod's window and its log. After **Allowed**, the first call started REDbridge 0.5.1 from REDdeck's copy, which loaded 57 archives and 583,798 files in 2.8 seconds; a search found 7 files. No REDbridge was left running after the host closed. **Unverified:** REDbridge reading the archives while the game runs.
+
+### W2 test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Mark.
+2. F10. In the Mod Manager, find **Packaging test** (it is new, so use the **New** filter or search). It shows **NEEDS**. Select it: under **Requires**, Codeware and ArchiveXL have a tick with their versions and `not-a-real-mod` is crossed out. The **Errors** filter lists it too. Mark.
+3. Switch it on. Its window lists the same three lines. Mark.
+4. In its details, under **Permissions**, the line says where REDbridge was found. Switch **Allowed** on. Mark.
+5. In the Packaging test window, press **Archives**: after a few seconds it says 57 archives and about 584,000 files. Press **Search**: it lists files named `player_ma_tpp`. Mark.
+6. Check the theme change from 0.16.1: in the launcher pick **EDGE**, then open a window debugger (Developer mode's bug button): its title bar is yellow. Switch back to the theme you like. Mark.
+7. Quit the game.

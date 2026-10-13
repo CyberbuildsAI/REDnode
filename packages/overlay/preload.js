@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('rednode', {
   pkg: {
     secret: (op, name, value) => ipcRenderer.invoke('rednode:pkg:secret', op, name, value),
     mcp: () => ipcRenderer.invoke('rednode:pkg:mcp'),
+    bridge: (op, method, params) => ipcRenderer.invoke('rednode:pkg:bridge', op, method, params),
+    requires: () => ipcRenderer.invoke('rednode:pkg:requires'),
     post: (data) => ipcRenderer.send('rednode:pkg:post', data),
   },
   /** Questions to the AI assistant; used by `agent` in the rednode package. Answers arrive as {event: 'agent'}. */

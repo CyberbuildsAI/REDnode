@@ -26,6 +26,8 @@ const net = require('node:net');
 const path = require('node:path');
 const { createMods } = require('./mods');
 const { createMcp } = require('./mcp');
+const { scanGame, checkRequires, validRange } = require('./gamefiles');
+const { createRedbridge } = require('./redbridge');
 const { createLookup } = require('./gameapi-lookup');
 const crypto = require('node:crypto');
 
@@ -67,6 +69,7 @@ const APP_ROOTS = [
 const PERMISSIONS = {
   mcp: "REDnode's tools for AI agents (the kernel MCP server)",
   agent: 'questions to the AI assistant (REDagent); each answer costs you a little',
+  bridge: "REDbridge, WolvenKit's engine: reads the game's archives and files, and can write files where the package asks",
 };
 // What a package may offer other packages in its manifest's "provides".
 const PROVIDES = ['agent'];
@@ -244,6 +247,15 @@ function readManifest(dir) {
   if (m.hideWith !== undefined && (!Array.isArray(m.hideWith) || m.hideWith.some((h) => !HIDE_WITH.includes(h)))) {
     problems.push(`hideWith must be a list of ${HIDE_WITH.join(', ')}`);
   }
+  if (m.requires !== undefined) {
+    if (typeof m.requires !== 'object' || m.requires === null || Array.isArray(m.requires)) {
+      problems.push('requires must be an object of names and version ranges, such as { "codeware": ">=1.16" }');
+    } else {
+      for (const [name, range] of Object.entries(m.requires)) {
+        if (!validRange(range)) problems.push(`requires "${name}": "${range}" is not a version range (such as ">=1.16", "^1.2" or "*")`);
+      }
+    }
+  }
   if (problems.length) throw new Error(`${file}: ${problems.join('; ')}`);
   return {
     id: m.id,
@@ -263,8 +275,53 @@ function readManifest(dir) {
     x: Number(m.x) || 0,
     y: Number(m.y) || 0,
     hideWith: m.hideWith ?? [],
+    requires: m.requires ?? {},
     open: m.open !== false,
   };
+}
+
+// ---------- what the game has installed (W2: "requires") ----------
+
+// The game folder: the packaged host sits in <game>/red4ext/plugins/REDnode/host.
+// Started by hand, --game=<folder> or REDNODE_GAME_DIR, else the default Steam path.
+const GAME_DIR = (() => {
+  const given = arg('game') ?? process.env.REDNODE_GAME_DIR;
+  if (given) return given;
+  if (app.isPackaged) {
+    const dir = path.resolve(path.dirname(process.execPath), '..', '..', '..', '..');
+    if (fs.existsSync(path.join(dir, 'red4ext'))) return dir;
+  }
+  const steam = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077';
+  return fs.existsSync(steam) ? steam : null;
+})();
+
+// REDbridge, shared by the packages with the "bridge" permission (kernel.bridge()).
+const redbridge = createRedbridge({ log, gameDir: () => GAME_DIR, configured: () => settings.redbridge });
+
+let installed = null;
+let installedAt = 0;
+// Scanning reads a few DLL headers; at most once every 30 seconds.
+function installedNow() {
+  if (!installed || Date.now() - installedAt > 30000) {
+    installed = scanGame(GAME_DIR);
+    installedAt = Date.now();
+  }
+  return installed;
+}
+
+/** A package's requirements, checked: [{ name, wants, found, installed, ok, kind, note }]. */
+function requirementsOf(id) {
+  const entry = apps.get(id);
+  if (!entry || !Object.keys(entry.manifest.requires ?? {}).length) return [];
+  return checkRequires(entry.manifest.requires, installedNow());
+}
+
+/** What a package is missing, in words, or null. */
+function missingOf(id) {
+  const missing = requirementsOf(id).filter((r) => !r.ok);
+  if (!missing.length) return null;
+  const wants = (r) => (r.wants && r.wants !== '*' ? ` ${r.wants}` : '');
+  return missing.map((r) => `${r.name}${wants(r)} (${r.note})`).join(', ');
 }
 
 function discoverApps() {
@@ -975,6 +1032,8 @@ function appList() {
         mod: m.main ? mods.info(m.id, metrics) : null,
         closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
         hasWindow: windowsOfPackage(m.id).length > 0,
+        requires: requirementsOf(m.id),
+        bridge: m.permissions.includes('bridge') ? redbridge.status() : null,
         permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
       };
     });
@@ -1355,6 +1414,32 @@ function mcpFor(id) {
   mcp.configure(c);
   return { url: `http://127.0.0.1:${c.port}/mcp`, headers: { Authorization: `Bearer ${packageTokens.get(id)}` } };
 }
+
+/**
+ * REDbridge for one package, if the player allowed it: op "status" says whether it is
+ * installed (and fails with how to get it when not); op "call" calls a method.
+ */
+async function bridgeFor(id, op, method, params) {
+  if (!isGranted(id, 'bridge')) {
+    const entry = apps.get(id);
+    throw new Error(
+      entry?.manifest.permissions.includes('bridge')
+        ? `Allow "${entry.manifest.name}" to use REDbridge in the Mod Manager first`
+        : 'This package does not ask for the "bridge" permission in its rednode-app.json',
+    );
+  }
+  if (op === 'status') {
+    const s = redbridge.status();
+    if (!s.found) {
+      throw new Error('REDbridge is not installed. Get it with REDdeck ("Get REDbridge") or REDcode in VS Code.');
+    }
+    return { version: s.version, source: s.source, running: s.running };
+  }
+  return redbridge.call(String(method), params ?? {});
+}
+
+ipcMain.handle('rednode:pkg:bridge', (event, op, method, params) => bridgeFor(packageOf(event), op, method, params));
+ipcMain.handle('rednode:pkg:requires', (event) => requirementsOf(packageOf(event)));
 
 // The package a page belongs to: its app, or the mod that built it.
 function packageOf(event) {
@@ -1925,6 +2010,9 @@ app.whenReady().then(() => {
     appsDirs: APP_ROOTS.filter((r) => !r.builtin).map((r) => r.dir),
     secret,
     mcpFor,
+    bridgeFor,
+    requirementsOf,
+    missingOf,
     post: postToPages,
     agent: (id, msg) => onAgent(id, msg, (m) => mods.toMod(id, m)),
     ui,
@@ -1979,4 +2067,5 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   mods?.stopAll();
   mcp?.stop();
+  redbridge.stop();
 });

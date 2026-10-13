@@ -345,6 +345,8 @@ Every node has `set(props)`, which updates the open window at once.
 | `secrets.get(name)`, `secrets.set(name, value)`, `secrets.delete(name)` | Secrets such as an API key, encrypted with the player's Windows account and kept by the host. A package reads only its own. A secret that cannot be decrypted, for example one saved under another Windows account, reads as `null` | Node mods and apps |
 | `kernel.mcp()` | The address and a token for the [kernel MCP server](mcp.md), for an AI agent in the package. The package must list `"permissions": ["mcp"]` in its manifest, and the player must allow it in the launcher | Node mods and apps |
 | `channel.post(data)`, `channel.on(handler)` | Messages between a package's pages and its own Node mod: a web UI with a Node backend | Node mods and apps |
+| `kernel.requirements()` | The package's `requires`, checked against the game folder (see [Requirements](#requirements)) | Node mods and apps |
+| `kernel.bridge()` | REDbridge, WolvenKit's engine, for the game's archives and files (see [The game's files through REDbridge](#the-games-files-through-redbridge)). Needs `"permissions": ["bridge"]` and the player's OK | Node mods and apps |
 
 ```js
 import { pkg, secrets, kernel } from 'rednode';
@@ -352,6 +354,50 @@ import { pkg, secrets, kernel } from 'rednode';
 await secrets.set('api-key', key);
 const { url, headers } = await kernel.mcp(); // rejects until the player allows it
 ```
+
+## Requirements
+
+A package that needs other mods says so in its manifest. REDnode checks the game folder, the Mod Manager marks a package that misses something (**NEEDS** in the table, the list under **Requires** in its details), the launcher says what is missing, and a Node mod's log gets a line when it starts. The package still runs: it can check for itself and explain.
+
+```json
+"requires": {
+  "codeware": ">=1.16",
+  "archivexl": ">=1.23"
+}
+```
+
+| What a name can be | Version from |
+|---|---|
+| A RED4ext plugin: its folder in `red4ext/plugins`, or its DLL's name | The DLL's file version, when it has one. Codeware, ArchiveXL and TweakXL do. A plugin without one counts as installed, "version unknown" |
+| A redscript module: a folder or `.reds` file in `r6/scripts` | None: installed or not |
+| A Cyber Engine Tweaks mod: a folder in `bin/x64/plugins/cyber_engine_tweaks/mods` | None |
+| `red4ext`, `cet` (or `cyber engine tweaks`), `redscript` | RED4ext's and CET's file versions; redscript has none |
+
+Names match without regard to case, spaces, dashes or underscores. Ranges: `>=1.16`, `>1`, `<2`, `<=1.2`, `1.20` (any 1.20.x), `=1.20.3`, `^1.16` (1.16 or later, before 2), `~1.16` (1.16.x), `*` (any version); several separated by spaces must all hold, and `||` gives alternatives.
+
+```js
+import { kernel } from 'rednode';
+
+const missing = (await kernel.requirements()).filter((r) => !r.ok);
+// [{ name: 'Codeware', wants: '>=1.16', found: null, installed: false, ok: false, note: 'not installed' }]
+```
+
+## The game's files through REDbridge
+
+[REDbridge](https://github.com/Edgemodders/REDbridge) runs WolvenKit's engine and answers JSON-RPC: the game's archives (list, search, extract), CR2W files as JSON and back, textures as PNG, hashes. REDnode does not ship it (it is GPL-3.0, its own program): it uses the copy [REDdeck](https://github.com/Edgemodders/REDdeck) ("Get REDbridge") or REDcode fetched, or one set with the `REDBRIDGE_EXE` environment variable. One REDbridge serves every package: it starts on the first call, loads the game's archive index in about three seconds, and stops after 10 minutes without calls.
+
+Add `"permissions": ["bridge"]` to the manifest; the player allows it in the Mod Manager, which also says where REDbridge was found.
+
+```js
+import { kernel } from 'rednode';
+
+const bridge = await kernel.bridge(); // rejects until allowed, or when REDbridge is not installed
+const archives = await bridge.call('archive.archives');
+const found = await bridge.call('archive.search', { query: 'player_ma_tpp', limit: 5 });
+await bridge.call('archive.extract', { path: found.items[0].name, outFile: 'C:/temp/player.ent' });
+```
+
+Parameters go by name, as REDbridge's [method list](https://edgemodders.github.io/REDbridge/) gives them. The [Packaging test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/packaging-test) sample lists and searches the archives.
 
 ## Asking the AI assistant
 
