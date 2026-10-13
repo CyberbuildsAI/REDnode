@@ -404,6 +404,8 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | `player.GetEntityID()` | A method of a game object |
 | `api.$call('Cast;EntityID;StatsObjectID', ...)` | A global function by its full name: operators, and overloads that share a name |
 | `obj.$get('propertyName')` | A property of a game object |
+| `obj.$set('propertyName', value)` | Writes a property, with the same type checks as arguments |
+| `api.$new('entMeshComponent', { ... })` | Builds a game object by class name, with properties set first. Nothing in the game holds it yet, so its reference keeps it alive until released (or a save loads). A struct comes back as its value |
 | `game.instance` | The `GameInstance` argument that many functions take first |
 
 | Game type | In JavaScript |
@@ -416,6 +418,7 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | Structs, such as Vector4 or ItemID | Plain objects. As arguments, missing properties keep their default, and `null` is the default value |
 | Game objects | References: call their methods with `await`. `null` when there is none |
 | Arrays | Arrays |
+| Resource references (`rRef`, `raRef`, `ResRef`) | A depot path such as `"base\\environment\\ld_kit\\marker.mesh"`, or its hash as a string. Read back as the hash: turning a hash into a path needs an asset index, such as REDbridge's |
 
 | Good to know | |
 |---|---|
@@ -423,8 +426,42 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | References | A game object comes back as a reference that points at it weakly. When the game deletes the object, or a save loads, calls on it fail with "that game object no longer exists". Get a fresh one after each `PlayerPuppet.OnGameAttached` |
 | Wrong arguments | The arguments are checked against the function's types before the call. A wrong one fails with the argument's name and type, and the game is not touched |
 | Out parameters | A function with out parameters returns `{ result, out }` |
-| Not supported yet | `script_ref` parameters, and resource references. Such calls fail with a clear message |
+| Not supported yet | `script_ref` parameters. Such calls fail with a clear message |
 | Risk | The checks catch wrong types, not wrong values. Calling a function the game does not expect to be called at that moment can still crash it, as with any script mod |
+
+## Placing things in the world
+
+`world` in the `rednode` package spawns entities with components attached, moves them, removes them, and passes on their lifecycle events. It uses [Codeware](https://github.com/psiberx/cp2077-codeware) 1.14 or later in the game; without it, these calls reject and say so. See [World API](world.md) for how it works.
+
+```js
+import { api, world } from 'rednode';
+
+const mesh = await api.$new('entMeshComponent', {
+  name: 'my_box',
+  mesh: 'base\\environment\\ld_kit\\marker.mesh',
+  meshAppearance: 'default',
+});
+const { id } = await world.spawn({
+  template: 'base\\spawner\\empty_entity.ent', // an empty entity template
+  position: { x: -1234, y: 987, z: 12 },
+  yaw: 90,
+  components: [mesh],
+});
+await world.move(id, { x: -1234, y: 988, z: 12 });
+await world.remove(id);
+```
+
+| Call | What it does |
+|---|---|
+| `world.spawn(options)` | Spawns an entity from a template (`template`) or a TweakDB record (`record`), and resolves once it is in the world, with its ID and the entity. `components` are attached while it assembles |
+| `world.move(id, position, orientation?, yaw?)` | Places it |
+| `world.remove(id)` | Removes it |
+| `world.watch(id)` | Lifecycle events for an entity spawned some other way |
+| `world.on(name, handler)` | `Entity/Initialize`, `Entity/AfterAttach` (or Codeware's old name `Entity/Attached`) and `Entity/Detach`, with the entity's `entityId` and `entityType` |
+| `world.entity(id)` | The entity, or `null` once it is gone |
+| `world.available()` | True when Codeware is installed and a game is loaded |
+
+The [World test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/world-test) sample spawns a box in front of V, spins it and removes it.
 
 ## More
 

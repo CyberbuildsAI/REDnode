@@ -16,6 +16,7 @@
 #include "overlay/overlay.hpp"
 
 #include <RED4ext/RED4ext.hpp>
+#include <RED4ext/Scripting/Natives/entEntityID.hpp>
 
 #include <Windows.h>
 
@@ -35,6 +36,15 @@ const RED4ext::v1::Sdk* g_sdk = nullptr;
 // Events queued by scripts, drained once per frame on the game thread.
 std::mutex g_eventsMutex;
 std::vector<std::pair<std::string, int32_t>> g_events;
+
+// Entity events from REDnodeWorld.reds (Codeware callbacks), sent on the next frame.
+struct EntityEvent
+{
+    std::string name;
+    uint64_t entityId = 0;
+    std::string entityType;
+};
+std::vector<EntityEvent> g_entityEvents;
 
 std::uint64_t g_frames = 0;
 constexpr std::uint64_t HeartbeatFrames = 3600;
@@ -83,6 +93,28 @@ void REDnode_Emit(RED4ext::IScriptable* aContext, RED4ext::CStackFrame* aFrame, 
     g_events.emplace_back(name.c_str(), value);
 }
 
+// redscript: public static native func REDnode_EntityEvent(name: String, entityID: EntityID, entityType: CName) -> Void
+// An entity REDnode spawned or watches reached a lifecycle stage (W1, through Codeware).
+// Queued like REDnode_Emit; Node mods get it as a game event with the entity's ID.
+void REDnode_EntityEvent(RED4ext::IScriptable* aContext, RED4ext::CStackFrame* aFrame, void* aOut, int64_t a4)
+{
+    RED4EXT_UNUSED_PARAMETER(aContext);
+    RED4EXT_UNUSED_PARAMETER(aOut);
+    RED4EXT_UNUSED_PARAMETER(a4);
+
+    RED4ext::CString name;
+    RED4ext::ent::EntityID entityId;
+    RED4ext::CName entityType;
+    RED4ext::GetParameter(aFrame, &name);
+    RED4ext::GetParameter(aFrame, &entityId);
+    RED4ext::GetParameter(aFrame, &entityType);
+    aFrame->code++; // skip ParamEnd
+
+    const char* type = entityType.ToString();
+    std::scoped_lock lock(g_eventsMutex);
+    g_entityEvents.push_back({name.c_str(), entityId.hash, type ? type : ""});
+}
+
 void PostRegisterTypes()
 {
     auto rtti = RED4ext::CRTTISystem::Get();
@@ -99,6 +131,13 @@ void PostRegisterTypes()
     emit->AddParam("String", "name");
     emit->AddParam("Int32", "value");
     rtti->RegisterFunction(emit);
+
+    auto entityEvent = RED4ext::CGlobalFunction::Create("REDnode_EntityEvent", "REDnode_EntityEvent", &REDnode_EntityEvent);
+    entityEvent->flags = flags;
+    entityEvent->AddParam("String", "name");
+    entityEvent->AddParam("entEntityID", "entityID");
+    entityEvent->AddParam("CName", "entityType");
+    rtti->RegisterFunction(entityEvent);
 
     g_sdk->logger->InfoF(g_handle, "RTTI ready: %u types, %u global functions", rtti->types.size,
                          rtti->funcs.size);
@@ -149,9 +188,21 @@ bool OnRunningUpdate(RED4ext::CGameApplication* aApp)
     ++g_frames;
 
     std::vector<std::pair<std::string, int32_t>> events;
+    std::vector<EntityEvent> entityEvents;
     {
         std::scoped_lock lock(g_eventsMutex);
         events.swap(g_events);
+        entityEvents.swap(g_entityEvents);
+    }
+
+    // Entity events (W1): the entity's ID as a string, since it is 64-bit, and its class.
+    // Not logged one by one: a mod moving many entities would flood the log.
+    for (const auto& e : entityEvents)
+    {
+        rednode::overlay::SendJson("{\"event\":\"game\",\"name\":" + rednode::overlay::JsonString(e.name) +
+                                   ",\"value\":0,\"frame\":" + std::to_string(g_frames) + ",\"entityId\":\"" +
+                                   std::to_string(e.entityId) + "\",\"entityType\":" +
+                                   rednode::overlay::JsonString(e.entityType) + "}");
     }
 
     for (const auto& [name, value] : events)
@@ -194,7 +245,7 @@ RED4EXT_C_EXPORT bool RED4EXT_CALL Main(RED4ext::v1::PluginHandle aHandle, RED4e
         g_handle = aHandle;
         g_sdk = aSdk;
 
-        aSdk->logger->Info(aHandle, "REDnode 0.14.1 loading (P1 probe, overlay O8, REDagent C4)");
+        aSdk->logger->Info(aHandle, "REDnode 0.15.0 loading (P1 probe, overlay O8, world W1)");
 
         RED4ext::CRTTISystem::Get()->AddPostRegisterCallback(PostRegisterTypes);
 
@@ -227,7 +278,7 @@ RED4EXT_C_EXPORT void RED4EXT_CALL Query(RED4ext::v1::PluginInfo* aInfo)
 {
     aInfo->name = L"REDnode";
     aInfo->author = L"Edgemodders";
-    aInfo->version = RED4EXT_V1_SEMVER(0, 14, 1);
+    aInfo->version = RED4EXT_V1_SEMVER(0, 15, 0);
     aInfo->runtime = RED4EXT_V1_RUNTIME_VERSION_LATEST;
     aInfo->sdk = RED4EXT_V1_SDK_VERSION_CURRENT;
 }

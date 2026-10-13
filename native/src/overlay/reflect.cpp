@@ -10,6 +10,10 @@
 //   rtti.get      {"self":{"$ref":3},"prop":"quickSlotsManager"}            a property's value
 //   rtti.release  {"refs":[3,4]}                                           forget object references:
 //                                                                         once per time each was received
+//   rtti.new      {"class":"entMeshComponent","props":{"meshAppearance":"default"}}
+//                 -> a new object's reference (the reference keeps it alive until
+//                    released), or a struct's value
+//   rtti.set      {"self":{"$ref":3},"prop":"visualScale","value":{"X":2,"Y":2,"Z":2}}
 //
 // Values:
 //   Bool, Int8 to Int32, Uint8 to Uint32, Float, Double   JSON booleans and numbers
@@ -21,12 +25,18 @@
 //   structs                                               objects of their properties
 //   arrays                                                arrays
 //   handles and weak handles                              {"$ref": n, "$type": "PlayerPuppet"}, or null
+//   resource references (rRef, raRef, ResRef)             a depot path such as "base\...\crate_a.mesh",
+//                                                         or its hash as a decimal or "0x..." string;
+//                                                         read back as the hash string (a path needs an
+//                                                         asset index, such as REDbridge's)
 // Object references point at the object weakly: a call on an object the game
 // has deleted fails cleanly. They are all forgotten on every session attach.
 
 #include "jvalue.hpp"
 #include "overlay.hpp"
 
+#include <RED4ext/ResourcePath.hpp>
+#include <RED4ext/ResourceReference.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 
 #include <algorithm>
@@ -75,6 +85,7 @@ struct Ref
 {
     WeakHandle<IScriptable> object;
     uint32_t count = 0;
+    Handle<IScriptable> owned; // set for objects made by rtti.new: nothing else holds them yet
 };
 std::unordered_map<uint32_t, Ref> g_refs;
 std::unordered_map<IScriptable*, uint32_t> g_refIds;
@@ -89,7 +100,7 @@ void PruneRefs()
         it = g_refs.contains(it->second) ? std::next(it) : g_refIds.erase(it);
 }
 
-uint32_t RefFor(const Handle<IScriptable>& aObject)
+uint32_t RefFor(const Handle<IScriptable>& aObject, bool aOwn = false)
 {
     IScriptable* raw = aObject.GetPtr();
     if (auto it = g_refIds.find(raw); it != g_refIds.end())
@@ -98,13 +109,15 @@ uint32_t RefFor(const Handle<IScriptable>& aObject)
         if (found != g_refs.end() && found->second.object.Lock().GetPtr() == raw)
         {
             found->second.count += 1;
+            if (aOwn)
+                found->second.owned = aObject;
             return it->second;
         }
     }
     if (g_refs.size() >= MaxRefs)
         PruneRefs();
     const uint32_t id = g_nextRef++;
-    g_refs[id] = Ref{WeakHandle<IScriptable>(aObject), 1};
+    g_refs[id] = Ref{WeakHandle<IScriptable>(aObject), 1, aOwn ? aObject : Handle<IScriptable>{}};
     g_refIds[raw] = id;
     return id;
 }
@@ -183,6 +196,16 @@ void WriteInt(void* aMem, uint32_t aSize, uint64_t aValue)
 }
 
 void ToJson(const rtti::IType* aType, const void* aMem, std::string& aOut, int aDepth);
+
+// Scripts' ResRef (redResourceReferenceScriptToken) is a struct holding one resource
+// reference. It reads and writes as the reference itself: a path or a hash.
+const CProperty* ResRefResource(const CClass* aClass)
+{
+    if (!aClass || aClass->GetName() != "redResourceReferenceScriptToken" || aClass->props.Size() != 1)
+        return nullptr;
+    const CProperty* p = aClass->props[0];
+    return p->type->GetType() == Kind::ResourceAsyncReference ? p : nullptr;
+}
 
 void StructToJson(const CClass* aClass, const void* aMem, std::string& aOut, int aDepth)
 {
@@ -303,6 +326,8 @@ void ToJson(const rtti::IType* aType, const void* aMem, std::string& aOut, int a
         const auto* cls = static_cast<const CClass*>(aType);
         if (IsScriptable(cls))
             aOut += "null"; // objects travel as handles, never by value
+        else if (const CProperty* res = ResRefResource(cls))
+            ToJson(res->type, static_cast<const uint8_t*>(aMem) + res->valueOffset, aOut, aDepth); // ResRef: its hash
         else
             StructToJson(cls, aMem, aOut, aDepth);
         return;
@@ -335,6 +360,11 @@ void ToJson(const rtti::IType* aType, const void* aMem, std::string& aOut, int a
         return;
     case Kind::WeakHandle:
         HandleToJson(static_cast<const WeakHandle<IScriptable>*>(aMem)->Lock(), aOut);
+        return;
+    case Kind::ResourceReference:
+    case Kind::ResourceAsyncReference:
+        // Both start with the path's hash.
+        Quoted64(aOut, false, static_cast<const ResourcePath*>(aMem)->hash);
         return;
     default:
     {
@@ -389,6 +419,20 @@ bool IntFromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std:
         WriteInt(aMem, aType->GetSize(), u);
     }
     return true;
+}
+
+// A resource path's hash, as the game computes it: a decimal or 0x hash passes
+// through; anything else is a depot path, hashed after the game's own clean-up.
+uint64_t ResourceHash(const std::string& aText)
+{
+    const bool hex = aText.size() > 2 && aText[0] == '0' && (aText[1] == 'x' || aText[1] == 'X') &&
+                     aText.find_first_not_of("0123456789abcdefABCDEF", 2) == std::string::npos;
+    const bool decimal = !aText.empty() && aText.find_first_not_of("0123456789") == std::string::npos;
+    if (hex)
+        return std::strtoull(aText.c_str() + 2, nullptr, 16);
+    if (decimal)
+        return std::strtoull(aText.c_str(), nullptr, 10);
+    return ResourcePath::HashSanitized(aText.c_str(), aText.size());
 }
 
 const CProperty* FindProperty(const CClass* aClass, std::string_view aName)
@@ -518,6 +562,8 @@ bool FromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std::st
             return true; // whatever was passed, it means the running game
         if (aValue.IsNull())
             return true; // the default value
+        if (const CProperty* res = ResRefResource(cls); res && aValue.kind == Value::Kind::String)
+            return FromJson(res->type, static_cast<uint8_t*>(aMem) + res->valueOffset, aValue, aError, aDepth + 1);
         if (!Expect(aValue.kind == Value::Kind::Object, aType, "an object of its properties", aError))
             return false;
         for (const auto& [key, v] : aValue.fields)
@@ -578,6 +624,22 @@ bool FromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std::st
             *static_cast<Handle<IScriptable>*>(aMem) = obj;
         else
             *static_cast<WeakHandle<IScriptable>*>(aMem) = obj;
+        return true;
+    }
+    case Kind::ResourceReference:
+    case Kind::ResourceAsyncReference:
+    {
+        uint64_t hash = 0;
+        if (!aValue.IsNull())
+        {
+            if (!Expect(aValue.kind == Value::Kind::String, aType, "a depot path, or its hash as a string", aError))
+                return false;
+            hash = ResourceHash(aValue.text);
+        }
+        if (aType->GetType() == Kind::ResourceAsyncReference)
+            static_cast<ResourceAsyncReference<>*>(aMem)->path = ResourcePath(hash);
+        else
+            *static_cast<ResourceReference<>*>(aMem) = ResourceReference<>(ResourcePath(hash)); // starts loading it
         return true;
     }
     case Kind::ScriptReference:
@@ -897,6 +959,109 @@ std::string Get(const Value& aParams, std::string& aError)
     return result;
 }
 
+// Sets properties from a JSON object, as rtti.new's props and rtti.set do.
+bool SetProps(const CClass* aClass, void* aInstance, const Value& aProps, std::string& aError)
+{
+    if (aProps.IsNull())
+        return true;
+    if (aProps.kind != Value::Kind::Object)
+    {
+        aError = "props must be an object of property names and values";
+        return false;
+    }
+    for (const auto& [key, v] : aProps.fields)
+    {
+        const CProperty* p = FindProperty(aClass, key);
+        if (!p)
+        {
+            aError = Str(aClass->GetName()) + " has no property \"" + key + "\"";
+            return false;
+        }
+        if (!FromJson(p->type, static_cast<uint8_t*>(aInstance) + p->valueOffset, v, aError, 0))
+        {
+            aError = key + " (" + TypeName(p->type) + "): " + aError;
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string New(const Value& aParams, std::string& aError)
+{
+    const Value* name = aParams.Get("class");
+    if (!name || name->kind != Value::Kind::String || name->text.empty())
+    {
+        aError = "class is required: the class to build, such as entMeshComponent";
+        return {};
+    }
+    CClass* cls = FindClass(name->text);
+    if (!cls)
+    {
+        aError = "no game class \"" + name->text + "\"";
+        return {};
+    }
+    if (cls->flags.isAbstract)
+    {
+        aError = name->text + " is abstract: build one of the classes based on it";
+        return {};
+    }
+    static const Value none{};
+    const Value* props = aParams.Get("props");
+    if (!props)
+        props = &none;
+
+    if (!IsScriptable(cls))
+    {
+        // A struct: built, filled and returned by value.
+        Slot slot(cls);
+        if (!SetProps(cls, slot.mem, *props, aError))
+            return {};
+        std::string result;
+        ToJson(cls, slot.mem, result, 0);
+        return result;
+    }
+
+    auto* raw = static_cast<IScriptable*>(cls->CreateInstance(true));
+    if (!raw)
+    {
+        aError = "the game could not build a " + name->text;
+        return {};
+    }
+    Handle<IScriptable> obj(raw);
+    if (!SetProps(cls, raw, *props, aError))
+        return {};
+    // Nothing in the game holds the new object yet: its reference keeps it alive
+    // until released, or until a save loads.
+    return "{\"$ref\":" + std::to_string(RefFor(obj, true)) + ",\"$type\":" + JsonString(Str(cls->GetName())) + "}";
+}
+
+std::string Set(const Value& aParams, std::string& aError)
+{
+    const Value* self = aParams.Get("self");
+    const Value* prop = aParams.Get("prop");
+    const Value* value = aParams.Get("value");
+    if (!self || !prop || prop->kind != Value::Kind::String || !value)
+    {
+        aError = "self, prop and value are required";
+        return {};
+    }
+    Handle<IScriptable> obj = FromRef(*self, aError);
+    if (!obj)
+        return {};
+    const CProperty* p = FindProperty(obj->GetType(), prop->text);
+    if (!p)
+    {
+        aError = Str(obj->GetType()->GetName()) + " has no property \"" + prop->text + "\"";
+        return {};
+    }
+    if (!FromJson(p->type, p->GetValuePtr<void>(obj.GetPtr()), *value, aError, 0))
+    {
+        aError = prop->text + " (" + TypeName(p->type) + "): " + aError;
+        return {};
+    }
+    return "null";
+}
+
 std::string Release(const Value& aParams)
 {
     if (const Value* refs = aParams.Get("refs"); refs && refs->kind == Value::Kind::Array)
@@ -923,7 +1088,8 @@ std::string Release(const Value& aParams)
 
 bool IsReflectMethod(const std::string& aMethod)
 {
-    return aMethod == "rtti.call" || aMethod == "rtti.get" || aMethod == "rtti.release";
+    return aMethod == "rtti.call" || aMethod == "rtti.get" || aMethod == "rtti.release" || aMethod == "rtti.new" ||
+           aMethod == "rtti.set";
 }
 
 std::string Reflect(const std::string& aMethod, const json::Value& aParams, std::string& aError)
@@ -932,6 +1098,10 @@ std::string Reflect(const std::string& aMethod, const json::Value& aParams, std:
         return Call(aParams, aError);
     if (aMethod == "rtti.get")
         return Get(aParams, aError);
+    if (aMethod == "rtti.new")
+        return New(aParams, aError);
+    if (aMethod == "rtti.set")
+        return Set(aParams, aError);
     return Release(aParams);
 }
 

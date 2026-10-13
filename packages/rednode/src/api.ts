@@ -40,6 +40,17 @@ export interface GameRef {
    */
   $get(prop: string): Promise<unknown>;
   /**
+   * Writes one of the object's properties, with the same type checks as arguments.
+   * A resource reference takes a depot path or its hash.
+   *
+   * @example
+   * ```ts
+   * await mesh.$set("meshAppearance", "default");
+   * await mesh.$set("visualScale", { X: 2, Y: 2, Z: 2 });
+   * ```
+   */
+  $set(prop: string, value: unknown): Promise<void>;
+  /**
    * Calls a method by its full name, for overloads that share a name.
    *
    * @example
@@ -92,6 +103,7 @@ function wrap(raw: { $ref: number; $type: string }): GameRef {
       // Not a promise, not JSON-able as a function, no symbols.
       if (typeof k === "symbol" || k === "then" || k === "toJSON") return undefined;
       if (k === "$get") return (prop: string) => invoke("rtti.get", { self, prop });
+      if (k === "$set") return (prop: string, value: unknown) => invoke("rtti.set", { self, prop, value }).then(() => undefined);
       if (k === "$call") return (fn: string, ...args: unknown[]) => invoke("rtti.call", { self, fn, args });
       return (...args: unknown[]) => invoke("rtti.call", { self, fn: k, args });
     },
@@ -154,6 +166,23 @@ export interface ApiExtras {
   $call(fn: string, ...args: unknown[]): Promise<unknown>;
   /** Calls a class's static function by name or full name. */
   $static(className: string, fn: string, ...args: unknown[]): Promise<unknown>;
+  /**
+   * Builds a game object by its class name (native or script name) and sets
+   * properties on it first. Resolves with a {@link GameRef} for an object, which
+   * keeps the object alive until the reference is released (or a save loads),
+   * since nothing in the game holds it yet; or with the value, for a struct.
+   *
+   * @example
+   * ```ts
+   * const mesh = await api.$new("entMeshComponent", {
+   *   name: "crate",
+   *   mesh: "base\environment\props\crate_a.mesh", // a depot path or its hash
+   *   meshAppearance: "default",
+   *   visualScale: { X: 1, Y: 1, Z: 1 },
+   * });
+   * ```
+   */
+  $new(className: string, props?: Record<string, unknown>): Promise<GameRef | Record<string, unknown>>;
 }
 
 /**
@@ -172,6 +201,7 @@ export interface ApiExtras {
  * | structs | plain objects; as arguments, missing properties keep their default, and `null` is the default value |
  * | objects (handles) | {@link GameRef} proxies, or `null` |
  * | arrays | arrays |
+ * | resource references (`rRef`, `raRef`, `ResRef`) | a depot path such as `"base\...\crate_a.mesh"`, or its hash as a string; read back as the hash |
  *
  * Functions with out parameters return `{ result, out }`.
  *
@@ -190,6 +220,9 @@ export const api: GameApi & ApiExtras = new Proxy({} as GameApi & ApiExtras, {
   get(_t, k) {
     if (typeof k !== "string" || k === "then") return undefined;
     if (k === "$call") return (fn: string, ...args: unknown[]) => invoke("rtti.call", { fn, args });
+    if (k === "$new") {
+      return (cls: string, props?: Record<string, unknown>) => invoke("rtti.new", { class: cls, props: props ?? null });
+    }
     if (k === "$static") {
       return (cls: string, fn: string, ...args: unknown[]) => invoke("rtti.call", { class: cls, fn, args });
     }

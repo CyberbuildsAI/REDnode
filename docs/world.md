@@ -1,6 +1,6 @@
 # World API
 
-Status: **planned.** Phases W1 and W2 answer requests from [EDGEbuilder](https://edgemodders.github.io/EDGEbuilder/design.html), the world builder, filed as [`request` issues](https://github.com/Edgemodders/REDnode/issues?q=is%3Aissue+label%3Arequest). Order agreed with the user on 2026-10-13: REDagent's C5 test, then **W1**, then overlay phase O9 Debugger, then **W2**.
+Status: **W1 is built; its in-game test is pending** ([steps](#w1-test)). W2 is planned. Phases W1 and W2 answer requests from [EDGEbuilder](https://edgemodders.github.io/EDGEbuilder/design.html), the world builder, filed as [`request` issues](https://github.com/Edgemodders/REDnode/issues?q=is%3Aissue+label%3Arequest). Order agreed with the user on 2026-10-13: REDagent's C5 test, then **W1**, then overlay phase O9 Debugger, then **W2**.
 
 EDGEbuilder places objects in the running game: an empty entity spawned through Codeware, with a mesh, light or other component attached while it assembles. The `api` in the `rednode` package can call any game function and read properties ([Overlay apps: the game API](overlay-apps.md#the-game-api)), but it cannot yet build objects, write properties, pass resource references or hear an entity assemble.
 
@@ -34,6 +34,32 @@ For EDGEbuilder's phase B1 (browse and drop) and B2 (position).
 **Codeware stays optional** (agreed with the user on 2026-10-13). REDnode itself never needs it: `$new`, `$set` and resource references are plain REDnode plugin code. Only the entity events and `api.spawn` use Codeware. Their redscript part is compiled only when Codeware is installed; without it, those calls fail with a clear message ("needs Codeware 1.14 or later"), and a package that uses them says so with W2's `requires`. Rebuilding Codeware's entity hooks inside REDnode would duplicate a maintained MIT library and risk the two clashing in players' games.
 
 **The test proves:** a mod spawns a crate in front of V, with its mesh set by path, moves it every frame without dropping frames, and removes it; the entity events arrive for it and only it.
+
+### W1: built
+
+| Piece | Where |
+|---|---|
+| `rtti.new`, `rtti.set` | `native/src/overlay/reflect.cpp`. An object made by `rtti.new` is held by its reference (references are otherwise weak) until released or a save loads |
+| Resource references | `reflect.cpp`: a path is hashed with the SDK's `ResourcePath::HashSanitized`, the game's own clean-up and hash; an `rRef` starts loading when set. Scripts' `ResRef` (`redResourceReferenceScriptToken`) reads and writes as the reference itself |
+| Codeware part | `native/scripts/REDnodeWorld.reds`, compiled only with Codeware (`@if(ModuleExists("Codeware"))`): a `ScriptableSystem` registers `Entity/Initialize`, `Entity/AfterAttach` and `Entity/Detach` for entities tagged `REDnode`, or watched by ID. `Spawn` gives each spawn its own tag too, which keys its components, so they are added in that entity's `Entity/Initialize` and no other. `Delete`, `Move` (Codeware's `Entity.SetWorldTransform`) and `Watch` |
+| Events | A native `REDnode_EntityEvent(name, entityID, entityType)` queues them; the plugin sends them as game events with `entityId` and `entityType`. The entity itself is not sent: game events go to every mod and page, and references are counted per hand-out |
+| Package | `api.$new`, `ref.$set`, and `world` (`packages/rednode/src/world.ts`) |
+| Sample | `packages/overlay/apps/world-test` |
+| Plugin | 0.15.0 |
+
+Checked before the game: both scripts compile with the redscript compiler (v1.0.0-preview.22) against the game's own script bundle, with Codeware's scripts and without them; the check found and fixed two errors (`OnAttach` must be public, and `EntityID.GetHash` gives only 32 bits, so the event takes the `EntityID` itself). The package's `world.spawn`, `move`, `remove`, `$new` and `$set` pass a check against a fake game. The plugin builds and its unit tests pass. **Not checked before the game:** building objects, writing properties, resource references and the Codeware part, which only the game can run.
+
+### W1 test
+
+Use the **Test timer**: Start, then Mark after each step. The World test uses World Builder's empty entity and box (`base\spawner\...`), which the user's game has.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Check `r6/logs/redscript_rCURRENT.log` compiled without errors (REDnode's scripts are in it). Mark.
+2. F10, Mod Manager: switch **World test** on. Its window says "World API ready (Codeware found)". Mark.
+3. Face an open spot and press **Spawn box**. A box appears about 3 metres in front of V; the window says how long it took, and the events `Entity/Initialize` and `Entity/AfterAttach` appear for it. Mark.
+4. Press **Spin 10 s** and watch: the box circles for 5 seconds one move at a time, then 5 seconds ten at a time. The window shows the moves per second each way. Mark.
+5. Press **Remove**: the box goes, and `Entity/Detach` appears. Mark.
+6. Press **Next mesh**, then **Spawn box**: the base game's marker mesh this time. Remove it. Mark.
+7. Quit the game. I read the moves per second against the plugin's frame rate in its perf lines, to answer EDGEbuilder's per-frame question.
 
 ## W2 Packaging
 

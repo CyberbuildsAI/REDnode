@@ -39,6 +39,10 @@ export interface GameEvent {
   value: number;
   /** The plugin's frame counter when the event was sent. */
   frame: number;
+  /** For entity events (see {@link world}): the entity's ID hash, as a string. */
+  entityId?: string;
+  /** For entity events: the entity's class, for example `"gameObject"`. */
+  entityType?: string;
 }
 
 /** What the game is showing, and whether REDnode is linked to it. */
@@ -248,7 +252,10 @@ export const game: Game = {
   on<T>(name: string, handler: EventHandler<T>) {
     return listen((m) => {
       if (m.event === "game" && m.name === name) {
-        void handler({ name: m.name, value: m.value, frame: m.frame } as T);
+        const e: GameEvent = { name: String(m.name), value: Number(m.value), frame: Number(m.frame) };
+        if (typeof m.entityId === "string") e.entityId = m.entityId;
+        if (typeof m.entityType === "string") e.entityType = m.entityType;
+        void handler(e as T);
       }
     });
   },

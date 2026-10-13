@@ -27,6 +27,8 @@ export { ui } from "./ui.js";
 export { api } from "./api.js";
 export { pkg, secrets, kernel, channel } from "./pkg.js";
 export { agent } from "./agent.js";
+export { world } from "./world.js";
+export type { EntityId, WorldPoint, WorldRotation, SpawnOptions, Spawned, EntityEventName } from "./world.js";
 export type { AgentAnswer, AskOptions, AgentRequest, AgentResult } from "./agent.js";
 export type { PackageInfo, KernelMcp } from "./pkg.js";
 export type { GameRef, ApiExtras } from "./api.js";

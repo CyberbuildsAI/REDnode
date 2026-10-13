@@ -1,0 +1,8 @@
+{
+  "id": "world-test",
+  "name": "World test",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "Tests the world API (W1): spawns a box in front of V with a mesh component built with api.$new, moves it around as fast as the game allows and measures how many moves fit in a frame, and removes it. Needs Codeware.",
+  "main": "mod.mjs"
+}
