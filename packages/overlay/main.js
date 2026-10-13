@@ -66,7 +66,10 @@ const APP_ROOTS = [
 // What a package may ask for in its manifest's "permissions"; the player grants each in the launcher.
 const PERMISSIONS = {
   mcp: "REDnode's tools for AI agents (the kernel MCP server)",
+  agent: 'questions to the AI assistant (REDagent); each answer costs you a little',
 };
+// What a package may offer other packages in its manifest's "provides".
+const PROVIDES = ['agent'];
 // The UI kit, served to every app as rednode://ui/rednode-ui.js.
 const UI_DIR = app.isPackaged ? path.join(__dirname, 'ui') : path.join(__dirname, '..', 'ui', 'src');
 // The rednode package (built from packages/rednode), served to apps as rednode://sdk/index.js
@@ -230,6 +233,9 @@ function readManifest(dir) {
   if (m.permissions !== undefined && (!Array.isArray(m.permissions) || m.permissions.some((p) => !(p in PERMISSIONS)))) {
     problems.push(`permissions must be a list of ${Object.keys(PERMISSIONS).join(', ')}`);
   }
+  if (m.provides !== undefined && (!Array.isArray(m.provides) || m.provides.some((p) => !PROVIDES.includes(p)))) {
+    problems.push(`provides must be a list of ${PROVIDES.join(', ')}`);
+  }
   if (m.anchor !== undefined && !ANCHORS.includes(m.anchor)) problems.push(`anchor must be one of ${ANCHORS.join(', ')}`);
   if (m.kind !== undefined && !['window', 'hud'].includes(m.kind)) problems.push('kind must be window or hud');
   if (m.hideWith !== undefined && (!Array.isArray(m.hideWith) || m.hideWith.some((h) => !HIDE_WITH.includes(h)))) {
@@ -246,6 +252,7 @@ function readManifest(dir) {
     main: m.main ?? null,
     isolation: m.isolation ?? 'any',
     permissions: m.permissions ?? [],
+    provides: m.provides ?? [],
     kind: m.kind ?? 'window',
     width: m.width,
     height: m.height,
@@ -1105,6 +1112,96 @@ function packageOf(event) {
 
 ipcMain.handle('rednode:pkg:secret', (event, op, name, value) => secret(packageOf(event), op, name, value));
 
+// ---------- agent: packages asking the AI assistant (REDagent C5) ----------
+//
+// A package that asks for the "agent" permission, once the player allows it, can
+// ask questions with agent.ask in the rednode package. The host passes each one to
+// the package that "provides": ["agent"] and serves (REDagent), and streams its
+// answer back to the asker. The provider decides the model, the tools and the
+// spending limits.
+//   asker -> host:    { op: 'ask', aid, prompt, context } or { op: 'cancel', aid }
+//   host -> asker:    { event: 'agent', aid, type: 'text' | 'done' | 'error', text, cost, error }
+//   provider -> host: { op: 'serve' } once, then { op: 'reply', rid, type, text, cost, error }
+//   host -> provider: { event: 'agent-request', rid, from: { id, name }, prompt, context }
+//                     and { event: 'agent-cancel', rid }
+
+let agentProvider = null; // the package id that serves questions
+let nextAgentAsk = 1;
+const agentAsks = new Map(); // rid -> { from, aid, send, at }
+
+function onAgent(id, msg, send) {
+  const entry = apps.get(id);
+  switch (msg?.op) {
+    case 'serve':
+      if (entry?.manifest.provides.includes('agent')) {
+        agentProvider = id;
+        log(`${id} answers agent questions`);
+      } else {
+        log(`${id} tried to answer agent questions, but its manifest does not say "provides": ["agent"]`);
+      }
+      return;
+    case 'ask': {
+      const fail = (error) => send({ event: 'agent', aid: msg.aid, type: 'error', error });
+      if (!entry?.manifest.permissions.includes('agent')) {
+        fail(`"${id}" must ask for the agent permission: "permissions": ["agent"] in its rednode-app.json`);
+      } else if (!isGranted(id, 'agent')) {
+        fail('The player has not allowed this package to ask the assistant yet. They can allow it in the launcher or the Mod Manager.');
+      } else if (!agentProvider || !mods.isEnabled(agentProvider)) {
+        fail('No assistant is running. Install REDagent and switch it on.');
+      } else {
+        const rid = nextAgentAsk++;
+        agentAsks.set(rid, { from: id, aid: msg.aid, send, at: Date.now() });
+        mods.toMod(agentProvider, {
+          event: 'agent-request',
+          rid,
+          from: { id, name: entry.manifest.name },
+          prompt: String(msg.prompt ?? '').slice(0, 20000),
+          context: msg.context,
+        });
+      }
+      return;
+    }
+    case 'cancel':
+      for (const [rid, a] of agentAsks) {
+        if (a.from === id && a.aid === msg.aid && agentProvider) mods.toMod(agentProvider, { event: 'agent-cancel', rid });
+      }
+      return;
+    case 'reply': {
+      if (id !== agentProvider) return;
+      const a = agentAsks.get(msg.rid);
+      if (!a) return;
+      a.send({ event: 'agent', aid: a.aid, type: msg.type, text: msg.text, cost: msg.cost, error: msg.error });
+      if (msg.type !== 'text') agentAsks.delete(msg.rid);
+      return;
+    }
+    default:
+      return;
+  }
+}
+
+// A question the provider never finished (it stopped or crashed) fails after 5 minutes.
+setInterval(() => {
+  for (const [rid, a] of agentAsks) {
+    if (Date.now() - a.at < 5 * 60 * 1000) continue;
+    agentAsks.delete(rid);
+    a.send({ event: 'agent', aid: a.aid, type: 'error', error: 'The assistant did not answer within 5 minutes.' });
+  }
+}, 30000);
+
+// From overlay pages: the same messages, answered to the asking window.
+ipcMain.on('rednode:agent', (event, msg) => {
+  let id;
+  try {
+    id = packageOf(event);
+  } catch {
+    return;
+  }
+  const w = windowFor(event.sender);
+  onAgent(id, msg, (m) => {
+    if (w && !w.win.isDestroyed()) toPage(w, m);
+  });
+});
+
 // The channel between a package's pages and its own Node mod (channel in the rednode package).
 ipcMain.on('rednode:pkg:post', (event, data) => {
   let id;
@@ -1558,6 +1655,7 @@ app.whenReady().then(() => {
     secret,
     mcpFor,
     post: postToPages,
+    agent: (id, msg) => onAgent(id, msg, (m) => mods.toMod(id, m)),
     ui,
     changed: notifyLauncher,
     onLog: onModLog,

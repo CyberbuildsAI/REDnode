@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('rednode', {
     mcp: () => ipcRenderer.invoke('rednode:pkg:mcp'),
     post: (data) => ipcRenderer.send('rednode:pkg:post', data),
   },
+  /** Questions to the AI assistant; used by `agent` in the rednode package. Answers arrive as {event: 'agent'}. */
+  agent: (msg) => ipcRenderer.send('rednode:agent', msg),
   /** For the host's builder page, which shows windows built by Node mods. Other pages get an error. */
   builder: {
     spec: () => ipcRenderer.invoke('rednode:builder:spec'),

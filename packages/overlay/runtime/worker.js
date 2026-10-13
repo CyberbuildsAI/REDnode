@@ -44,6 +44,7 @@ globalThis[Symbol.for('rednode.transport')] = {
   secret: (op, name, value) => request({ t: 'secret', op, name, value }),
   mcp: () => request({ t: 'mcp' }),
   post: (data) => parentPort.postMessage({ t: 'post', data }),
+  agent: (msg) => parentPort.postMessage({ t: 'agent', msg }),
   listen(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);

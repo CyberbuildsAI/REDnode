@@ -1,0 +1,9 @@
+{
+  "id": "ask-mod",
+  "name": "Ask mod",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A sample of agent.ask: type a question about the game or your mods, and the AI assistant (REDagent) answers it here, streaming. Asks for the agent permission; each answer costs you a little.",
+  "main": "mod.mjs",
+  "permissions": ["agent"]
+}

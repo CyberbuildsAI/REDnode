@@ -222,6 +222,9 @@ function createMods(host) {
       case 'post':
         host.post(id, msg.data);
         return;
+      case 'agent':
+        host.agent(id, msg.msg);
+        return;
       case 'secret':
       case 'mcp':
         try {

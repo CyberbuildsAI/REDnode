@@ -351,6 +351,30 @@ await secrets.set('api-key', key);
 const { url, headers } = await kernel.mcp(); // rejects until the player allows it
 ```
 
+## Asking the AI assistant
+
+A package can ask the AI assistant (REDagent) a question and show the answer: a build suggestion, an explanation of an error, a summary of the game state. Add `"permissions": ["agent"]` to the manifest; the player allows it in the launcher or the Mod Manager, and REDagent must be installed and on.
+
+```js
+import { agent, ui } from 'rednode';
+
+const out = ui.text('');
+let text = '';
+const { cost } = await agent.ask('Suggest a build for a netrunner at level 12.', {
+  context: { level: 12, attributes: { intelligence: 9 } }, // sent as JSON with the question
+  onText: (t) => out.set({ text: (text += t) }),            // the answer as it streams
+});
+```
+
+| Rule | Why |
+|---|---|
+| Every answer costs the player | Ask when the player wants it, never on a timer. REDagent gives each package a daily limit ($0.25 unless the player changes it) and the player can pause it; past the limit, `ask` rejects and says so |
+| The assistant only reads | It may look at logs, the game state, the game API and the apps folders, but never changes files or the game. Pictures of windows and the screen only if the player switches them on for your package |
+| Send what it needs | Put your mod's state in `context`, so the assistant does not spend tool calls finding it |
+| `signal` stops a question | Pass an `AbortSignal` to let the player cancel |
+
+The [Ask mod](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/ask-mod) sample asks whatever the player types and streams the answer into its window. The answering side is `agent.serve`, for a package that says `"provides": ["agent"]` in its manifest; REDagent is one.
+
 ## The game API
 
 `api` calls any game function by name: global functions, the static functions of a class, and the methods of game objects. It is typed from the game's own type data, the same data as the [game API reference](game/), so an editor completes every class, method and enum member. It works the same in Node mods and in apps.
