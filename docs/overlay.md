@@ -148,7 +148,7 @@ The result was the first row.
 
 ## Plan for the real version
 
-Status: **draft for review.** Phases are numbered O1 to O8 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
+Status: **draft for review.** Phases are numbered O1 to O9 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
 
 ### Goal
 
@@ -186,6 +186,7 @@ Rules that make borderless windows behave:
 | **O5 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
 | **O6 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data. Node mods get the UI builder | A Node mod and an overlay app use the same API call and get the same answer. A Node mod opens a window without writing HTML |
 | **O7 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
+| **O9 Debugger** | Chromium DevTools for any overlay app, from an **Inspect** button: first in a desktop window, then, if a prototype works, inside the overlay as a built-in Debugger app. Node mods debugged through Node's inspector, attachable from VS Code and REDcode. See [O9 Debugger: plan](#o9-debugger-plan) | An app's page is inspected and a breakpoint hit while the game runs; a Node mod stops at a breakpoint set in VS Code |
 | **O8 Mod Manager** | A built-in Mod Manager app with a table of every package, search, paging and bulk actions. **Pin to launcher** keeps the launcher short; **Pin to HUD** decides which windows stay on screen during gameplay. See [O8 Mod Manager: plan](#o8-mod-manager-plan) | With dozens of packages, the launcher lists only the pinned ones, and any package is found, switched and inspected in the Mod Manager |
 
 ### O1 Windows: test
@@ -461,6 +462,17 @@ Agreed with the user on 2026-10-13, to come after REDagent's C4 test and before 
 No new game API is needed: the host already has the package list, status and memory the launcher shows.
 
 Decided with the user on 2026-10-13: packages installed when O8 first runs keep both pins (nothing changes for them); packages found later start with neither.
+
+### O9 Debugger: plan
+
+Agreed with the user on 2026-10-13, to come after REDagent's C5 test. Apps are Chromium pages in the overlay host, so Chromium's own DevTools already exist for them; Node mods run in Node and need its inspector.
+
+| Step | What it builds | Notes |
+|---|---|---|
+| 1. Inspect in a desktop window | An **Inspect** button in the Mod Manager's details (and the MCP `apps` tool's details) opens the real DevTools for that app's page: elements, console, network, sources, breakpoints. A mod's builder window can be inspected the same way | One Electron call (`webContents.openDevTools({ mode: 'detach' })`). The window is a normal desktop window: a second monitor, or Alt+Tab |
+| 2. DevTools inside the overlay | A built-in **Debugger** app: the same DevTools drawn in the game as an overlay window, dragged and resized like any app | DevTools is itself a page; Electron can send an app's DevTools into another window's page (`setDevToolsWebContents`), which the host renders off screen like any app. **Unverified** with off-screen rendering: a prototype first. If it fails, step 1 stays and a light Console app (live console output and errors per app, and a line to run JavaScript in a chosen app or mod) takes its place |
+| 3. Node mods | A **Debug** switch per mod: the host starts its mod process with Node's inspector on a local port and shows the address to attach to from VS Code or REDcode, with breakpoints in the mod's own files | The shared process stops every mod in it at a breakpoint, so a debugged mod runs in its own process. Fits with REDagent C6 (REDcode) |
+| For agents | The kernel MCP server gains an app's console messages and errors, so REDagent can read them | |
 
 ### O8 Mod Manager: built
 
