@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('rednode', {
     pin: (id, where, on) => ipcRenderer.invoke('rednode:apps:pin', id, where, on),
     /** Marks packages as seen in the Mod Manager, so they no longer count as new. */
     seen: (ids) => ipcRenderer.invoke('rednode:apps:seen', ids),
+    /** Opens the debugger for a package's window: in the game ("overlay", default) or on the desktop. */
+    inspect: (id, where) => ipcRenderer.invoke('rednode:apps:inspect', id, where),
     /** Shows a Node mod's window that the player closed. */
     showWindow: (id, win) => ipcRenderer.invoke('rednode:apps:show-window', id, win),
     /** Gets the render path, or sets it to 'gpu' (GPU sharing) or 'cpu'. */

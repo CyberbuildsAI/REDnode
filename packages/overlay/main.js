@@ -932,7 +932,7 @@ ipcMain.handle('rednode:state', () => hostState());
 // Drag handles reported by preload.js: flat [x, y, w, h, ...] in page pixels.
 ipcMain.on('rednode:drag-regions', (event, regions) => {
   const w = windowFor(event.sender);
-  if (!w || !Array.isArray(regions)) return;
+  if (!w || !Array.isArray(regions) || w.app.debugTarget) return; // the debugger's title bar is the host's
   w.dragRegions = regions.map((n) => Math.round(Number(n) || 0));
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
 });
@@ -971,6 +971,7 @@ function appList() {
         manager: !!entry.manager,
         mod: m.main ? mods.info(m.id, metrics) : null,
         closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
+        hasWindow: windowsOfPackage(m.id).length > 0,
         permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
       };
     });
@@ -1000,6 +1001,104 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   return appList();
 });
 
+// ---------- the debugger (O9) ----------
+//
+// Chromium's DevTools for an overlay app's page (a mod's builder window too): in the
+// game, in the built-in Debugger window, whose webview receives the DevTools
+// (setDevToolsWebContents); or on the desktop, in DevTools' own window, opened without
+// taking focus from the game.
+
+const DEBUGGER_BAR = 30; // the title bar the host adds above DevTools, in page pixels
+
+// The windows of a package: its app window and its mod windows, never debuggers.
+function windowsOfPackage(id) {
+  return [...windows.values()].filter(
+    (w) => !w.app.debugTarget && (w.app.manifest.id === id || w.app.manifest.id.startsWith(`${id}~`)),
+  );
+}
+
+function openDebugger(target, where) {
+  const wc = target.win.webContents;
+  const name = target.app.manifest.name;
+  if (where === 'desktop' || windowed) {
+    wc.openDevTools({ mode: 'detach', activate: false });
+    log(`Debugger for ${target.app.manifest.id} opened on the desktop`);
+    return;
+  }
+  const key = `debugger~${target.id}`;
+  if (windowOfApp(key)) return;
+  if (wc.isDevToolsOpened()) wc.closeDevTools();
+  openApp({
+    manifest: {
+      id: key, name: `Debugger: ${name}`, entry: 'devtools', kind: 'window', width: 1000, height: 620,
+      anchor: 'center', x: 0, y: 0, hideWith: [], permissions: [], provides: [],
+    },
+    dir: __dirname,
+    builtin: true,
+    debugTarget: target.id,
+  });
+}
+
+// DevTools runs in the debugger window's own page: the main page of an off-screen
+// window is what REDnode draws and sends input to. (A webview inside a page, as in
+// Electron's example, painted once and took no input off screen: found in the mock.)
+// The host adds a REDnode title bar above it, with a close button and a drag area.
+function attachDevTools(w) {
+  const target = windows.get(w.app.debugTarget);
+  if (!target || target.win.isDestroyed()) return;
+  const wc = w.win.webContents;
+  target.win.webContents.setDevToolsWebContents(wc);
+  // Undocked: DevTools fills the view, instead of leaving room for a page beside it.
+  target.win.webContents.openDevTools({ mode: 'detach', activate: false });
+  w.dragRegions = [0, 0, w.app.manifest.width - DEBUGGER_BAR - 8, DEBUGGER_BAR];
+  if (connected) sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
+  wc.on('dom-ready', () => {
+    const title = JSON.stringify(w.app.manifest.name.toUpperCase());
+    wc.insertCSS(`
+      html { background: #08090d !important; }
+      body { position: fixed !important; top: ${DEBUGGER_BAR}px !important; left: 0 !important; right: 0 !important;
+        bottom: 0 !important; width: auto !important; height: auto !important; }
+      #rednode-bar { position: fixed; top: 0; left: 0; right: 0; height: ${DEBUGGER_BAR}px; z-index: 2147483647;
+        display: flex; align-items: center; gap: 10px; padding: 0 6px 0 12px; box-sizing: border-box;
+        background: linear-gradient(90deg, rgba(252,238,10,.14), transparent 60%), #08090d;
+        border-bottom: 1px solid #262c3d; font: 700 13px "Segoe UI", sans-serif; letter-spacing: .1em; color: #e3e6ee; }
+      #rednode-bar i { width: 8px; height: 8px; background: #fcee0a; }
+      #rednode-bar span { flex: 1; }
+      #rednode-bar button { width: 22px; height: 22px; padding: 0; border: 1px solid #262c3d; background: transparent;
+        color: #8a93a8; font: 14px monospace; cursor: pointer; }
+      #rednode-bar button:hover { background: #fcee0a; color: #08090d; }`);
+    wc.executeJavaScript(`(() => {
+      if (document.getElementById('rednode-bar')) return;
+      const bar = document.createElement('div');
+      bar.id = 'rednode-bar';
+      bar.innerHTML = '<i></i><span></span><button title="Close">\u2715</button>';
+      bar.querySelector('span').textContent = ${title};
+      bar.querySelector('button').addEventListener('click', () => console.log('${DEBUGGER_CLOSE}'));
+      document.documentElement.appendChild(bar);
+    })()`).catch(() => {});
+  });
+  // The close button reports through the console: DevTools' page has no rednode bridge.
+  wc.on('console-message', ({ message }) => {
+    if (message === DEBUGGER_CLOSE) closeApp(w.app.manifest.id);
+  });
+}
+const DEBUGGER_CLOSE = '__rednode_close_debugger__';
+
+// Opens the debugger for a package's window (the first, or the one named).
+function debugPackage(id, where = 'overlay', windowId) {
+  const all = windowsOfPackage(id);
+  const target = windowId ? all.find((w) => w.app.manifest.id === windowId) : all[0];
+  if (!target) throw new Error(`"${id}" has no open window to debug`);
+  openDebugger(target, where);
+}
+
+ipcMain.handle('rednode:apps:inspect', (event, id, where) => {
+  fromLauncher(event);
+  debugPackage(String(id), where === 'desktop' ? 'desktop' : 'overlay');
+  return true;
+});
+
+
 ipcMain.handle('rednode:apps:pin', (event, id, where, on) => {
   fromLauncher(event);
   setPin(id, where, on);
@@ -1022,6 +1121,10 @@ ipcMain.handle('rednode:apps:show-window', (event, id, win) => {
 // An app's own close button: the same as switching it off in the launcher.
 ipcMain.on('rednode:app:close', (event) => {
   const w = windowFor(event.sender);
+  if (w?.app.debugTarget) {
+    closeApp(w.app.manifest.id);
+    return;
+  }
   if (!w || w.app.pinned || w.app.built || !apps.has(w.app.manifest.id)) return;
   setPackageOpen(w.app.manifest.id, false);
 });
@@ -1573,7 +1676,7 @@ function openApp(entry) {
       sandbox: true,
     },
   });
-  const w = { id, app: entry, win, dragRegions: [] };
+  const w = { id, app: entry, win, dragRegions: [], console: [] };
   windows.set(id, w);
   windowStats.set(id, { frames: 0 });
 
@@ -1588,10 +1691,15 @@ function openApp(entry) {
     windows.delete(id);
     windowStats.delete(id);
   });
-  win.webContents.on('console-message', ({ level, message }) => {
+  win.webContents.on('console-message', ({ level, message, lineNumber, sourceId }) => {
+    if (entry.debugTarget) return; // DevTools' own messages, not the app's
     if (level === 'error') log(`[${m.id}] page error: ${message}`);
+    // The last 200 messages, for the MCP server's window_console tool.
+    w.console.push({ time: Date.now(), level, message, line: lineNumber, source: sourceId });
+    if (w.console.length > 200) w.console.shift();
   });
-  win.loadFile(path.join(entry.dir, m.entry));
+  if (entry.debugTarget) attachDevTools(w);
+  else win.loadFile(path.join(entry.dir, m.entry), entry.query ? { query: entry.query } : undefined);
   if (connected) openInGame(w);
   log(`Opened ${m.id}`);
   notifyLauncher();
@@ -1600,6 +1708,13 @@ function openApp(entry) {
 function closeApp(appId) {
   const w = windowOfApp(appId);
   if (!w) return;
+  // A window's debugger goes with it; a debugger closes its target's DevTools.
+  const debuggerOf = windowOfApp(`debugger~${w.id}`);
+  if (debuggerOf) closeApp(debuggerOf.app.manifest.id);
+  if (w.app.debugTarget) {
+    const target = windows.get(w.app.debugTarget);
+    if (target && !target.win.isDestroyed() && target.win.webContents.isDevToolsOpened()) target.win.webContents.closeDevTools();
+  }
   sendJson({ cmd: 'window.close', window: w.id });
   windows.delete(w.id);
   windowStats.delete(w.id);

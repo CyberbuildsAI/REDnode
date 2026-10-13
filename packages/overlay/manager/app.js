@@ -316,6 +316,14 @@ function renderDetails() {
     if (i.open) row.append(button('Restart', () => act(i.name, () => window.rednode.apps.restart(i.id))));
     parts.push(row);
   }
+  if (i.hasWindow) {
+    // Chromium's DevTools for its window: in the game, or on the desktop (Alt+Tab).
+    const row = el('div', 'row');
+    row.append(el('span', 'dim', 'Inspect'));
+    row.append(button('In the game', () => act(i.name, () => window.rednode.apps.inspect(i.id, 'overlay'))));
+    row.append(button('On the desktop', () => act(i.name, () => window.rednode.apps.inspect(i.id, 'desktop'))));
+    parts.push(row);
+  }
   for (const win of i.closedWindows ?? []) {
     const row = el('div', 'row');
     row.append(el('span', 'dim', i.closedWindows.length > 1 ? `Window "${win}" closed` : 'Window closed'));
