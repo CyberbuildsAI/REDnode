@@ -35,6 +35,8 @@ nav:
     url: /overlay-apps.html
   - title: MCP server
     url: /mcp.html
+  - title: World API
+    url: /world.html
   - title: P0 findings
     url: /p0-findings.html
   - title: P1 results
