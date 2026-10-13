@@ -24,6 +24,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | [MCP server](mcp.md) | The kernel's tools for AI agents: Claude Code can read mod logs, see overlay windows, look up game types and call the game |
 | [Overlay apps](overlay-apps.md) | Guide with tested examples: your first app, UI kit windows, a native-looking button, and playing game sounds |
 | [World API](world.md) | The plan for building and placing objects in the game from a package: `$new`, `$set`, resource references, entity events, `api.spawn`, `requires` and `kernel.bridge()` |
+| [TweakDB API](tweakdb.md) | The plan for reading and changing TweakDB, the game's tuning database, from a package |
 | [HTML overlay](overlay.md) | Design of the overlay: how it works, in-game test results, and the plan for phases O1 to O9 |
 | [P0 findings](p0-findings.md) | How RED4ext loads plugins, the plugin entry points, and what that means for the bridge |
 | [P1 results](p1-results.md) | The in-game probe test: what passed, the logs, and when `OnGameAttached` fires |
@@ -38,6 +39,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | HTML overlay | O1 to O6 passed in game: Node mods run beside overlay apps, and `api` calls any game function, typed. O8 Mod Manager (a table of every package, Pin to launcher, Pin to HUD) passed in game. O9 Debugger (DevTools for apps and Node mods, in the game; Developer mode) passed in game. Then O7 Display. See [HTML overlay](overlay.md) |
 | REDagent | An in-game assistant, powered by Claude, that writes, runs and fixes REDnode mods with the player. C1, the [kernel MCP server](mcp.md) in this repo, and C2, the chat in the game, passed in game. C3, authoring, passed in game. C4, chat history and a picture of the game's screen (`game_image`), passed in game. C5, other mods asking REDagent (`agent.ask`), passed in game. Its [guide](https://edgemodders.github.io/REDagent/), repo and design: [Edgemodders/REDagent](https://github.com/Edgemodders/REDagent) |
 | World API | Planned: W1 (build objects, set properties, resource references, entity events through Codeware, `api.spawn`) and W2 (`requires` in manifests, `kernel.bridge()`), asked for by EDGEbuilder. W1 passed in game; W2 is built and awaits its in-game test. See [World API](world.md) |
+| TweakDB API | Planned: T1 read TweakDB from the plugin, T2 write through TweakXL with undo per package, T3 offline through REDbridge. See [TweakDB API](tweakdb.md) |
 | P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge, the Node SDK and the generated game API. Events from hooked game functions are still to do |
 | P3 Rules | Not started |
 | P4 Tier 1 | Not started |
