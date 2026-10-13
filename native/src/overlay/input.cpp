@@ -28,6 +28,16 @@ std::atomic<float> g_cursorX{0};
 std::atomic<float> g_cursorY{0};
 bool g_rawMouse = false;    // raw mouse input seen: use it, ignore WM_MOUSEMOVE and buttons
 bool g_rawKeyboard = false; // raw keyboard input seen: use it, ignore WM_KEYDOWN and WM_CHAR
+uint64_t g_activatedAt = 0; // when the game window last came back to the front, NowMs()
+
+// The click that brings the game back to the front (after Alt+Tab) is not meant for
+// the overlay: on empty screen it would leave interactive mode and hide the cursor.
+// Buttons are ignored for a moment after the game is activated. (O8 test: the
+// cursor "disappeared" after switching to the desktop and back.)
+bool JustActivated()
+{
+    return g_activatedAt && NowMs() - g_activatedAt < 300;
+}
 
 void MoveCursorTo(float aX, float aY)
 {
@@ -81,6 +91,12 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
         return 0;
     const auto* raw = reinterpret_cast<const RAWINPUT*>(buffer);
 
+    // Input that arrives while another window is in front (the desktop after Alt+Tab)
+    // is not the player's input to the game: it must not move the overlay's cursor,
+    // press its buttons or toggle it.
+    if (GET_RAWINPUT_CODE_WPARAM(aWParam) == RIM_INPUTSINK)
+        return 0;
+
     if (raw->header.dwType == RIM_TYPEKEYBOARD)
     {
         const auto& k = raw->data.keyboard;
@@ -117,7 +133,7 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
         g_rawMouse = true;
         if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE) && (m.lLastX || m.lLastY))
             MoveCursorTo(g_cursorX + float(m.lLastX), g_cursorY + float(m.lLastY));
-        const USHORT f = m.usButtonFlags;
+        const USHORT f = JustActivated() ? 0 : m.usButtonFlags;
         if (f & RI_MOUSE_LEFT_BUTTON_DOWN)
             OnMouseButton(true, "left");
         if (f & RI_MOUSE_LEFT_BUTTON_UP)
@@ -204,7 +220,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     case WM_LBUTTONDBLCLK:
         if (interactive)
         {
-            if (!g_rawMouse)
+            if (!g_rawMouse && !JustActivated())
             {
                 const bool down = aMsg == WM_LBUTTONDOWN || aMsg == WM_RBUTTONDOWN || aMsg == WM_LBUTTONDBLCLK;
                 const bool left = aMsg == WM_LBUTTONDOWN || aMsg == WM_LBUTTONUP || aMsg == WM_LBUTTONDBLCLK;
@@ -227,6 +243,11 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
             SetCursor(nullptr); // the compositor draws the cursor
             return TRUE;
         }
+        break;
+    case WM_ACTIVATEAPP:
+        if (aWParam)
+            g_activatedAt = NowMs();
+        Log("Overlay: the game %s the front (mode %s)", aWParam ? "came back to" : "left", ModeName(GetMode()));
         break;
     default:
         break;

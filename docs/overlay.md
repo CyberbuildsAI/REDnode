@@ -1,6 +1,6 @@
 # HTML overlay
 
-Status: **O6 One runtime passed in game. O8 Mod Manager is built; its in-game test is pending** ([steps](#o8-mod-manager-test)). O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDagent, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
+Status: **O6 One runtime and O8 Mod Manager passed in game.** O1 to O6b have all passed; the O4 scene threshold is still open (see the O4 result). Node mods run in the host beside overlay apps, both use the `rednode` package, and `api` calls any game function, typed. Next: REDagent, then O7 Display. To build an app today, see the [Overlay apps](overlay-apps.md) guide. The proof of concept passed in game, alone and side by side with CET and 10 other RED4ext plugins (2026-10-11). See [Test results](#test-results) and [the plan](#plan-for-the-real-version).
 
 REDnode overlay apps are small web apps (HTML, CSS and JavaScript) drawn on top of the game, like CET's ImGui windows. They talk to the game through the same `rednode` API as Node mods.
 
@@ -485,6 +485,12 @@ Use the **Test timer**: Start, then Mark after each step.
 6. Tick two or three rows and use a bulk action, such as **Off** then **On**. Mark.
 7. Ask REDagent to make a small new app. When it appears, the launcher says "1 new"; open the Mod Manager and find it with the **New** filter. Mark.
 8. Close the Mod Manager with its close button: the launcher shows it off. Quit the game.
+
+**Result, 2026-10-13: passed.** Plugin 0.14.0, 3840 x 2160. Everything installed before kept both pins. The Mod Manager opened from the launcher; sorting, search, filters and paging worked. The Hello mod, unpinned from the HUD, left the screen in passive mode and came back in interactive mode, twice; Coords left the launcher and came back. REDagent made a new app ("clock"): the launcher counted it as new, the New filter found it, and it was pinned to the launcher. The Test timer marked steps 1 to 7.
+
+| Finding | Notes |
+|---|---|
+| The cursor flickered or disappeared more often | The player switched to the desktop (Alt+Tab) often during this test. The plugin draws its own cursor in interactive mode, moved by the game's raw mouse input. Two likely causes, **unverified**: raw input that arrives while the desktop is in front moved the overlay's cursor, and the click that brings the game back counted as a click on empty screen, which leaves interactive mode (one switch from interactive straight to passive at 06:22:59 fits). **Changed in plugin 0.14.1:** input that arrives while another window is in front is ignored, buttons are ignored for 300 ms after the game comes back to the front, and the plugin logs "Overlay: the game left the front" and "came back to the front", so the next test shows whether this was it |
 
 ### UI kit
 
