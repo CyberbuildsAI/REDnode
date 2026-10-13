@@ -22,6 +22,10 @@ $cmake = (Get-Command cmake -ErrorAction SilentlyContinue).Source
 if (-not $cmake) { $cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' }
 if (-not (Test-Path $cmake)) { throw "CMake not found at $cmake" }
 
+# Every part of REDnode shares one version (VERSION); stop if one differs.
+node (Join-Path $repo 'tools/version.mjs') --check
+if ($LASTEXITCODE) { throw 'The parts of REDnode have different versions: run node tools/version.mjs <version>.' }
+
 $src = Join-Path $repo 'native'
 $build = Join-Path $src 'build'
 

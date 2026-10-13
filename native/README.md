@@ -2,7 +2,7 @@
 
 The RED4ext plugin. C++20, built with CMake against [RED4ext.SDK](https://github.com/WopsS/RED4ext.SDK) (MIT), which CMake fetches at a pinned revision.
 
-Current state: **P1 probe, passed in game** on 2026-10-11. See [docs/p0-findings.md](../docs/p0-findings.md) for the hypotheses it tests and [docs/p1-results.md](../docs/p1-results.md) for the results.
+The plugin is one part of REDnode; see [What REDnode is made of](https://edgemodders.github.io/REDnode/#what-rednode-is-made-of). Its version is REDnode's, read from `VERSION` at the repo root at build time. It began as the P1 probe, which passed in game on 2026-10-11 ([docs/p0-findings.md](../docs/p0-findings.md), [docs/p1-results.md](../docs/p1-results.md)).
 
 ## What the probe does
 
@@ -37,7 +37,7 @@ red4ext/plugins/REDnode/
 `red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.15.0, author(s): Edgemodders) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
 
 ```
-REDnode 0.2.0 loading (P1 probe)
+REDnode <version> loading
 RTTI ready: <n> types, <n> global functions
 Game thread pump started
 Event drained on frame <n>: PlayerPuppet.OnGameAttached = 42

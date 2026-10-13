@@ -2,6 +2,20 @@
 
 REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These pages track the design, the research and how to set up a machine to work on it.
 
+## What REDnode is made of
+
+| Part | What it does | In the repo | In the game folder |
+|---|---|---|---|
+| **Plugin** (`REDnode.dll`) | Runs inside the game, loaded by RED4ext: draws the overlay windows on the game's frame, takes input (F10), runs game calls on the game thread (the generic game API), sends game events, and starts the host | `native/` | `red4ext/plugins/REDnode/REDnode.dll` |
+| **Plugin scripts** | Small redscript parts: the game events REDnode sends, and the world support, which compiles only when Codeware is installed | `native/scripts/` | `red4ext/plugins/REDnode/Scripts/` |
+| **Overlay host** | An Electron app beside the game: renders overlay apps, runs Node mods in their processes, the kernel MCP server, the agent broker, hot reload, settings | `packages/overlay/` | `red4ext/plugins/REDnode/host/` |
+| **Built-in apps** | The launcher, the Mod log and the Mod Manager, inside the host | `packages/overlay/launcher/`, `modlog/`, `manager/` | Inside the host |
+| **`rednode` package** | The API mods and apps import: `game`, `api` (typed from the game's own data), `ui`, `world`, `agent`, `pkg`, `secrets`, `kernel`, `channel` | `packages/rednode/` | `host/resources/sdk/` |
+| **UI kit** | Web components and themes for overlay apps | `packages/ui/` | Inside the host, served as `rednode://ui/` |
+| **Sample packages** | Example apps and mods (Hello mod, Ask mod, World test, Test timer...). Each has its own version | `packages/overlay/apps/` | `red4ext/plugins/REDnode/apps/` |
+
+**Versions.** REDnode has one version, shared by every part above except the samples. It is in `VERSION` at the root of the repo: the plugin's build reads it, and `node tools/version.mjs <version>` copies it into the host, the package, the UI kit and the built-in apps. `tools/build-native.ps1` stops if any part differs. The plugin's log says `REDnode <version> loading`, the host's log `REDnode overlay host <version>`, and the launcher shows it. Releases will ship the parts together as one REDnode bundle.
+
 | Document | What it covers |
 |---|---|
 | [API reference](api/) | The `rednode` package: every function, interface and type, generated from the source |

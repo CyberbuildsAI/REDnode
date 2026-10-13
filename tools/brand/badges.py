@@ -13,7 +13,7 @@ DIM = "#8a93a8"
 COLORS = {"yellow": "#fcee0a", "cyan": "#19f3ff", "green": "#5dffa1"}
 
 BADGES = [
-    ("status", "status", "design phase", "yellow"),
+    ("status", "status", "0.15.0 in development", "yellow"),
     ("game", "game", "2.31", "cyan"),
     ("red4ext", "red4ext", "1.30", "cyan"),
     ("node", "node", "24", "green"),

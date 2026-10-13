@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://edgemodders.github.io/REDnode/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
-  <img src="docs/assets/brand/badges/status.svg" alt="status: design phase">
+  <img src="docs/assets/brand/badges/status.svg" alt="status: 0.15.0 in development">
   <img src="docs/assets/brand/badges/game.svg" alt="game: 2.31">
   <img src="docs/assets/brand/badges/red4ext.svg" alt="RED4ext: 1.30">
   <img src="docs/assets/brand/badges/node.svg" alt="Node: 24">
@@ -13,12 +13,12 @@
 
 A Node.js API for scripting Cyberpunk 2077 (PC, single-player).
 
-REDnode attaches to the game through the same injection points as RED4ext and Cyber Engine Tweaks, and exposes the game's reflection (RTTI) system to TypeScript and JavaScript.
+REDnode attaches to the game through RED4ext and exposes the game's reflection (RTTI) system to TypeScript and JavaScript. Mods are Node packages that run beside the game; overlay apps are web pages drawn over it; both use the `rednode` package, which can call any game function, typed from the game's own data.
 
 **[Read the docs](https://edgemodders.github.io/REDnode/)** &middot; [API reference](https://edgemodders.github.io/REDnode/api/) &middot; [Design](https://edgemodders.github.io/REDnode/design.html)
 
 > [!NOTE]
-> **Status: design phase.** The P1 probe plugin builds and is waiting for its in-game test. The `rednode` SDK is a design sketch, so every function throws for now. The roadmap is below.
+> **Status: in development, tested in game; no packaged release yet.** Node mods, overlay apps, the generic game API, the Mod Manager, the kernel MCP server and [REDagent](https://github.com/Edgemodders/REDagent) all work in the game. The current work and the roadmap are on the [docs home page](https://edgemodders.github.io/REDnode/).
 
 ## How it works
 
@@ -44,21 +44,30 @@ A thin native RED4ext plugin bridges the two. It exposes the game's RTTI over IP
 
 Simple synchronous behavior ("multiply incoming damage by 0.5") can also be declared as a native rule that needs no JS engine at all.
 
-## Repository layout
+## What REDnode is made of
 
-| Path | Contents |
-|---|---|
-| `docs/` | Design document |
-| `native/` | RED4ext plugin: RTTI bridge, IPC server, hooks (not started) |
-| `packages/rednode/` | Node SDK: typed API for both tiers (stubs only) |
+| Part | What it does | In the repo | In the game folder |
+|---|---|---|---|
+| **Plugin** (`REDnode.dll`) | Runs inside the game, loaded by RED4ext: draws the overlay windows on the game's frame, takes input (F10), runs game calls on the game thread (the generic game API), sends game events, and starts the host | `native/` | `red4ext/plugins/REDnode/REDnode.dll` |
+| **Plugin scripts** | Small redscript parts: the game events REDnode sends, and the world support, which compiles only when Codeware is installed | `native/scripts/` | `red4ext/plugins/REDnode/Scripts/` |
+| **Overlay host** | An Electron app beside the game: renders overlay apps, runs Node mods in their processes, the kernel MCP server, the agent broker, hot reload, settings | `packages/overlay/` | `red4ext/plugins/REDnode/host/` |
+| **Built-in apps** | The launcher, the Mod log and the Mod Manager, inside the host | `packages/overlay/launcher/`, `modlog/`, `manager/` | Inside the host |
+| **`rednode` package** | The API mods and apps import: `game`, `api` (typed from the game's own data), `ui`, `world`, `agent`, `pkg`, `secrets`, `kernel`, `channel` | `packages/rednode/` | `host/resources/sdk/` |
+| **UI kit** | Web components and themes for overlay apps | `packages/ui/` | Inside the host, served as `rednode://ui/` |
+| **Sample packages** | Example apps and mods (Hello mod, Ask mod, World test, Test timer...). Each has its own version | `packages/overlay/apps/` | `red4ext/plugins/REDnode/apps/` |
+
+**Versions.** REDnode has one version, shared by every part above except the samples. It is in `VERSION` at the root of the repo: the plugin's build reads it, and `node tools/version.mjs <version>` copies it into the host, the package, the UI kit and the built-in apps. `tools/build-native.ps1` stops if any part differs. The plugin's log says `REDnode <version> loading`, the host's log `REDnode overlay host <version>`, and the launcher shows it. Releases will ship the parts together as one REDnode bundle.
+
+Also in the repo: `docs/` (the docs site), `gameapi/` (the game's type signatures for the typed API and the game API reference), and `tools/` (build, deploy, packaging and version scripts).
 
 ## Roadmap
 
-- **P0 Research.** Map the RED4ext plugin ABI. Inspect how Cyber Engine Tweaks hooks and resolves addresses.
-- **P1 Proof.** Hello-world RED4ext plugin that logs the RTTI class count.
-- **P2 Tier 2.** Pipe bridge and Node SDK: events, queries, commands, generated types.
-- **P3 Rules.** Declarative native rules applied inside hooks with no IPC.
-- **P4 Tier 1.** QuickJS interceptors with time limits, ordering and fault handling.
+The full table, with each phase's status and test results, is on the [docs home page](https://edgemodders.github.io/REDnode/).
+
+- **P0 Research, P1 Proof:** done.
+- **HTML overlay (O1 to O9):** O1 to O6 and O8 passed in game. O7 Display and O9 Debugger are planned.
+- **World API (W1, W2):** placing things in the world, for EDGEbuilder. W1 is built.
+- **P2 Tier 2:** mostly done through the overlay host. **P3 Rules** and **P4 Tier 1** (sync interceptors in the game) are not started.
 
 ## Compatibility goals
 

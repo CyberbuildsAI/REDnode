@@ -186,6 +186,7 @@ async function refresh() {
     $('hot').checked = await window.rednode.apps.hotReload();
     showTheme(await window.rednode.apps.theme());
     $('mcp').checked = await window.rednode.apps.mcp();
+    $('version').textContent = `REDNODE ${(await window.rednode.state()).version}`;
     const all = await window.rednode.apps.list();
     // Only packages pinned to the launcher, the Mod Manager first; a crashed one shows
     // even unpinned, so an error never hides. The Mod Manager lists everything.

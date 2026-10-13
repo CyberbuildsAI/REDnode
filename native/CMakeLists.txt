@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(REDnode VERSION 0.15.0 LANGUAGES CXX)
+# REDnode's one version, shared by every part, is in VERSION at the repo root
+# (tools/version.mjs sets it). The plugin reports it in its log and to RED4ext.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" REDNODE_VERSION LIMIT_COUNT 1)
+project(REDnode VERSION ${REDNODE_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,6 +37,11 @@ add_library(REDnode SHARED
 target_link_libraries(REDnode PRIVATE RED4ext::SDK d3d12 d3dcompiler)
 target_compile_definitions(REDnode PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(REDnode PRIVATE /W4 /utf-8 /MP)
+target_compile_definitions(REDnode PRIVATE
+  REDNODE_VERSION="${PROJECT_VERSION}"
+  REDNODE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+  REDNODE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+  REDNODE_VERSION_PATCH=${PROJECT_VERSION_PATCH})
 
 # Stage the plugin with the same layout it has in the game folder:
 # red4ext/plugins/REDnode/REDnode.dll and red4ext/plugins/REDnode/Scripts/*.reds

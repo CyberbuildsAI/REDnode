@@ -254,7 +254,7 @@ void ReaderLoop()
             }
             g_connected = true;
             Log("Overlay: host connected");
-            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.15.0\",\"mode\":") +
+            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode " REDNODE_VERSION "\",\"mode\":") +
                      JsonString(ModeName(GetMode())) + "}");
             ResendGameState();
 

@@ -25,6 +25,7 @@ Follow [docs/dev-setup.md](docs/dev-setup.md) top to bottom. Whenever you instal
 ## Conventions
 
 - **Commits:** commit straight to `main` and push, in small logical commits. Agree the plan in chat first. Use a PR only for large or risky changes, and ask before opening one.
+- **Versions:** REDnode has one version, shared by the plugin, the overlay host, the `rednode` package, the UI kit and the built-in apps, in `VERSION` at the repo root (agreed with the user on 2026-10-13, ahead of a release bundle). Change it only with `node tools/version.mjs <version>`; the plugin's build reads `VERSION`, and `tools/build-native.ps1` stops if a part differs. Raise it with each in-game test build, and refer to it as "REDnode <version>". Sample packages keep their own versions. The parts are listed on the docs home page, "What REDnode is made of".
 - **Git identity:** set per repo to `CyberbuildsAI` with the GitHub no-reply email (see dev-setup). Never change the global identity.
 - **Never commit game files** or data extracted from them: DLLs, archives, scripts, assets, TweakDB, raw RTTI dumps (`rtti-dump*`). `.gitignore` covers the common cases.
   - **One exception, agreed with the user on 2026-10-11:** `gameapi/<game version>/rtti.json` holds base-game type signatures (names, types, flags, enum values) for the published game API reference, like NativeDB. Produce it only with the REDnode dumper on a base-game run and import it with `npm run gameapi:import`. Nothing else from the game goes in.

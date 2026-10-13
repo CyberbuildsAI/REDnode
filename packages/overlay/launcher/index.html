@@ -30,6 +30,7 @@
   .footer { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
   .switches { display: flex; gap: 18px; }
   .themes { display: flex; align-items: center; gap: 6px; }
+  .version { text-align: right; font: 10px var(--rn-mono); letter-spacing: .12em; color: var(--rn-dim); opacity: .8; }
   .themes .label { font: 600 11px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim); margin-right: 4px; }
   .themes rn-button::part(button) { min-height: 28px; padding: 4px 10px; font-size: 12px; }
   .mod { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
@@ -74,6 +75,7 @@
           <rn-button data-theme="game" variant="ghost">Game red</rn-button>
           <rn-button data-theme="yellow" variant="ghost">Yellow</rn-button>
         </div>
+        <div class="version" id="version"></div>
       </div>
     </rn-window>
     <div class="tab">
