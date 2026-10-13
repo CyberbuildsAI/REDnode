@@ -40,6 +40,8 @@
   .st-crashed, .st-not-responding { color: var(--rn-danger); }
   .controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .err { font: 11px/1.35 var(--rn-mono); color: var(--rn-danger); white-space: pre-wrap; word-break: break-word; }
+  .closed-line { display: flex; align-items: center; gap: 8px; font: 11px var(--rn-mono); color: var(--rn-dim); }
+  .closed-line rn-button::part(button) { min-height: 22px; padding: 2px 8px; font-size: 11px; }
   .log { font: 11px/1.35 var(--rn-mono); color: var(--rn-dim); white-space: pre-wrap; word-break: break-word;
     max-height: 70px; overflow: hidden; border-left: 2px solid var(--rn-line); padding-left: 8px; }
   .perm { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px;

@@ -881,6 +881,7 @@ function appList() {
         app: !!m.entry,
         open: isEnabled(entry),
         mod: m.main ? mods.info(m.id, metrics) : null,
+        closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
         permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
       };
     });
@@ -908,6 +909,20 @@ ipcMain.handle('rednode:apps:set-open', (event, id, open) => {
   fromLauncher(event);
   setPackageOpen(id, open);
   return appList();
+});
+
+// Shows a mod window the player closed again: the mod reopens it as it is now.
+ipcMain.handle('rednode:apps:show-window', (event, id, win) => {
+  fromLauncher(event);
+  if (playerClosed.has(builtKey(id, win))) mods.toMod(id, { event: 'ui', window: String(win), type: 'show' });
+  return appList();
+});
+
+// An app's own close button: the same as switching it off in the launcher.
+ipcMain.on('rednode:app:close', (event) => {
+  const w = windowFor(event.sender);
+  if (!w || w.app.pinned || w.app.built || !apps.has(w.app.manifest.id)) return;
+  setPackageOpen(w.app.manifest.id, false);
 });
 
 // ---------- the kernel MCP server ----------
@@ -1184,6 +1199,9 @@ ipcMain.handle('rednode:logs:copy', (event, text) => {
 // ---------- windows built by Node mods (rednode's ui builder) ----------
 
 const builtKey = (modId, win) => `${modId}~${win}`;
+// Mod windows the player closed with their close button while the mod runs on.
+// The launcher offers to show them again. key -> { modId, win }
+const playerClosed = new Map();
 
 function findNode(spec, id) {
   if (spec.id === id) return spec;
@@ -1198,6 +1216,7 @@ const ui = {
   open(modId, win, spec) {
     const key = builtKey(modId, win);
     closeApp(key);
+    if (playerClosed.delete(key)) notifyLauncher();
     built.set(key, { modId, win, spec });
     const p = spec?.props ?? {};
     const size = (v, d) => (Number.isInteger(v) && v >= 1 && v <= 4096 ? v : d);
@@ -1234,6 +1253,7 @@ const ui = {
   },
   closeAll(modId) {
     for (const [key, b] of built) if (b.modId === modId) ui.close(modId, b.win);
+    for (const [key, c] of playerClosed) if (c.modId === modId) playerClosed.delete(key);
   },
 };
 
@@ -1255,7 +1275,9 @@ ipcMain.on('rednode:builder:event', (event, e) => {
   }
   if (e?.type === 'close') {
     ui.close(b.modId, b.win);
+    playerClosed.set(builtKey(b.modId, b.win), { modId: b.modId, win: b.win });
     mods.toMod(b.modId, { event: 'ui', window: b.win, type: 'close' });
+    notifyLauncher();
   } else {
     mods.toMod(b.modId, { event: 'ui', window: b.win, node: e?.node, type: e?.type, value: e?.value });
   }

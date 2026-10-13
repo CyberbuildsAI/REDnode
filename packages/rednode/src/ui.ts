@@ -106,7 +106,7 @@ export interface WindowOptions {
   closable?: boolean;
   /** The window's content, top to bottom. */
   children: UiNode[];
-  /** Called when the player closes the window. */
+  /** Called when the player closes the window. The mod keeps running, and the launcher can show the window again. */
   onClose?: () => void;
 }
 
@@ -137,7 +137,7 @@ interface NodeState {
 let nextNode = 1;
 const nodes = new Map<string, NodeState>(); // node id -> state
 const handlers = new Map<string, Map<string, Handler>>(); // node id -> event type -> handler
-const windows = new Map<string, { onClose?: () => void; closed: boolean; nodes: string[] }>();
+const windows = new Map<string, { onClose?: () => void; closed: boolean; nodes: string[]; root: Spec }>();
 let listening = false;
 
 function ensureListening(): void {
@@ -151,6 +151,19 @@ function ensureListening(): void {
       if (w && !w.closed) {
         forget(win);
         w.onClose?.();
+      }
+      return;
+    }
+    if (m.type === "show") {
+      // The player asked the launcher to show a window they closed: open it again as it is now.
+      const w = windows.get(win);
+      if (w && w.closed) {
+        w.closed = false;
+        for (const id of w.nodes) {
+          const n = nodes.get(id);
+          if (n) n.window = win;
+        }
+        transport().ui?.open(win, w.root);
       }
       return;
     }
@@ -316,7 +329,7 @@ export const ui = {
     const ids: string[] = [];
     for (const c of root.children!) collect(c, ids);
     for (const n of ids) nodes.get(n)!.window = id;
-    const state = { onClose: options.onClose, closed: false, nodes: ids };
+    const state = { onClose: options.onClose, closed: false, nodes: ids, root };
     windows.set(id, state);
     t.ui.open(id, root);
 

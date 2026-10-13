@@ -225,7 +225,11 @@ footer:empty { display: none; }
       this.$('.close').addEventListener('click', () => {
         playSound(soundFor(this, 'press'));
         const ev = new CustomEvent('close', { cancelable: true, bubbles: true, composed: true });
-        if (this.dispatchEvent(ev)) this.hidden = true;
+        if (!this.dispatchEvent(ev)) return; // the app handles it
+        // The page's only window: close the app, as the launcher's switch does, so the
+        // launcher shows it off and can open it again. Otherwise hide this window.
+        if (window.rednode?.close && document.querySelectorAll('rn-window').length === 1) window.rednode.close();
+        else this.hidden = true;
       });
       // Dim the title when the overlay window loses focus. A double-click on the
       // title bar rolls the window up to its title bar; the REDnode plugin sees

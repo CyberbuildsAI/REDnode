@@ -88,7 +88,9 @@ function makeRow(item) {
     controls.append(shared, restart);
     const error = el('div', 'err');
     const logs = el('div', 'log');
-    mod.append(status, controls, error, logs);
+    // Windows the player closed while the mod runs on: one line each, with Show.
+    const closed = el('div', 'closed');
+    mod.append(status, controls, closed, error, logs);
     root.append(mod);
 
     update = (it) => {
@@ -102,6 +104,18 @@ function makeRow(item) {
       if (m.canShare) shared.removeAttribute('disabled');
       else shared.setAttribute('disabled', '');
       restart.hidden = !it.open;
+      closed.replaceChildren(
+        ...(it.closedWindows ?? []).map((win) => {
+          const line = el('div', 'closed-line', it.closedWindows.length > 1 ? `Window "${win}" closed` : 'Window closed');
+          const show = document.createElement('rn-button');
+          show.setAttribute('variant', 'ghost');
+          show.textContent = 'Show';
+          show.addEventListener('click', () => act(item.name, () => window.rednode.apps.showWindow(item.id, win)));
+          line.append(show);
+          return line;
+        }),
+      );
+      closed.hidden = !closed.childElementCount;
       error.textContent = m.error ? shortError(m.error) : '';
       error.hidden = !m.error;
       logs.textContent = m.log.join('\n');
