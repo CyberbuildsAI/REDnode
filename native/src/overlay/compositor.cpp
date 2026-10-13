@@ -14,6 +14,7 @@
 // has finished, so the host can give them back to Chromium. A few times a
 // second the window's alpha is read back from the GPU for click-through.
 
+#include "capture.hpp"
 #include "overlay.hpp"
 
 #include <RED4ext/GpuApi/DeviceData.hpp>
@@ -24,9 +25,13 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -890,6 +895,182 @@ void CollectReadbacks()
     }
 }
 
+// ---------- game frame capture ----------
+//
+// The host asks for a picture of the game ({"cmd":"capture"}). The back buffer is
+// copied to a readback buffer on the GPU, before the overlay is drawn (the game
+// alone) or after it (what the player sees). A later frame maps the copy and
+// hands it to a worker thread, which scales it down, converts HDR to SDR and
+// sends it to the host as BGRA in base64: {"event":"capture","capture":N,...}.
+
+struct CaptureRequest
+{
+    uint32_t id = 0;
+    bool overlay = false;
+    uint32_t maxWidth = 1280;
+};
+
+std::mutex g_captureMutex;
+std::vector<CaptureRequest> g_captureWanted; // asked for, not yet recorded
+
+struct CaptureCopy
+{
+    CaptureRequest request;
+    ComPtr<ID3D12Resource> buffer; // kept between captures, grown when needed
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+    UINT64 bytes = 0;
+    UINT64 fence = 0; // signalled when the copy is done
+    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    int mode = 0; // the swapchain's g.mode: 0 SDR, 1 scRGB, 2 PQ
+    bool pending = false;
+} g_capture; // render thread only
+
+void SendCaptureError(uint32_t aId, const char* aWhat)
+{
+    SendJson("{\"event\":\"capture\",\"capture\":" + std::to_string(aId) + ",\"error\":" + JsonString(aWhat) + "}");
+}
+
+bool CaptureWanted()
+{
+    std::scoped_lock lock(g_captureMutex);
+    return !g_captureWanted.empty();
+}
+
+// Records a copy of the back buffer if a capture of this kind (with or without the
+// overlay) is wanted. aState is the back buffer's state, which it is left in.
+void RecordCapture(ID3D12Resource* aBack, D3D12_RESOURCE_STATES aState, bool aWithOverlay)
+{
+    if (g_capture.pending)
+        return; // one at a time; the request waits for the next frame
+    CaptureRequest request;
+    {
+        std::scoped_lock lock(g_captureMutex);
+        const auto it = std::find_if(g_captureWanted.begin(), g_captureWanted.end(),
+                                     [&](const CaptureRequest& r) { return r.overlay == aWithOverlay; });
+        if (it == g_captureWanted.end())
+            return;
+        request = *it;
+        g_captureWanted.erase(it);
+    }
+    const D3D12_RESOURCE_DESC desc = aBack->GetDesc();
+    if (capture::KindOf(desc.Format) == capture::PixelKind::Unsupported)
+    {
+        SendCaptureError(request.id, ("the game draws in a format REDnode cannot read yet (" +
+                                      std::to_string(int(desc.Format)) + ")").c_str());
+        return;
+    }
+    UINT64 total = 0;
+    g.device->GetCopyableFootprints(&desc, 0, 1, 0, &g_capture.footprint, nullptr, nullptr, &total);
+    if (!g_capture.buffer || g_capture.buffer->GetDesc().Width < total)
+    {
+        D3D12_HEAP_PROPERTIES heap{};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC buf{};
+        buf.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buf.Width = total;
+        buf.Height = 1;
+        buf.DepthOrArraySize = 1;
+        buf.MipLevels = 1;
+        buf.SampleDesc.Count = 1;
+        buf.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        g_capture.buffer.Reset();
+        if (FAILED(g.device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buf, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                     nullptr, IID_PPV_ARGS(&g_capture.buffer))))
+        {
+            SendCaptureError(request.id, "no memory for the picture");
+            return;
+        }
+    }
+    auto toSource = Transition(aBack, aState, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    g.list->ResourceBarrier(1, &toSource);
+    D3D12_TEXTURE_COPY_LOCATION dst{};
+    dst.pResource = g_capture.buffer.Get();
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint = g_capture.footprint;
+    D3D12_TEXTURE_COPY_LOCATION src{};
+    src.pResource = aBack;
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    g.list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    auto back = Transition(aBack, D3D12_RESOURCE_STATE_COPY_SOURCE, aState);
+    g.list->ResourceBarrier(1, &back);
+    g_capture.request = request;
+    g_capture.bytes = total;
+    g_capture.format = desc.Format;
+    g_capture.mode = int(g.mode);
+    g_capture.fence = g.fenceValue + 1; // signalled at the end of this frame
+    g_capture.pending = true;
+}
+
+// Scales the copied frame down to at most aMaxWidth, converts it to SDR BGRA and
+// sends it to the host. Runs on its own thread: a 4K frame takes a few dozen ms.
+void FinishCapture(CaptureRequest aRequest, std::vector<uint8_t> aRows, UINT aRowPitch, UINT aWidth, UINT aHeight,
+                   DXGI_FORMAT aFormat, int aMode)
+{
+    uint32_t outW = 0, outH = 0;
+    const std::vector<uint8_t> out = capture::Convert(aRows.data(), aRowPitch, aWidth, aHeight, capture::KindOf(aFormat),
+                                                      aMode, aRequest.maxWidth, HdrPaperWhiteNits, outW, outH);
+    SendJson("{\"event\":\"capture\",\"capture\":" + std::to_string(aRequest.id) + ",\"width\":" + std::to_string(outW) +
+             ",\"height\":" + std::to_string(outH) + ",\"sourceWidth\":" + std::to_string(aWidth) +
+             ",\"sourceHeight\":" + std::to_string(aHeight) + ",\"overlay\":" + (aRequest.overlay ? "true" : "false") +
+             ",\"hdr\":" + (aMode ? "true" : "false") + ",\"bgra\":\"" + capture::Base64(out.data(), out.size()) + "\"}");
+}
+
+// Hands a finished copy to a worker thread.
+void CollectCapture()
+{
+    if (!g_capture.pending || g.fence->GetCompletedValue() < g_capture.fence)
+        return;
+    g_capture.pending = false;
+    const auto& f = g_capture.footprint.Footprint;
+    uint8_t* data = nullptr;
+    D3D12_RANGE range{0, SIZE_T(g_capture.bytes)};
+    if (FAILED(g_capture.buffer->Map(0, &range, reinterpret_cast<void**>(&data))))
+    {
+        SendCaptureError(g_capture.request.id, "could not read the picture back");
+        return;
+    }
+    // Only the rows the copy holds: the last one is not padded.
+    std::vector<uint8_t> rows(size_t(f.RowPitch) * f.Height);
+    std::memcpy(rows.data(), data + g_capture.footprint.Offset, size_t(g_capture.bytes - g_capture.footprint.Offset));
+    D3D12_RANGE none{0, 0};
+    g_capture.buffer->Unmap(0, &none);
+    std::thread(FinishCapture, g_capture.request, std::move(rows), f.RowPitch, f.Width, f.Height, g_capture.format,
+                g_capture.mode)
+        .detach();
+}
+
+// Records the capture copy alone, in a frame where nothing else is drawn.
+void CaptureOnly(IDXGISwapChain3* aSwapChain)
+{
+    const UINT slot = static_cast<UINT>(g.frameIndex++ % FramesInFlight);
+    if (g.fence->GetCompletedValue() < g.slotFence[slot])
+    {
+        g.fence->SetEventOnCompletion(g.slotFence[slot], g.fenceEvent);
+        WaitForSingleObject(g.fenceEvent, 100);
+    }
+    g.slotShared[slot].clear();
+    AckFrames(g.slotAcks[slot]);
+    g.slotAcks[slot].clear();
+    g.slotTimed[slot] = false;
+    ComPtr<ID3D12Resource> backBuffer;
+    if (FAILED(aSwapChain->GetBuffer(aSwapChain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backBuffer))))
+        return;
+    g.allocators[slot]->Reset();
+    g.list->Reset(g.allocators[slot].Get(), nullptr);
+    // Nothing of the overlay is drawn now, so either kind of capture is the game alone.
+    RecordCapture(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, false);
+    RecordCapture(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, true);
+    if (FAILED(g.list->Close()))
+    {
+        Fail("Close command list", E_FAIL);
+        return;
+    }
+    ID3D12CommandList* lists[] = {g.list.Get()};
+    g.queue->ExecuteCommandLists(1, lists);
+    g.queue->Signal(g.fence.Get(), ++g.fenceValue);
+    g.slotFence[slot] = g.fenceValue;
+}
+
 // Reference-pixel rectangle to NDC: left, top, right, bottom.
 void ToNdc(float aX, float aY, float aW, float aH, float aScale, float aOut[4])
 {
@@ -932,6 +1113,7 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
 
     const float scale = float(g.height) / ReferenceHeight;
     SetScreen({scale, float(g.width) / scale, ReferenceHeight, float(g.width), float(g.height)});
+    CollectCapture();
 
     const Mode mode = GetMode();
     const std::vector<WindowView> views = SnapshotWindows();
@@ -950,6 +1132,8 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
             AckFrames(g.slotAcks[s]);
             g.slotAcks[s].clear();
         }
+        if (CaptureWanted())
+            CaptureOnly(swapChain.Get());
         return;
     }
     DropSharedExcept(views); // windows hidden with the game's UI
@@ -1030,6 +1214,7 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
     rtv.ptr += SIZE_T(index) * g.rtvSize;
     g.device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtv);
 
+    RecordCapture(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, false); // the game alone, if asked for
     auto toTarget = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
     g.list->ResourceBarrier(1, &toTarget);
 
@@ -1072,6 +1257,7 @@ void RenderFrame(IDXGISwapChain* aSwapChain)
         g.list->DrawInstanced(4, 1, 0, 0);
     }
 
+    RecordCapture(backBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, true); // what the player sees, if asked for
     auto toPresent = Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
     g.list->ResourceBarrier(1, &toPresent);
 
@@ -1190,5 +1376,26 @@ void UninstallCompositor()
     for (auto& acks : g.slotAcks)
         AckFrames(acks);
     g = Gpu{};
+    g_capture = CaptureCopy{};
+    std::scoped_lock lock(g_captureMutex);
+    for (const auto& r : g_captureWanted)
+        SendCaptureError(r.id, "the overlay stopped drawing");
+    g_captureWanted.clear();
+}
+
+void RequestCapture(uint32_t aId, bool aWithOverlay, uint32_t aMaxWidth)
+{
+    if (!g_vtable)
+    {
+        SendCaptureError(aId, "the game is not drawing yet");
+        return;
+    }
+    std::scoped_lock lock(g_captureMutex);
+    if (g_captureWanted.size() >= 4)
+    {
+        SendCaptureError(aId, "too many pictures asked for at once");
+        return;
+    }
+    g_captureWanted.push_back({aId, aWithOverlay, std::clamp(aMaxWidth, 64u, 3840u)});
 }
 } // namespace rednode::overlay::detail

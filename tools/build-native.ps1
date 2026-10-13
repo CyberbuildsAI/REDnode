@@ -35,5 +35,7 @@ if ($LASTEXITCODE) { throw 'Build failed.' }
 if ($LASTEXITCODE) { throw 'Unit tests failed.' }
 & (Join-Path $build "$Config\REDnode_json_tests.exe")
 if ($LASTEXITCODE) { throw 'JSON unit tests failed.' }
+& (Join-Path $build "$Config\REDnode_capture_tests.exe")
+if ($LASTEXITCODE) { throw 'Capture unit tests failed.' }
 
 Write-Output "Staged plugin: $build\dist\red4ext\plugins\REDnode"

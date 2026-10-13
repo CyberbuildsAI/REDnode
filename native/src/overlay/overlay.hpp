@@ -107,6 +107,9 @@ void SetCompositorActive(bool aActive);
 void AckFrames(const std::vector<uint32_t>& aFrameIds);
 // Alpha read back from the GPU, for click-through on GPU-shared windows. Rows are aRowPitch bytes of BGRA.
 void SubmitAlpha(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, const uint8_t* aRows, uint32_t aRowPitch);
+// Asks for a picture of the game, sent to the host as {"event":"capture"}: the back
+// buffer before the overlay is drawn, or after it, scaled to at most aMaxWidth. Any thread.
+void RequestCapture(uint32_t aId, bool aWithOverlay, uint32_t aMaxWidth);
 // Reports, once, that GPU sharing failed, so the host falls back to the CPU path.
 void ReportSharedFailure(const char* aWhat, long aCode);
 

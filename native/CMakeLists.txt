@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(REDnode VERSION 0.12.1 LANGUAGES CXX)
+project(REDnode VERSION 0.13.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,3 +53,7 @@ target_compile_options(REDnode_tests PRIVATE /W4 /utf-8)
 
 add_executable(REDnode_json_tests tests/json_test.cpp)
 target_compile_options(REDnode_json_tests PRIVATE /W4 /utf-8)
+
+add_executable(REDnode_capture_tests tests/capture_test.cpp)
+target_compile_definitions(REDnode_capture_tests PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_compile_options(REDnode_capture_tests PRIVATE /W4 /utf-8)

@@ -17,6 +17,7 @@
 //
 // The pipe is overlapped so the reader and writer threads never block each other.
 
+#include "json.hpp"
 #include "overlay.hpp"
 
 #include <atomic>
@@ -198,6 +199,14 @@ void Dispatch(uint32_t aType, std::vector<uint8_t>&& aPayload)
                 SetHostProcess(DWORD(std::strtoul(json.c_str() + at + 6, nullptr, 10)));
             return;
         }
+        if (json.find("\"cmd\":\"capture\"") != std::string::npos)
+        {
+            double id = 0, maxWidth = 1280;
+            json::Number(json, "id", id);
+            json::Number(json, "maxWidth", maxWidth);
+            RequestCapture(uint32_t(id), json.find("\"overlay\":true") != std::string::npos, uint32_t(maxWidth));
+            return;
+        }
         if (json.find("\"cmd\":") != std::string::npos)
             HandleWindowCommand(json);
         else
@@ -245,7 +254,7 @@ void ReaderLoop()
             }
             g_connected = true;
             Log("Overlay: host connected");
-            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.12.0\",\"mode\":") +
+            SendJson(std::string("{\"event\":\"hello\",\"plugin\":\"REDnode 0.13.0\",\"mode\":") +
                      JsonString(ModeName(GetMode())) + "}");
             ResendGameState();
 

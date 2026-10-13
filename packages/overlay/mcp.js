@@ -6,7 +6,7 @@
 //                                Authorization: Bearer <token> (see the launcher)
 //
 // Tools: logs, apps, game_state, perf, gameapi_lookup, window_text, window_image,
-// api_call, api_get. See docs/mcp.md.
+// game_image, api_call, api_get. See docs/mcp.md.
 
 'use strict';
 
@@ -22,6 +22,7 @@ REDnode runs overlay apps (web pages drawn on top of the game) and Node mods (No
 - game_state, perf: what the game shows, and what the overlay costs.
 - gameapi_lookup: game types and functions with the exact signatures api uses. Look before calling.
 - window_text, window_image: what an overlay window shows.
+- game_image: the game's screen as the player sees it, with or without the overlay.
 - api_call, api_get: live calls into the game. Game objects come back as {"$ref": n, "$type": "..."}; pass {"$ref": n} back as self. Most functions take the game instance first: pass {}. 64-bit numbers are strings. References die when a save loads.
 api_call can change the player's game, such as their money or health: ask before changes the user did not request.
 Guide: https://edgemodders.github.io/REDnode/overlay-apps.html`;
@@ -32,7 +33,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 
 /**
  * @param {object} host  functions from main.js: log, version, logs, apps, setOpen, restart,
- *                       state, perf, lookup, webContentsOf, call
+ *                       state, perf, lookup, webContentsOf, captureGame, call
  */
 function createMcp(host) {
   let server = null;
@@ -166,6 +167,38 @@ function createMcp(host) {
           const image = await wc.capturePage();
           if (image.isEmpty()) return fail('The window gave an empty picture.');
           return { content: [{ type: 'image', data: image.toPNG().toString('base64'), mimeType: 'image/png' }] };
+        } catch (err) {
+          return fail(err.message);
+        }
+      },
+    );
+
+    mcp.registerTool(
+      'game_image',
+      {
+        title: 'Game screen',
+        description:
+          "A picture of the game's screen now. By default the game alone, as it draws its frame; with overlay true, " +
+          "REDnode's overlay windows and the cursor on top, as the player sees it. Scaled to at most maxWidth pixels wide. " +
+          'HDR is converted to SDR, so its colors are approximate. Fails while the game is loading or minimized.',
+        inputSchema: {
+          overlay: z.boolean().optional().describe("Include REDnode's overlay windows and the cursor. Default false"),
+          maxWidth: z.number().int().min(320).max(1920).optional().describe('Default 1280'),
+        },
+        annotations: READ,
+      },
+      async ({ overlay, maxWidth }) => {
+        try {
+          const c = await host.captureGame({ overlay, maxWidth: maxWidth ?? 1280 });
+          return {
+            content: [
+              { type: 'image', data: c.image.toJPEG(85).toString('base64'), mimeType: 'image/jpeg' },
+              {
+                type: 'text',
+                text: `${c.width} x ${c.height}, scaled from ${c.sourceWidth} x ${c.sourceHeight}; ${c.overlay ? 'with' : 'without'} the overlay${c.hdr ? '; HDR converted to SDR' : ''}.`,
+              },
+            ],
+          };
         } catch (err) {
           return fail(err.message);
         }

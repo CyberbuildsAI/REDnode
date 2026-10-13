@@ -20,7 +20,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, clipboard, ipcMain, protocol, safeStorage, utilityProcess } = require('electron');
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage, protocol, safeStorage, utilityProcess } = require('electron');
 const fs = require('node:fs');
 const net = require('node:net');
 const path = require('node:path');
@@ -629,6 +629,9 @@ function onGameMessage(m) {
     case 'input':
       onInput(m);
       return;
+    case 'capture':
+      onCapture(m);
+      return;
     case 'focus':
       onFocus(m.window);
       return;
@@ -1056,6 +1059,44 @@ function mcpCommand() {
   return `claude mcp add --transport http --scope user rednode http://127.0.0.1:${c.port}/mcp --header "Authorization: Bearer ${c.token}"`;
 }
 
+// ---------- pictures of the game ----------
+
+// The plugin copies the game's frame on the GPU and sends it back scaled down,
+// as BGRA in base64: {"event":"capture","capture":id,...}.
+let nextCapture = 1;
+const captures = new Map(); // id -> { resolve, reject, timer }
+
+/** A picture of the game: { image (nativeImage), width, height, sourceWidth, sourceHeight, hdr }. */
+function captureGame({ overlay = false, maxWidth = 1280 } = {}) {
+  if (!connected) return Promise.reject(new Error('The game is not linked to REDnode.'));
+  const id = nextCapture++;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      captures.delete(id);
+      reject(new Error('The game sent no picture within 5 seconds. It may be loading, paused in the background or minimized.'));
+    }, 5000);
+    captures.set(id, { resolve, reject, timer });
+    sendJson({ cmd: 'capture', id, overlay: !!overlay, maxWidth: Math.round(maxWidth) });
+  });
+}
+
+function onCapture(m) {
+  const c = captures.get(m.capture);
+  if (!c) return;
+  captures.delete(m.capture);
+  clearTimeout(c.timer);
+  if (m.error) {
+    c.reject(new Error(`No picture: ${m.error}`));
+    return;
+  }
+  const image = nativeImage.createFromBitmap(Buffer.from(m.bgra, 'base64'), { width: m.width, height: m.height });
+  if (image.isEmpty()) {
+    c.reject(new Error('The picture from the game was empty.'));
+    return;
+  }
+  c.resolve({ image, width: m.width, height: m.height, sourceWidth: m.sourceWidth, sourceHeight: m.sourceHeight, overlay: !!m.overlay, hdr: !!m.hdr });
+}
+
 function mcpHost() {
   const lookup = createLookup(TYPES_FILE, NOTES_DIR);
   return {
@@ -1070,6 +1111,7 @@ function mcpHost() {
           .map((w) => w.app.manifest.id),
       })),
     setOpen: setPackageOpen,
+    captureGame,
     restart: (id) => {
       if (!mods.has(id)) throw new Error(`No mod "${id}"`);
       mods.restart(id);

@@ -27,6 +27,7 @@ The server listens only on `127.0.0.1`, port 41820, and every request needs the 
 | `gameapi_lookup` | Game types and functions with the TypeScript signatures `api` uses, and REDnode's notes. An exact name (`StatsSystem` or `gameStatsSystem`) gives the declaration; part of a name searches | No |
 | `window_text` | The text an overlay window shows, including inside UI kit components and input fields | No |
 | `window_image` | A picture of an overlay window: its own pixels, before REDnode places it on the game. Not the game behind it, its place on screen, or the cursor | No |
+| `game_image` | A picture of the game's screen now: the game alone, or with `overlay: true` the overlay windows and cursor on it, as the player sees it. Scaled to at most `maxWidth` (default 1280). HDR is converted to SDR, so its colors are approximate. Fails while the game is loading or minimized. Plugin 0.13.0 or later | No |
 | `api_call` | A live game call, as `api` makes it: a global function, a static function (`class`), or a method (`self`). Game objects come back as `{ "$ref": n, "$type": "..." }` | **Yes**: it can change the player's game, such as money or health |
 | `api_get` | A property of a game object | No |
 
