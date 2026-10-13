@@ -148,7 +148,7 @@ The result was the first row.
 
 ## Plan for the real version
 
-Status: **draft for review.** Phases are numbered O1 to O7 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
+Status: **draft for review.** Phases are numbered O1 to O8 so they do not clash with the project phases P0 to P4. Each phase ends with an in-game test, like the proof of concept.
 
 ### Goal
 
@@ -186,6 +186,7 @@ Rules that make borderless windows behave:
 | **O5 Performance** | Shared GPU textures: Chromium renders to a D3D11 texture that the plugin opens in D3D12, so no pixel copy through the pipe. Updates only for changed regions. Measure memory and GPU cost | Several animated windows at 4K with no visible frame drop. Numbers recorded |
 | **O6 One runtime** | The overlay host becomes the Tier 2 runtime: Node mods and overlay apps in one process, one `rednode` package for both. Bridge methods grow from the two demo calls into the real API, generated from the game API data. Node mods get the UI builder | A Node mod and an overlay app use the same API call and get the same answer. A Node mod opens a window without writing HTML |
 | **O7 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
+| **O8 Mod Manager** | A built-in Mod Manager app with a table of every package, search, paging and bulk actions. **Pin to launcher** keeps the launcher short; **Pin to HUD** decides which windows stay on screen during gameplay. See [O8 Mod Manager: plan](#o8-mod-manager-plan) | With dozens of packages, the launcher lists only the pinned ones, and any package is found, switched and inspected in the Mod Manager |
 
 ### O1 Windows: test
 
@@ -441,6 +442,23 @@ What I read afterwards: `rednode-mods.log` (the mod's calls and errors), the plu
 | Not tested in game | `game.player.setHealth` (`RequestSettingStatPoolValue`), out parameters, and `rtti.get`. **Unverified** |
 
 O6 One runtime is done: Node mods run beside overlay apps, both use the `rednode` package, and `api` reaches any game function. Next: [REDagent](https://github.com/Edgemodders/REDagent), then O7 Display.
+
+### O8 Mod Manager: plan
+
+Agreed with the user on 2026-10-13, to come after REDagent's C4 test and before C5 or C6. The launcher's single list works for a handful of packages; with dozens it is overwhelmed, and REDagent makes new packages easily. REDdeck, the pre-launch mod manager for game mods (archives), stays separate: the Mod Manager manages REDnode packages, in the game.
+
+| Piece | What it does |
+|---|---|
+| The Mod Manager app | Built into REDnode, like the Mod log, and always pinned: the first entry in the launcher, never hidden |
+| The table | One row per package. Columns: pin, name, kind (app, Node mod, HUD widget), status (running, crashed, off), memory, own or shared process, version, author. Click a header to sort |
+| Finding a package | A search box (name, id, author, description) and filters (kind, on or off, errors). About 20 rows a page, with paging |
+| Details | The selected package: description, permissions with their **Allowed** switches, the last log lines, **Restart**, **Shared process**, **Show** for a closed window, hot reload. Launcher rows can shrink to a name and a switch |
+| Bulk actions | Select several: on or off, into or out of the shared process |
+| **Pin to launcher** | Only pinned packages show in the launcher. The packages installed when O8 ships start pinned; new ones start unpinned, and the launcher shows a "2 new" link to the Mod Manager. A crashed package shows in the launcher even when it is not pinned, so an error never hides. Saved in the host's settings as "in launcher" (in the code, "pinned" already means a built-in that cannot be switched off) |
+| **Pin to HUD** | Whether a package's windows stay on screen during gameplay (passive mode), or show only while the player interacts (F10). Today every window shows in passive mode. HUD widgets always stay. To decide with the user: the default for new packages (recommended: off, so new windows do not clutter gameplay) and whether existing packages start pinned (recommended: yes, nothing changes for them). Needs a small plugin change: the plugin skips unpinned windows in passive mode |
+| For agents | The kernel MCP server's `apps` tool gains the pins, so REDagent can pin a package it made |
+
+No new game API is needed: the host already has the package list, status and memory the launcher shows.
 
 ### UI kit
 
