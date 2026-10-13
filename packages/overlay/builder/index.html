@@ -8,7 +8,9 @@
   /* A window built by a Node mod with rednode's ui builder. The host sizes the
      page; space the window does not use stays transparent and clicks through. */
   html, body { margin: 0; overflow: hidden; background: transparent; }
-  rn-window { display: block; width: 100%; max-height: 100vh; }
+  /* rn-window is a flex column: kept so, its body scrolls when the content is taller
+     than the window (display: block clipped it; found in the C5 test with the Ask mod). */
+  rn-window { width: 100%; max-height: 100vh; }
   rn-window[hidden] { display: none; }
   .content { display: flex; flex-direction: column; gap: 10px; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

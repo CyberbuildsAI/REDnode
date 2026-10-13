@@ -17,8 +17,8 @@ ui.window({
   anchor: 'left',
   x: 40,
   y: 120,
-  width: 380,
-  height: 320,
+  width: 420,
+  height: 520,
   children: [
     ui.input({
       placeholder: 'Your question (Enter to ask)',
