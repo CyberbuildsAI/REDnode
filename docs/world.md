@@ -1,6 +1,6 @@
 # World API
 
-Status: **W1 is built; its in-game test is pending** ([steps](#w1-test)). W2 is planned. Phases W1 and W2 answer requests from [EDGEbuilder](https://edgemodders.github.io/EDGEbuilder/design.html), the world builder, filed as [`request` issues](https://github.com/Edgemodders/REDnode/issues?q=is%3Aissue+label%3Arequest). Order agreed with the user on 2026-10-13: REDagent's C5 test, then **W1**, then overlay phase O9 Debugger, then **W2**.
+Status: **W1 passed in game on 2026-10-13** ([results](#w1-results)). W2 is planned, after overlay phase O9. Phases W1 and W2 answer requests from [EDGEbuilder](https://edgemodders.github.io/EDGEbuilder/design.html), the world builder, filed as [`request` issues](https://github.com/Edgemodders/REDnode/issues?q=is%3Aissue+label%3Arequest). Order agreed with the user on 2026-10-13: REDagent's C5 test, then **W1**, then overlay phase O9 Debugger, then **W2**.
 
 EDGEbuilder places objects in the running game: an empty entity spawned through Codeware, with a mesh, light or other component attached while it assembles. The `api` in the `rednode` package can call any game function and read properties ([Overlay apps: the game API](overlay-apps.md#the-game-api)), but it cannot yet build objects, write properties, pass resource references or hear an entity assemble.
 
@@ -60,6 +60,21 @@ Use the **Test timer**: Start, then Mark after each step. The World test uses Wo
 5. Press **Remove**: the box goes, and `Entity/Detach` appears. Mark.
 6. Press **Next mesh**, then **Spawn box**: the base game's marker mesh this time. Remove it. Mark.
 7. Quit the game. I read the moves per second against the plugin's frame rate in its perf lines, to answer EDGEbuilder's per-frame question.
+
+### W1 results
+
+**2026-10-13: passed.** REDnode 0.15.0, Codeware installed. The scripts compiled in the game. World test spawned World Builder's empty entity with a mesh component built by `api.$new` with its mesh set by path, in 254 to 257 ms from the click; the box appeared in front of V. `Entity/Initialize` and `Entity/AfterAttach` arrived for it, and only for it. `world.remove` removed it, and `Entity/Detach` arrived. The base game's marker mesh worked the same way.
+
+| Measure | Result |
+|---|---|
+| Spawn to in the world | 254 to 257 ms |
+| Moves, one after another (each awaited) | 30 a second at 30 fps: one call a frame, since a call's answer comes the frame after it runs |
+| Moves, ten at a time | 302 a second at 30 fps: every call waiting when a frame starts runs in that frame. So `api.$batch` is not needed: send the calls without awaiting each one. The game thread takes at most 256 waiting calls a frame |
+| Frame rate | 53 to 61 fps before and after, **30 fps during the 10 seconds of moves**. Unknown yet whether the moves cost it (a few ms can halve the rate under vsync) or something else: the plugin did not time game calls. **Added in 0.15.1:** the perf line gives game calls a second and their milliseconds a frame |
+
+| Finding | Notes |
+|---|---|
+| World test's window did not show until Restart | The plugin drew at most 16 windows, and refused the 17th (World test's) with only a line in its own log; 17 were open with the samples, mods and built-in apps. **Fixed in 0.15.1:** up to 64 windows, and a refused window is reported in the host's log |
 
 ## W2 Packaging
 

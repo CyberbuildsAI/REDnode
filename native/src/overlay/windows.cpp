@@ -312,6 +312,10 @@ void HandleWindowCommand(const std::string& aJson)
                 if (g_windows.size() >= MaxWindows)
                 {
                     Log("Overlay: too many windows, ignored window %u", uint32_t(id));
+                    // The host says so too, in its log: the window will never show.
+                    // (SendJson takes only the send queue's own lock.)
+                    SendJson("{\"event\":\"window-refused\",\"window\":" + std::to_string(uint32_t(id)) +
+                             ",\"limit\":" + std::to_string(MaxWindows) + "}");
                     return;
                 }
                 g_windows.push_back({});

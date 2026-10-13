@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://edgemodders.github.io/REDnode/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
-  <img src="docs/assets/brand/badges/status.svg" alt="status: 0.15.0 in development">
+  <img src="docs/assets/brand/badges/status.svg" alt="status: 0.15.1 in development">
   <img src="docs/assets/brand/badges/game.svg" alt="game: 2.31">
   <img src="docs/assets/brand/badges/red4ext.svg" alt="RED4ext: 1.30">
   <img src="docs/assets/brand/badges/node.svg" alt="Node: 24">
@@ -66,7 +66,7 @@ The full table, with each phase's status and test results, is on the [docs home 
 
 - **P0 Research, P1 Proof:** done.
 - **HTML overlay (O1 to O9):** O1 to O6 and O8 passed in game. O7 Display and O9 Debugger are planned.
-- **World API (W1, W2):** placing things in the world, for EDGEbuilder. W1 is built.
+- **World API (W1, W2):** placing things in the world, for EDGEbuilder. W1 passed in game.
 - **P2 Tier 2:** mostly done through the overlay host. **P3 Rules** and **P4 Tier 1** (sync interceptors in the game) are not started.
 
 ## Compatibility goals

@@ -312,6 +312,20 @@ int main()
     CloseAllWindows();
     Check(SnapshotWindows().empty(), "CloseAllWindows removes everything");
 
+    // The window limit: 17 windows fit (the W1 test had 17 open); past the limit the
+    // window is refused and the host is told.
+    for (uint32_t k = 1; k <= MaxWindows; ++k)
+    {
+        HandleWindowCommand("{\"cmd\":\"window.open\",\"window\":" + std::to_string(k) +
+                            ",\"x\":0,\"y\":0,\"width\":10,\"height\":10}");
+    }
+    Check(SnapshotWindows().size() == MaxWindows && MaxWindows >= 17, "dozens of windows can be open at once");
+    g_sent.clear();
+    HandleWindowCommand("{\"cmd\":\"window.open\",\"window\":999,\"x\":0,\"y\":0,\"width\":10,\"height\":10}");
+    Check(SnapshotWindows().size() == MaxWindows && SentContains(R"({"event":"window-refused","window":999)"),
+          "a window past the limit is refused, and the host is told");
+    CloseAllWindows();
+
     std::printf("\n%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
     return g_failures ? EXIT_FAILURE : EXIT_SUCCESS;
 }

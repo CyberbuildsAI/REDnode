@@ -72,7 +72,10 @@ void StopLink();
 bool IsConnected();
 
 // windows.cpp: the window registry and input routing. Thread safe.
-constexpr uint32_t MaxWindows = 16;
+// Windows open at once. 16 was reached in the W1 test (built-in apps, mods and samples:
+// the 17th window was ignored and never drawn). Each slot reserves only a texture view
+// until a window uses it.
+constexpr uint32_t MaxWindows = 64;
 struct WindowView // what the compositor needs, back to front
 {
     uint32_t id;
@@ -107,6 +110,8 @@ void SetCompositorActive(bool aActive);
 void AckFrames(const std::vector<uint32_t>& aFrameIds);
 // Alpha read back from the GPU, for click-through on GPU-shared windows. Rows are aRowPitch bytes of BGRA.
 void SubmitAlpha(uint32_t aWindow, uint32_t aWidth, uint32_t aHeight, const uint8_t* aRows, uint32_t aRowPitch);
+// Game calls run in one frame on the game thread and how long they took, for the perf line. Any thread.
+void RecordCalls(uint32_t aCount, double aMs);
 // Asks for a picture of the game, sent to the host as {"event":"capture"}: the back
 // buffer before the overlay is drawn, or after it, scaled to at most aMaxWidth. Any thread.
 void RequestCapture(uint32_t aId, bool aWithOverlay, uint32_t aMaxWidth);

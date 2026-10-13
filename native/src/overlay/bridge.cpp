@@ -191,11 +191,20 @@ void RunRequests(uint64_t aFrame)
         std::scoped_lock lock(g_requestMutex);
         requests.swap(g_requests);
     }
+    if (requests.empty())
+        return;
+    // How long game calls take on the game thread, for the perf line (W1: does moving
+    // an entity every frame cost frames?).
+    LARGE_INTEGER start, end, frequency;
+    QueryPerformanceCounter(&start);
     for (const auto& r : requests)
     {
         auto reply = Handle(r, aFrame);
         if (!reply.empty())
             SendJson(std::move(reply));
     }
+    QueryPerformanceCounter(&end);
+    QueryPerformanceFrequency(&frequency);
+    RecordCalls(uint32_t(requests.size()), double(end.QuadPart - start.QuadPart) * 1000.0 / double(frequency.QuadPart));
 }
 } // namespace rednode::overlay::detail

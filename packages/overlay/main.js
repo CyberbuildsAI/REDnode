@@ -732,6 +732,12 @@ function onGameMessage(m) {
         }
       }
       return;
+    case 'window-refused': {
+      // The game draws at most m.limit windows at once; this one will not show.
+      const w = windows.get(m.window);
+      log(`The game refused the window of ${w ? w.app.manifest.id : `window ${m.window}`}: ${m.limit} windows are already open. Close some apps or mod windows.`);
+      return;
+    }
     case 'shared-failed':
       log(`The game could not use GPU sharing (${m.error}). Switching to the CPU path.`);
       setRenderPath('cpu', false);
@@ -862,6 +868,7 @@ function logPerf(game, host) {
       `textures opened ${(game.opensPerSec ?? 0).toFixed(0)}/s, reused ${(game.reusedPerSec ?? 0).toFixed(0)}/s, ` +
       `GPU ${game.gpuMs.toFixed(2)} ms (worst ${game.gpuMsMax.toFixed(2)}); ` +
       `uploads ${game.uploadMBps.toFixed(1)} MB/s, shared ${(game.sharedPerSec ?? 0).toFixed(0)}/s; ` +
+      `game calls ${(game.callsPerSec ?? 0).toFixed(0)}/s, ${(game.callMsPerFrame ?? 0).toFixed(2)} ms a frame (worst ${(game.callMsMax ?? 0).toFixed(2)}); ` +
       `host ${host.memoryMB} MB in ${host.processes} processes, CPU ${host.cpuPercent}%, sent ${host.sentMBps.toFixed(1)} MB/s`,
   );
 }

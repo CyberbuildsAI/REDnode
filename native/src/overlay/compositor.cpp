@@ -25,6 +25,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -244,6 +245,13 @@ struct Perf
     double openMs = 0;              // OpenSharedHandle
     uint32_t opens = 0, reused = 0; // shared textures opened, and found already open
 } g_perf;
+
+// Game calls (bridge requests), timed on the game thread: atomics, since Present may
+// run on another thread. Microseconds.
+std::atomic<uint64_t> g_calls{0};
+std::atomic<uint64_t> g_callFrames{0};
+std::atomic<uint64_t> g_callMicros{0};
+std::atomic<uint64_t> g_callMicrosMax{0};
 LARGE_INTEGER g_qpcFrequency{};
 
 double SecondsSince(const LARGE_INTEGER& aThen)
@@ -266,17 +274,23 @@ void ReportPerf()
     if (seconds < 1.0)
         return;
     const double perFrame = g_perf.rendered ? 1.0 / g_perf.rendered : 0.0;
-    char json[640];
+    const uint64_t calls = g_calls.exchange(0);
+    const uint64_t callFrames = g_callFrames.exchange(0);
+    const uint64_t callMicros = g_callMicros.exchange(0);
+    const uint64_t callMicrosMax = g_callMicrosMax.exchange(0);
+    char json[768];
     std::snprintf(json, sizeof(json),
                   "{\"event\":\"perf\",\"fps\":%.1f,\"overlayFrames\":%u,\"cpuMs\":%.3f,\"cpuMsMax\":%.3f,"
                   "\"waitMs\":%.3f,\"openMs\":%.3f,"
                   "\"gpuMs\":%.3f,\"gpuMsMax\":%.3f,\"uploadsPerSec\":%.1f,\"uploadMBps\":%.2f,"
-                  "\"sharedPerSec\":%.1f,\"opensPerSec\":%.1f,\"reusedPerSec\":%.1f}",
+                  "\"sharedPerSec\":%.1f,\"opensPerSec\":%.1f,\"reusedPerSec\":%.1f,"
+                  "\"callsPerSec\":%.1f,\"callMsPerFrame\":%.3f,\"callMsMax\":%.3f}",
                   g_perf.presents / seconds, g_perf.rendered, g_perf.cpuMs * perFrame, g_perf.cpuMsMax,
                   g_perf.waitMs * perFrame, g_perf.openMs * perFrame,
                   g_perf.gpuSamples ? g_perf.gpuMs / g_perf.gpuSamples : 0.0, g_perf.gpuMsMax,
                   g_perf.uploads / seconds, g_perf.uploadBytes / seconds / 1048576.0, g_perf.sharedCopies / seconds,
-                  g_perf.opens / seconds, g_perf.reused / seconds);
+                  g_perf.opens / seconds, g_perf.reused / seconds, calls / seconds,
+                  callFrames ? callMicros / 1000.0 / double(callFrames) : 0.0, callMicrosMax / 1000.0);
     SendJson(json);
     g_perf = {};
     QueryPerformanceCounter(&g_perf.start);
@@ -1381,6 +1395,18 @@ void UninstallCompositor()
     for (const auto& r : g_captureWanted)
         SendCaptureError(r.id, "the overlay stopped drawing");
     g_captureWanted.clear();
+}
+
+void RecordCalls(uint32_t aCount, double aMs)
+{
+    const auto micros = uint64_t(aMs * 1000.0);
+    g_calls += aCount;
+    g_callFrames += 1;
+    g_callMicros += micros;
+    uint64_t max = g_callMicrosMax.load();
+    while (micros > max && !g_callMicrosMax.compare_exchange_weak(max, micros))
+    {
+    }
 }
 
 void RequestCapture(uint32_t aId, bool aWithOverlay, uint32_t aMaxWidth)
