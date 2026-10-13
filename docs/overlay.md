@@ -537,6 +537,21 @@ Use the **Test timer**: Start, then Mark after each step.
 
 Afterwards I read the logs: the debugger lines, and the perf lines with game calls.
 
+**Result, 2026-10-13: passed.** REDnode 0.16.0, 3840 x 2160. Every step worked, and the Test timer marked steps 1 to 7.
+
+| Check | What the logs show |
+|---|---|
+| 64 windows | The World test window opened at start beside every other app; no window was refused |
+| Window debugger | Coords' debugger opened in the game and on the desktop; the bug buttons opened two more, each closed with its ✕ |
+| Node debugger | Debug on restarted the Hello mod in its own process with an inspector. The Console showed its "Sound button pressed" lines. The breakpoint on line 28 held the third press for about 30 seconds, until Resume |
+| Restart and Debug off | Restart reopened the debugger on the new address within the same second; Debug off closed it and moved the Hello mod back to the shared process |
+| Game-call timing (0.15.1) | About 34 game calls a second, costing 0.5 to 0.9 ms a game frame (worst 4.4 ms; 16 ms while a save loaded). The game ran between 30 and 65 fps throughout, unrelated to the calls, so game calls do not explain W1's frame-rate drop. **Unverified** what does |
+
+| Finding | Change |
+|---|---|
+| The debugger's title bar stayed in the REDnode theme while the player had picked Yellow | REDnode 0.16.1: the host draws it in the player's theme and changes it with the theme |
+| Asked for by the user: rename the themes | REDnode 0.16.1: "Game red" is now **HUD red** (`hud`) and "Yellow" is **EDGE** (`edge`). The old names `game` and `yellow` still work in pages and in saved settings |
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:
@@ -558,7 +573,7 @@ Web components (custom elements like `<rn-button>`) work in plain HTML, React, V
 
 <!-- A borderless button that looks like part of the game (kind: hud or window) -->
 <body style="background: transparent">
-  <rn-button theme="game" sound="ui_click">Open stash</rn-button>
+  <rn-button theme="hud" sound="ui_click">Open stash</rn-button>
 </body>
 ```
 

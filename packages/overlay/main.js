@@ -192,8 +192,11 @@ function writeJson(name, value) {
 let positions = {};
 let settings = { apps: {} }; // apps: { [id]: { open, shared } }, renderPath: 'gpu' | 'cpu', hotReload, theme
 // UI kit themes the player can pick in the launcher. Every page using the kit follows it.
-const THEMES = ['rednode', 'game', 'yellow'];
-const theme = () => (THEMES.includes(settings.theme) ? settings.theme : 'rednode');
+const THEMES = ['rednode', 'hud', 'edge'];
+// Renamed on 2026-10-13: "game" is now HUD red ("hud"), "yellow" is EDGE ("edge").
+const OLD_THEMES = { game: 'hud', yellow: 'edge' };
+const themeName = (name) => OLD_THEMES[name] ?? name;
+const theme = () => (THEMES.includes(themeName(settings.theme)) ? themeName(settings.theme) : 'rednode');
 let renderPath = 'gpu';
 
 // GPU-shared frames the game has not finished with yet: frame id -> { texture, windowId, at }.
@@ -1175,13 +1178,11 @@ function dressDebugger(w) {
         bottom: 0 !important; width: auto !important; height: auto !important; }
       #rednode-bar { position: fixed; top: 0; left: 0; right: 0; height: ${DEBUGGER_BAR}px; z-index: 2147483647;
         display: flex; align-items: center; gap: 10px; padding: 0 6px 0 12px; box-sizing: border-box;
-        background: linear-gradient(90deg, rgba(252,238,10,.14), transparent 60%), #08090d;
-        border-bottom: 1px solid #262c3d; font: 700 13px "Segoe UI", sans-serif; letter-spacing: .1em; color: #e3e6ee; }
-      #rednode-bar i { width: 8px; height: 8px; background: #fcee0a; }
+        font: 700 13px "Segoe UI", sans-serif; letter-spacing: .1em; }
+      #rednode-bar i { width: 8px; height: 8px; }
       #rednode-bar span { flex: 1; }
-      #rednode-bar button { width: 22px; height: 22px; padding: 0; border: 1px solid #262c3d; background: transparent;
-        color: #8a93a8; font: 14px monospace; cursor: pointer; }
-      #rednode-bar button:hover { background: #fcee0a; color: #08090d; }`);
+      #rednode-bar button { width: 22px; height: 22px; padding: 0; background: transparent; font: 14px monospace; cursor: pointer; }`);
+    themeDebuggerBar(w);
     wc.executeJavaScript(`(() => {
       if (document.getElementById('rednode-bar')) return;
       const bar = document.createElement('div');
@@ -1198,6 +1199,33 @@ function dressDebugger(w) {
   });
 }
 const DEBUGGER_CLOSE = '__rednode_close_debugger__';
+
+// The debugger's title bar in the player's theme, as the UI kit's rn-window draws it.
+const DEBUGGER_COLORS = {
+  rednode: { bg: 'linear-gradient(90deg, rgba(252,238,10,.14), transparent 60%), #08090d', fg: '#e3e6ee', mark: '#fcee0a',
+    line: '#262c3d', dim: '#8a93a8', hoverBg: '#fcee0a', hoverFg: '#08090d' },
+  hud: { bg: 'linear-gradient(90deg, rgba(255,97,88,.14), transparent 60%), #0c0608', fg: '#f2e4e2', mark: '#ff6158',
+    line: 'rgba(255,97,88,.38)', dim: '#c97670', hoverBg: '#ff6158', hoverFg: '#160708' },
+  edge: { bg: '#fcee0a', fg: '#08090d', mark: '#08090d', line: 'rgba(8,9,13,.4)', dim: 'rgba(8,9,13,.62)',
+    hoverBg: '#08090d', hoverFg: '#fcee0a' },
+};
+
+function themeDebuggerBar(w) {
+  const wc = w.win.webContents;
+  if (wc.isDestroyed()) return;
+  const c = DEBUGGER_COLORS[theme()];
+  const old = w.barCss;
+  wc.insertCSS(`
+    #rednode-bar { background: ${c.bg}; color: ${c.fg}; border-bottom: 1px solid ${c.line}; }
+    #rednode-bar i { background: ${c.mark}; }
+    #rednode-bar button { border: 1px solid ${c.line}; color: ${c.dim}; }
+    #rednode-bar button:hover { background: ${c.hoverBg}; border-color: ${c.hoverBg}; color: ${c.hoverFg}; }`)
+    .then((key) => {
+      w.barCss = key;
+      if (old) wc.removeInsertedCSS(old).catch(() => {});
+    })
+    .catch(() => {});
+}
 
 // Opens the debugger for a package's window (the first, or the one named).
 function debugPackage(id, where = 'overlay', windowId) {
@@ -1581,11 +1609,13 @@ ipcMain.handle('rednode:mods:restart', (event, id) => {
 
 ipcMain.handle('rednode:host:theme', (event, name) => {
   fromLauncher(event);
+  name = themeName(name);
   if (THEMES.includes(name) && name !== theme()) {
     settings.theme = name;
     writeJson('settings.json', settings);
     log(`Theme: ${name}`);
     toAllPages({ event: 'theme', theme: name });
+    for (const w of windows.values()) if (w.app.debugger) themeDebuggerBar(w);
   }
   return theme();
 });

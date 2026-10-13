@@ -121,9 +121,11 @@ document.getElementById('list').addEventListener('select', (e) => {
 });
 ```
 
-| `theme="rednode"` | `theme="game"` |
+| `theme="rednode"` | `theme="hud"` |
 |---|---|
-| ![The kit window in the REDnode theme](assets/overlay/kit-rednode-theme.png) | ![The kit window in the game theme](assets/overlay/kit-game-theme.png) |
+| ![The kit window in the REDnode theme](assets/overlay/kit-rednode-theme.png) | ![The kit window in the HUD red theme](assets/overlay/kit-game-theme.png) |
+
+A third theme, `theme="edge"` (EDGE), has solid yellow title bars. The player picks one theme for every window in the launcher; an app that sets its own keeps it. (`hud` and `edge` were called `game` and `yellow` before REDnode 0.16.1; the old names still work.)
 
 The grey checkerboard in these captures is the transparent part of the page. In game, the game shows there.
 
@@ -132,7 +134,7 @@ The grey checkerboard in these captures is the transparent part of the page. In 
 No window frame at all: a borderless page with one game-style button and its menu. The rest of the page is transparent, so it looks like part of the game's UI. From [`apps/native`](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/native):
 
 ```html
-<body theme="game">
+<body theme="hud">
   <rn-menu id="menu" title="Stash" hidden>
     <rn-menu-item value="sell">Sell junk <span slot="end">12</span></rn-menu-item>
     <rn-menu-item value="sort">Sort by value</rn-menu-item>

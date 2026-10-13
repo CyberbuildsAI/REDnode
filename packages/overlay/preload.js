@@ -83,7 +83,7 @@ contextBridge.exposeInMainWorld('rednode', {
     renderPath: (path) => ipcRenderer.invoke('rednode:host:render-path', path),
     /** Gets hot reload, or turns it on or off. */
     hotReload: (on) => ipcRenderer.invoke('rednode:host:hot-reload', on),
-    /** Gets the theme every window follows, or sets it: 'rednode', 'game' or 'yellow'. */
+    /** Gets the theme every window follows, or sets it: 'rednode', 'hud' (HUD red) or 'edge' (EDGE). */
     theme: (name) => ipcRenderer.invoke('rednode:host:theme', name),
     /** Grants or withdraws a permission a package asks for, such as 'mcp'. */
     grant: (id, permission, granted) => ipcRenderer.invoke('rednode:apps:grant', id, permission, granted),

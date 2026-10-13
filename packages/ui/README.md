@@ -22,7 +22,7 @@ In Developer mode (the launcher's switch), every `rn-window` shows a debug butto
 
 ## Themes
 
-Put `theme="rednode"` (the default), `theme="game"` or `theme="yellow"` on any element. Everything inside it follows.
+Put `theme="rednode"` (the default), `theme="hud"` (HUD red, like the game's own HUD) or `theme="edge"` (EDGE, solid yellow title bars) on any element. Everything inside it follows. The old names `game` and `yellow` still work.
 
 | Theme | Look |
 |---|---|
@@ -30,7 +30,7 @@ Put `theme="rednode"` (the default), `theme="game"` or `theme="yellow"` on any e
 | `game` | A look-alike of the game's own UI, rebuilt in CSS: red accents, teal highlights, soft glow. No game textures or fonts are used |
 | `yellow` | The house style with solid yellow window title bars and dark title text |
 
-**The player's theme.** The player picks a theme for every window in the REDnode launcher (**Theme** at the bottom). The kit applies it to the whole page and follows changes at once. An app that sets `theme` on its `<html>` keeps its own theme; one that sets it on an inner element, such as `<body>`, keeps it inside that element. The Coords HUD, Vitals and Native button apps set `theme="game"` on `<body>`, so they stay game-styled.
+**The player's theme.** The player picks a theme for every window in the REDnode launcher (**Theme** at the bottom). The kit applies it to the whole page and follows changes at once. An app that sets `theme` on its `<html>` keeps its own theme; one that sets it on an inner element, such as `<body>`, keeps it inside that element. The Coords HUD, Vitals and Native button apps set `theme="hud"` on `<body>`, so they stay game-styled.
 
 Themes are CSS custom properties, so an app can adjust one: `--rn-bg`, `--rn-panel`, `--rn-panel-2`, `--rn-line`, `--rn-fg`, `--rn-dim`, `--rn-accent`, `--rn-accent-2`, `--rn-on-accent`, `--rn-danger`, `--rn-ok`, `--rn-display`, `--rn-body`, `--rn-mono`, `--rn-cut`, `--rn-glow`. Window title bars have their own: `--rn-title-bg` (and `--rn-title-bg-dim` when the window does not have focus), `--rn-title-fg`, `--rn-title-dim`, `--rn-title-ok`, `--rn-title-mark`, `--rn-title-line`, `--rn-title-hover-bg`, `--rn-title-hover-fg`.
 

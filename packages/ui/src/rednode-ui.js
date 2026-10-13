@@ -10,8 +10,9 @@
  *     <rn-button sound="ui_menu_onpress">Apply</rn-button>
  *   </rn-window>
  *
- * Themes: put theme="rednode" (the default), theme="game" or theme="yellow" on
- * any element; everything inside it follows. Themes are CSS custom properties
+ * Themes: put theme="rednode" (the default), theme="hud" (HUD red) or
+ * theme="edge" (EDGE, solid yellow title bars) on any element; everything inside
+ * it follows. The old names "game" and "yellow" still work. Themes are CSS custom properties
  * named --rn-*. The player picks a theme for every window in the launcher; an
  * app's own theme attribute wins inside its element.
  *
@@ -57,7 +58,7 @@
   --rn-scroll-thumb: color-mix(in srgb, var(--rn-dim) 40%, transparent);
   --rn-scroll-thumb-hover: var(--rn-accent-2);
 }
-[theme="game"] {
+[theme="hud"], [theme="game"] {
   --rn-bg: rgba(12, 6, 8, .86);
   --rn-panel: rgba(24, 9, 11, .88);
   --rn-panel-2: rgba(48, 14, 17, .92);
@@ -88,7 +89,7 @@
   --rn-scroll-thumb: color-mix(in srgb, var(--rn-accent) 40%, transparent);
   --rn-scroll-thumb-hover: var(--rn-accent);
 }
-[theme="yellow"] {
+[theme="edge"], [theme="yellow"] {
   --rn-bg: rgba(8, 9, 13, .9);
   --rn-panel: rgba(16, 19, 27, .92);
   --rn-panel-2: rgba(21, 25, 37, .96);
