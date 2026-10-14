@@ -399,6 +399,22 @@ await bridge.call('archive.extract', { path: found.items[0].name, outFile: 'C:/t
 
 Parameters go by name, as REDbridge's [method list](https://edgemodders.github.io/REDbridge/) gives them. The [Packaging test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/packaging-test) sample lists and searches the archives.
 
+## Staying on top and solo mode
+
+REDnode's own windows (the launcher tab, Mod log, Mod Manager, debuggers) live in a **tool layer**, above every package's windows: a full-screen package cannot cover them. A package can ask to join them with `"permissions": ["front"]`; the player allows it in the Mod Manager. The Test timer does this.
+
+A package that needs the screen to itself, such as an editing viewport, can ask for **solo mode**: every other package's windows and HUD widgets are hidden until it ends. Tool windows stay. Add `"permissions": ["solo"]` to the manifest; the player allows it in the Mod Manager.
+
+```js
+import { ui } from 'rednode';
+
+ui.onSolo((on) => console.log(on ? 'solo on' : 'solo off'));
+await ui.solo(true);  // rejects until the player allows it
+await ui.solo(false);
+```
+
+Solo ends when the package turns it off, stops or crashes, another package takes it, or the player presses **End** beside the launcher tab, which shows "SOLO" and the package's name. `ui.onSolo` hears every end, so a package can keep its own button in step. The [Layers test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/layers-test) sample shows both.
+
 ## Asking the AI assistant
 
 A package can ask the AI assistant (REDagent) a question and show the answer: a build suggestion, an explanation of an error, a summary of the game state. Add `"permissions": ["agent"]` to the manifest; the player allows it in the launcher or the Mod Manager, and REDagent must be installed and on.

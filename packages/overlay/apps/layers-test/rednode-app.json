@@ -1,0 +1,12 @@
+{
+  "id": "layers-test",
+  "name": "Layers test",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A sample of O10: a full-screen page with a faint tint that takes the mouse, as an editing viewport does. REDnode's tool windows (the launcher tab, Mod log, Mod Manager, and the Test timer once allowed) stay above it. Solo hides every other package's window; asks for the solo permission.",
+  "entry": "index.html",
+  "width": 1920,
+  "height": 1080,
+  "anchor": "top-left",
+  "permissions": ["solo"]
+}

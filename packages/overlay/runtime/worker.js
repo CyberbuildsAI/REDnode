@@ -54,6 +54,7 @@ globalThis[Symbol.for('rednode.transport')] = {
   mcp: () => request({ t: 'mcp' }),
   bridge: (op, method, params) => request({ t: 'bridge', op, method, params }),
   requires: () => request({ t: 'requires' }),
+  solo: (on) => request({ t: 'solo', on }),
   post: (data) => parentPort.postMessage({ t: 'post', data }),
   agent: (msg) => parentPort.postMessage({ t: 'agent', msg }),
   listen(fn) {

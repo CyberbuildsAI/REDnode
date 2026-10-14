@@ -326,6 +326,39 @@ int main()
           "a window past the limit is refused, and the host is told");
     CloseAllWindows();
 
+    // Layers (O10): tool windows stay above packages' windows, whatever is clicked.
+    HandleWindowCommand(R"({"cmd":"window.open","window":20,"x":0,"y":0,"width":1920,"height":1080})");
+    HandleWindowCommand(R"({"cmd":"window.open","window":21,"x":10,"y":10,"width":200,"height":100,"layer":"tool"})");
+    HandleWindowCommand(R"({"cmd":"window.open","window":22,"x":0,"y":0,"width":300,"height":300})");
+    SubmitFrame(20, 1920, 1080, Frame(1920, 1080));
+    SubmitFrame(21, 200, 100, Frame(200, 100));
+    SubmitFrame(22, 300, 300, Frame(300, 300));
+    Check(SnapshotWindows().back().id == 21, "a tool window stays above a package window opened after it");
+    g_sent.clear();
+    OnMouseMove(20, 20);
+    Check(SentContains(R"("window":21,"type":"mouseMove")"), "input over a tool window goes to it, not to the page below");
+    OnMouseMove(500, 500);
+    OnMouseButton(true, "left");
+    OnMouseButton(false, "left");
+    {
+        const auto order = SnapshotWindows();
+        Check(order.size() == 3 && order[0].id == 22 && order[1].id == 20 && order[2].id == 21,
+              "a click brings a package window to the front of its own layer only");
+    }
+    HandleWindowCommand(R"({"cmd":"window.layer","window":22,"layer":"tool"})");
+    Check(SnapshotWindows().back().id == 22 && SnapshotWindows().front().id == 20,
+          "window.layer moves a window to the tool layer");
+
+    // Hidden windows (solo mode): not drawn, and input passes them.
+    HandleWindowCommand(R"({"cmd":"window.hidden","window":20,"hidden":true})");
+    Check(View(20).id == 0 && SnapshotWindows().size() == 2, "a hidden window is not drawn");
+    g_sent.clear();
+    OnMouseMove(800, 800);
+    Check(!SentContains(R"("window":20)"), "a hidden window takes no input");
+    HandleWindowCommand(R"({"cmd":"window.hidden","window":20,"hidden":false})");
+    Check(View(20).id == 20, "a window shown again is drawn");
+    CloseAllWindows();
+
     std::printf("\n%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
     return g_failures ? EXIT_FAILURE : EXIT_SUCCESS;
 }

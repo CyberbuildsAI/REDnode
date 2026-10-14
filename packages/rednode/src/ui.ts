@@ -10,7 +10,7 @@
  * @module
  */
 
-import { transport } from "./transport.js";
+import { cleanError, transport, type Transport } from "./transport.js";
 
 /** Where a window sits on the screen. The x and y offsets are measured from this point. */
 export type Anchor =
@@ -344,5 +344,48 @@ export const ui = {
         t.ui!.close(id);
       },
     };
+  },
+
+  /**
+   * Solo mode: while on, REDnode hides every other package's windows and HUD
+   * widgets, so this package has the screen to itself (an editing viewport, a
+   * full-screen tool). REDnode's own tool windows stay: the launcher tab, which
+   * shows the solo and an End solo button, the Mod log, the Mod Manager and the
+   * Test timer. Solo ends when the package turns it off, stops or crashes, or the
+   * player ends it; {@link ui.onSolo} hears that.
+   *
+   * The package must list `"solo"` in its rednode-app.json permissions and the
+   * player must allow it in the Mod Manager; until then this rejects and says so.
+   * Works in Node mods and in overlay apps.
+   *
+   * @example
+   * ```ts
+   * import { ui } from "rednode";
+   *
+   * await ui.solo(true);  // edit mode on: other windows go
+   * // ...
+   * await ui.solo(false); // they come back
+   * ```
+   */
+  async solo(on: boolean): Promise<void> {
+    const t = transport() as Transport & { solo?(on: boolean): Promise<unknown> };
+    const page = (globalThis as { rednode?: { pkg?: { solo?(on: boolean): Promise<unknown> } } }).rednode?.pkg;
+    const solo = t.solo ? (v: boolean) => t.solo!(v) : page?.solo;
+    if (!solo) throw new Error("rednode: solo mode needs the REDnode host");
+    try {
+      await solo(!!on);
+    } catch (err) {
+      throw cleanError(err);
+    }
+  },
+
+  /**
+   * Calls the handler when this package's solo mode starts or ends, also when the
+   * player ends it from the launcher. Returns a function that stops listening.
+   */
+  onSolo(handler: (on: boolean) => void): () => void {
+    return transport().listen((m) => {
+      if (m.event === "solo") handler(!!(m as { on?: boolean }).on);
+    });
   },
 };

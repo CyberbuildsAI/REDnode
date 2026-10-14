@@ -18,7 +18,11 @@
 //      "hideWith":["menu","photo-mode","scene","main-menu"] hides it while the game shows those.
 //      "onHud":false shows it only in interactive mode, not during gameplay (passive mode).
 //      HUD widgets are always on the HUD. Default true.
+//      "layer":"tool" puts it in the tool layer: always above packages' windows, drawn
+//      over them and hit-tested first; a click brings a window only to the front of its layer.
 //   {"cmd":"window.hud","window":1,"onHud":true}   changes onHud ("Pin to HUD")
+//   {"cmd":"window.layer","window":1,"layer":"tool"}   "tool" or "app", the packages' layer
+//   {"cmd":"window.hidden","window":1,"hidden":true}   hidden: not drawn, takes no input (solo mode)
 //   {"cmd":"window.drag","window":1,"regions":[x,y,w,h, ...]}   page pixels
 //   {"cmd":"window.close","window":1}
 // Plugin -> host events:
@@ -59,6 +63,8 @@ struct Window
     bool hud = false;                 // drawn, never takes input or focus
     uint32_t hideWith = 0;            // StateMenu | StatePhotoMode | ... from gamestate.cpp
     bool onHud = true;                // drawn in passive mode too, not only in interactive mode
+    uint8_t layer = 0;                // 0: packages' windows; 1: tool windows, always above
+    bool hidden = false;              // another package asked for the screen (solo mode)
     uint32_t width = 0, height = 0;
     bool draggable = true;
     std::vector<DragRegion> dragRegions;
@@ -78,7 +84,7 @@ struct Window
 };
 
 std::mutex g_mutex;
-std::vector<Window> g_windows; // back to front
+std::vector<Window> g_windows; // back to front, the packages' layer before the tool layer
 uint32_t g_focus = 0;
 uint32_t g_hover = 0;
 uint32_t g_capture = 0; // the window that got the mouse press, gets the release
@@ -126,7 +132,7 @@ Hit HitTest(float aX, float aY)
     for (auto it = g_windows.rbegin(); it != g_windows.rend(); ++it)
     {
         Window& w = *it;
-        if (!w.placed || w.hud || (w.hideWith & GetUiState()))
+        if (!w.placed || w.hud || w.hidden || (w.hideWith & GetUiState()))
             continue; // HUD widgets and hidden windows never take input
         const float lx = aX - w.x;
         const float ly = aY - w.y;
@@ -187,11 +193,25 @@ std::string DescribePoint(float aX, float aY)
     return out.empty() ? " none" : out;
 }
 
+// Keeps the tool layer above the packages' layer, each in its own front-to-back order.
+void SortLayers()
+{
+    std::stable_partition(g_windows.begin(), g_windows.end(), [](const Window& w) { return w.layer == 0; });
+}
+
+// To the front of its own layer: a package's window never goes above a tool window.
 void BringToFront(uint32_t aId)
 {
     const auto it = std::find_if(g_windows.begin(), g_windows.end(), [&](const Window& w) { return w.id == aId; });
     if (it != g_windows.end() && it + 1 != g_windows.end())
         std::rotate(it, it + 1, g_windows.end());
+    SortLayers();
+}
+
+uint8_t ParseLayer(const std::string& aJson)
+{
+    std::string layer;
+    return json::String(aJson, "layer", layer) && layer == "tool" ? 1 : 0;
 }
 
 std::string MouseJson(uint32_t aWindow, const char* aType, float aX, float aY, const char* aButton = nullptr,
@@ -343,8 +363,36 @@ void HandleWindowCommand(const std::string& aJson)
                 if (list != std::string::npos && aJson.find(name, list) < aJson.find(']', list))
                     w->hideWith |= bit;
             }
+            w->layer = ParseLayer(aJson);
+            w->hidden = json::Bool(aJson, "hidden", false);
             w->placed = false;
             Place(*w, GetScreen());
+            const uint32_t opened = w->id;
+            SortLayers(); // moves windows: find it again before using it
+            w = Find(opened);
+        }
+        else if (cmd == "window.layer" && w)
+        {
+            // To the front of its new layer, as a window that just opened there.
+            w->layer = ParseLayer(aJson);
+            BringToFront(uint32_t(id));
+            w = Find(uint32_t(id));
+        }
+        else if (cmd == "window.hidden" && w)
+        {
+            w->hidden = json::Bool(aJson, "hidden", false);
+            if (w->hidden)
+            {
+                const uint32_t gone = w->id;
+                if (g_focus == gone)
+                    SetFocus(actions, 0);
+                if (g_hover == gone)
+                    g_hover = 0;
+                if (g_capture == gone)
+                    g_capture = 0;
+                if (g_dragging == gone)
+                    g_dragging = 0;
+            }
         }
         else if (cmd == "window.hud" && w)
         {
@@ -561,7 +609,7 @@ std::vector<WindowView> SnapshotWindows()
     const bool passive = GetMode() == Mode::Passive;
     for (const auto& w : g_windows)
     {
-        if (w.placed && !(w.hideWith & state) && (w.onHud || !passive))
+        if (w.placed && !w.hidden && !(w.hideWith & state) && (w.onHud || !passive))
             out.push_back({w.id, w.x, w.y, w.width, w.height});
     }
     return out;

@@ -70,6 +70,8 @@ const PERMISSIONS = {
   mcp: "REDnode's tools for AI agents (the kernel MCP server)",
   agent: 'questions to the AI assistant (REDagent); each answer costs you a little',
   bridge: "REDbridge, WolvenKit's engine: reads the game's archives and files, and can write files where the package asks",
+  front: "staying above other packages' windows, with REDnode's own tools",
+  solo: "hiding every other package's windows while it asks (solo mode)",
 };
 // What a package may offer other packages in its manifest's "provides".
 const PROVIDES = ['agent'];
@@ -383,6 +385,80 @@ function windowOnHud(w) {
   return owner ? isOnHud(owner) : true;
 }
 
+// ---------- layers and solo mode (O10) ----------
+//
+// The tool layer is always above packages' windows: REDnode's own windows (launcher,
+// Mod log, Mod Manager, debuggers) and packages the player let stay on top with the
+// "front" permission, such as the Test timer. A full-screen package cannot cover them.
+// Solo mode: a package with the "solo" permission asks to have the screen; every
+// other package's window is hidden, the tool layer stays, until it ends.
+
+function windowLayer(w) {
+  // A mod's window is drawn by the built-in builder page, so ask about its mod, not the page.
+  if (!w.app.built && (w.app.builtin || w.app.debugger)) return 'tool';
+  const owner = ownerOf(w);
+  return owner && isGranted(owner.manifest.id, 'front') ? 'tool' : 'app';
+}
+
+let soloOwner = null; // the package id in solo mode, or null
+
+function soloHides(w) {
+  return !!soloOwner && windowLayer(w) !== 'tool' && ownerOf(w)?.manifest.id !== soloOwner;
+}
+
+function applySolo() {
+  if (!connected) return;
+  for (const w of windows.values()) sendJson({ cmd: 'window.hidden', window: w.id, hidden: soloHides(w) });
+}
+
+// Tells a package's pages and its mod that its solo mode started or ended.
+function tellSolo(id, on) {
+  for (const w of windowsOfPackage(id)) toPage(w, { event: 'solo', on });
+  if (mods?.has(id)) mods.toMod(id, { event: 'solo', on });
+}
+
+function setSolo(id, on) {
+  if (on) {
+    if (!isGranted(id, 'solo')) {
+      const entry = apps.get(id);
+      throw new Error(
+        entry?.manifest.permissions.includes('solo')
+          ? `Allow "${entry.manifest.name}" to use solo mode in the Mod Manager first`
+          : 'This package does not ask for the "solo" permission in its rednode-app.json',
+      );
+    }
+    if (soloOwner === id) return;
+    if (soloOwner) endSolo(`${apps.get(id)?.manifest.name ?? id} took it over`);
+    soloOwner = id;
+    log(`Solo mode: ${id}`);
+  } else {
+    if (soloOwner !== id) return;
+    soloOwner = null;
+    log(`Solo mode of ${id} ended by the package`);
+  }
+  applySolo();
+  tellSolo(id, on);
+  notifyLauncher();
+}
+
+function endSolo(why) {
+  if (!soloOwner) return;
+  const id = soloOwner;
+  soloOwner = null;
+  log(`Solo mode of ${id} ended: ${why}`);
+  applySolo();
+  tellSolo(id, false);
+  notifyLauncher();
+}
+
+// Solo ends when its package stops: no window left, and no mod running.
+function checkSolo() {
+  if (!soloOwner) return;
+  const status = mods?.has(soloOwner) ? mods.info(soloOwner, []).status : null;
+  const running = status === 'running' || status === 'starting' || status === 'not-responding';
+  if (!running && !windowsOfPackage(soloOwner).length) endSolo('the package stopped');
+}
+
 function setPin(id, where, on) {
   const entry = apps.get(id);
   if (!entry || entry.pinned) throw new Error(`No app or mod "${id}"`);
@@ -617,6 +693,8 @@ function openInGame(w) {
     hideWith: m.hideWith,
     draggable: m.kind !== 'hud',
     onHud: windowOnHud(w),
+    layer: windowLayer(w),
+    hidden: soloHides(w),
   });
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
   repaint(w.win.webContents); // send a full frame now
@@ -987,7 +1065,8 @@ function modLogFile() {
 }
 
 function hostState() {
-  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer };
+  const solo = soloOwner ? { id: soloOwner, name: apps.get(soloOwner)?.manifest.name ?? soloOwner } : null;
+  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer, solo };
 }
 
 ipcMain.handle('rednode:call', (_event, method, params) => bridgeCall(method, params));
@@ -1444,6 +1523,13 @@ async function bridgeFor(id, op, method, params) {
 }
 
 ipcMain.handle('rednode:pkg:bridge', (event, op, method, params) => bridgeFor(packageOf(event), op, method, params));
+ipcMain.handle('rednode:pkg:solo', (event, on) => setSolo(packageOf(event), !!on));
+// The launcher's End solo button.
+ipcMain.handle('rednode:host:end-solo', (event) => {
+  fromLauncher(event);
+  endSolo('the player ended it');
+  return true;
+});
 ipcMain.handle('rednode:pkg:requires', (event) => requirementsOf(packageOf(event)));
 
 // The package a page belongs to: its app, or the mod that built it.
@@ -1574,6 +1660,11 @@ ipcMain.handle('rednode:apps:grant', (event, id, permission, granted) => {
   writeJson('settings.json', settings);
   log(`${granted ? 'Granted' : 'Withdrew'} ${permission} for ${id}`);
   mcp.configure(mcpConfig());
+  if (permission === 'front' && connected) {
+    for (const w of windowsOfPackage(id)) sendJson({ cmd: 'window.layer', window: w.id, layer: windowLayer(w) });
+    applySolo();
+  }
+  if (permission === 'solo' && !granted && soloOwner === id) endSolo('the player withdrew the permission');
   return appList();
 });
 
@@ -1961,6 +2052,7 @@ function closeApp(appId) {
   if (!w.win.isDestroyed()) w.win.destroy();
   log(`Closed ${appId}`);
   notifyLauncher();
+  checkSolo();
 }
 
 // ---------- start ----------
@@ -2024,7 +2116,9 @@ app.whenReady().then(() => {
     changed: () => {
       notifyLauncher();
       syncNodeDebuggers();
+      checkSolo();
     },
+    soloFor: setSolo,
     onLog: onModLog,
   });
   if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {

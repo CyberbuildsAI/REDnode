@@ -201,7 +201,11 @@ async function refresh() {
     showTheme(await window.rednode.apps.theme());
     $('mcp').checked = await window.rednode.apps.mcp();
     $('dev').checked = await window.rednode.apps.developer();
-    $('version').textContent = `REDNODE ${(await window.rednode.state()).version}`;
+    const state = await window.rednode.state();
+    $('version').textContent = `REDNODE ${state.version}`;
+    // Solo mode: which package has the screen, and a way out.
+    $('solo').hidden = !state.solo;
+    $('solo-name').textContent = state.solo?.name ?? '';
     const all = await window.rednode.apps.list();
     // Only packages pinned to the launcher, the Mod Manager first; a crashed one shows
     // even unpinned, so an error never hides. The Mod Manager lists everything.
@@ -237,6 +241,8 @@ async function refresh() {
     refreshing = false;
   }
 }
+
+$('solo-end').addEventListener('click', () => act('Solo mode', () => window.rednode.apps.endSolo()));
 
 $('more-open').addEventListener('click', () => act('Mod Manager', () => window.rednode.apps.setOpen('modmanager', true)));
 

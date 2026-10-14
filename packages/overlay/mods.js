@@ -34,6 +34,7 @@ const RESTARTS = 3; // a mod process that crashes more often than this in a minu
  * @param {(id, op, method, params) => Promise<unknown>} host.bridgeFor   REDbridge for a mod with the "bridge" permission
  * @param {(id: string) => object[]} host.requirementsOf     a mod's requires, checked
  * @param {(id: string) => string | null} host.missingOf     what a mod is missing, in words
+ * @param {(id: string, on: boolean) => void} host.soloFor  a mod asks for solo mode, or ends it
  * @param {(entry: object) => void} host.onLog               a mod printed a line: { time, id, level, text }
  */
 function createMods(host) {
@@ -249,6 +250,13 @@ function createMods(host) {
         return;
       case 'requires':
         reply(p, id, msg.rid, host.requirementsOf(id));
+        return;
+      case 'solo':
+        try {
+          reply(p, id, msg.rid, host.soloFor(id, !!msg.on) ?? null);
+        } catch (err) {
+          reply(p, id, msg.rid, undefined, err.message);
+        }
         return;
       case 'secret':
       case 'mcp':

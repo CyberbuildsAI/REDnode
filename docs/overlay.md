@@ -188,6 +188,7 @@ Rules that make borderless windows behave:
 | **O7 Display** | HDR brightness calibration against the game's own HUD, DLSS frame generation, resolution and window-mode changes, ultrawide | The overlay looks right and stays stable across display modes |
 | **O8 Mod Manager** | A built-in Mod Manager app with a table of every package, search, paging and bulk actions. **Pin to launcher** keeps the launcher short; **Pin to HUD** decides which windows stay on screen during gameplay. See [O8 Mod Manager: plan](#o8-mod-manager-plan) | With dozens of packages, the launcher lists only the pinned ones, and any package is found, switched and inspected in the Mod Manager |
 | **O9 Debugger** | Chromium DevTools for any overlay app, from an **Inspect** button: first in a desktop window, then, if a prototype works, inside the overlay as a built-in Debugger app. Node mods debugged through Node's inspector, attachable from VS Code and REDcode. See [O9 Debugger: plan](#o9-debugger-plan) | An app's page is inspected and a breakpoint hit while the game runs; a Node mod stops at a breakpoint set in VS Code |
+| **O10 Layers** | A tool layer above packages' windows for REDnode's own windows and packages the player lets stay on top; solo mode, in which one package hides every other package's windows. Asked for by EDGEbuilder ([#10](https://github.com/Edgemodders/REDnode/issues/10), [#7](https://github.com/Edgemodders/REDnode/issues/7)). See [O10 Layers](#o10-layers-built) | A full-screen package cannot cover the launcher or the Test timer, and its solo mode hides everything else until it ends |
 
 ### O1 Windows: test
 
@@ -551,6 +552,31 @@ Afterwards I read the logs: the debugger lines, and the perf lines with game cal
 |---|---|
 | The debugger's title bar stayed in the REDnode theme while the player had picked Yellow | REDnode 0.16.1: the host draws it in the player's theme and changes it with the theme |
 | Asked for by the user: rename the themes | REDnode 0.16.1: "Game red" is now **HUD red** (`hud`) and "Yellow" is **EDGE** (`edge`). The old names `game` and `yellow` still work in pages and in saved settings |
+
+### O10 Layers: built
+
+Agreed with the user on 2026-10-14, before the TweakDB API: EDGEbuilder's full-screen Edit mode covered the Test timer, so its Mark could not be pressed ([#10](https://github.com/Edgemodders/REDnode/issues/10)), and it needs the other packages' windows out of the way while placing objects ([#7](https://github.com/Edgemodders/REDnode/issues/7)). The user chose the recommended answers: built-ins plus packages the player allows for the tool layer, and a permission for solo mode. REDnode 0.18.0.
+
+| Piece | Where |
+|---|---|
+| Tool layer | Plugin: each window has a layer; the window list keeps packages' windows before tool windows, so tool windows are drawn above them and hit-tested first, and a click brings a window only to the front of its own layer. `window.open` takes `"layer":"tool"`, and `window.layer` changes it. Host: the launcher, Mod log, Mod Manager and debuggers are tools; so is any package granted the new `front` permission ("staying above other packages' windows"), such as the Test timer. Granting or withdrawing it moves the package's windows at once |
+| Solo mode | `ui.solo(true)` / `ui.solo(false)` and `ui.onSolo(handler)` in the `rednode` package, for Node mods and pages, behind the new `solo` permission. While on, the host sends `window.hidden` for every other package's window and HUD widget (tool windows stay), and new windows open hidden. It ends when the package turns it off, stops or crashes, another package takes it, the player withdraws the permission, or the player presses **End** beside the launcher tab, which shows "SOLO" and the package's name |
+| Plugin | Hidden windows are neither drawn nor hit-tested; hiding one drops its focus, hover and drag. Unit tests: a tool window stays above a package window opened after it and gets the input over it, a click raises a package window only within its layer, `window.layer` moves a window to the front of the tool layer, a hidden window is not drawn and takes no input |
+| Samples | `apps/layers-test`: a full-screen page with a 4% tint that takes the mouse, with Solo on and Solo off. `apps/timer` asks for `front` |
+
+Tested in the mock game: the launcher, Mod Manager and Test timer (with `front` allowed) opened as tools, the Layers test and the Hello mod as package windows. **Solo on** hid the Hello mod's window and not the Test timer; the page heard the change; the launcher tab showed "SOLO Layers test" with **End**, which ended it. Hit testing above a full-screen page is covered by the plugin's unit tests; the mock game does not hit-test. **Unverified** in the game.
+
+### O10 Layers: test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Mark.
+2. F10. In the Mod Manager, select the **Test timer** and allow **staying above other packages' windows**. Select **Layers test**, allow **solo mode**, and switch it on: a faint tint covers the screen. Mark (the timer is clickable above the tint).
+3. Click the tint, then click the launcher tab, the Mod Manager and the Test timer: each still takes the click, above the tint. Open the Hello mod: the tint stays above it once the tint is clicked, but the timer and launcher stay on top. Mark.
+4. In the Layers test window, press **Solo on**: the Hello mod and any HUD widget (Coords, Vitals) disappear; the launcher tab shows "SOLO Layers test". Mark.
+5. Press **End** beside the launcher tab: everything comes back, and the Layers test says "Solo: off". Press **Solo on** again, then switch the Layers test off in the Mod Manager: everything comes back. Mark.
+6. Checks from 0.17.1: the Mod Manager's Packaging test lists ArchiveXL as "not installed" if its DLL is gone (#9); the World test's **Spawn box** shows the level-design kit's orange box (#6). Mark.
+7. Quit the game.
 
 ### UI kit
 

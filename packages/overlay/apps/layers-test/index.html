@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Layers test</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<script type="importmap">{ "imports": { "rednode": "rednode://sdk/index.js" } }</script>
+<style>
+  /* The whole page is a faint tint: alpha above REDnode's click-through threshold,
+     so it takes the mouse everywhere, as an editing viewport does. */
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: rgba(25, 243, 255, .04); }
+  rn-window { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); width: 460px; }
+  .line { font-size: 14px; }
+</style>
+</head>
+<body>
+  <rn-window title="Layers test" draggable>
+    <div class="line">This page covers the whole screen and takes the mouse. REDnode's tool windows stay above it.</div>
+    <div class="line" id="status">Solo: off</div>
+    <div style="display: flex; gap: 8px">
+      <rn-button id="on">Solo on</rn-button>
+      <rn-button id="off" variant="ghost">Solo off</rn-button>
+    </div>
+  </rn-window>
+<script type="module">
+  import { ui } from 'rednode';
+
+  const status = document.getElementById('status');
+  const show = (text) => (status.textContent = text);
+  ui.onSolo((on) => show(on ? 'Solo: on. Other packages are hidden.' : 'Solo: off'));
+
+  document.getElementById('on').addEventListener('click', () => ui.solo(true).catch((e) => show(e.message)));
+  document.getElementById('off').addEventListener('click', () => ui.solo(false).catch((e) => show(e.message)));
+</script>
+</body>
+</html>

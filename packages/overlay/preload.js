@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('rednode', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  /** Connection and game state: { connected, mode, windowed, version, game, theme, developer }. */
+  /** Connection and game state: { connected, mode, windowed, version, game, theme, developer, solo }. */
   state: () => ipcRenderer.invoke('rednode:state'),
   /** Closes this app, as switching it off in the launcher does. The UI kit's window close button uses it. */
   close: () => ipcRenderer.send('rednode:app:close'),
@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('rednode', {
     inspectMod: (id, where) => ipcRenderer.invoke('rednode:mods:inspect', id, where),
     /** Copies a debugged mod's inspector address, for VS Code or REDcode. */
     copyInspector: (id) => ipcRenderer.invoke('rednode:mods:copy-inspector', id),
+    /** Ends a package's solo mode: the launcher's End solo button. */
+    endSolo: () => ipcRenderer.invoke('rednode:host:end-solo'),
     /** Gets Developer mode, or turns it on or off. On, window title bars show a debug button. */
     developer: (on) => ipcRenderer.invoke('rednode:host:developer', on),
     /** Restarts a Node mod. */
@@ -103,6 +105,7 @@ contextBridge.exposeInMainWorld('rednode', {
     mcp: () => ipcRenderer.invoke('rednode:pkg:mcp'),
     bridge: (op, method, params) => ipcRenderer.invoke('rednode:pkg:bridge', op, method, params),
     requires: () => ipcRenderer.invoke('rednode:pkg:requires'),
+    solo: (on) => ipcRenderer.invoke('rednode:pkg:solo', on),
     post: (data) => ipcRenderer.send('rednode:pkg:post', data),
   },
   /** Questions to the AI assistant; used by `agent` in the rednode package. Answers arrive as {event: 'agent'}. */

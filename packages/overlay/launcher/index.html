@@ -14,6 +14,12 @@
   .dock { padding-bottom: 2px; }
   /* The tab stays visible over the game, so it gets a dark backing. */
   .tab { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; background: var(--rn-bg); }
+  .solo { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0 0 0 6px; border-left: 2px solid var(--rn-accent);
+    font: 700 10px var(--rn-mono); color: var(--rn-accent); white-space: nowrap; }
+  /* The tab must fit the launcher's width: a long name is cut with an ellipsis. */
+  .solo #solo-name { display: inline-block; max-width: 84px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+  .solo[hidden] { display: none; }
+  .solo rn-button::part(button) { min-height: 22px; padding: 2px 8px; font-size: 11px; }
   .grip { width: 14px; height: 34px; cursor: move;
     background: repeating-linear-gradient(0deg, var(--rn-accent) 0 2px, transparent 2px 6px); opacity: .7; }
   .app { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
@@ -84,6 +90,9 @@
     <div class="tab">
       <div class="grip" data-rednode-drag title="Drag to move"></div>
       <rn-button id="toggle" variant="ghost">REDnode <span id="count"></span></rn-button>
+      <div class="solo" id="solo" hidden title="Solo mode: this package hid the other packages' windows">
+        <span>SOLO <span id="solo-name"></span></span><rn-button id="solo-end" variant="ghost">End</rn-button>
+      </div>
     </div>
   </div>
 <script src="app.js"></script>
