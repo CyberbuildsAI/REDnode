@@ -6,4 +6,6 @@ REDnode reads records and flats with `tweakdb` in the rednode package, straight 
 
 Measured in game on 2.31 (2026-10-14, [T1 test](https://edgemodders.github.io/REDnode/tweakdb.html#t1-results)): `tweakdb.records("Vehicle")` returned 1,377 vehicle records in one call, in 26 ms. A record's methods are the record type's own: `FriendlyName` is an item's (`gamedataItem_Record`), and a vehicle record answers that it has no such method; `DisplayName` exists on both.
 
+Changing a record goes through TweakXL (`tweakdb.set`, `tweakdb.clone`): after a set, REDnode updates the record, and the record's methods return the new value (`FriendlyName()` did in the [T2 test](https://edgemodders.github.io/REDnode/tweakdb.html#t2-results)). Which objects already in the game, such as items in the inventory, see a change is **unverified**.
+
 Ids are hashes (CRC32 of the path and its length), and the game keeps no names, so an id comes back as a path only when its name is known.

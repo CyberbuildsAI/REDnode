@@ -43,7 +43,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | Window layers | O10: a tool layer for REDnode's own windows and packages allowed `front`, and solo mode (`ui.solo`). Passed in game. See [HTML overlay](overlay.md#o10-layers-built) |
 | Spaces | O11, proposed: named sets of windows the player switches between, like virtual desktops. See [HTML overlay](overlay.md#o11-spaces-plan) |
 | Sound API | Planned: REDnode's own engine in the plugin (S1 play, S2 space, S3 effects and voices, S4 game events), clean room from Audioware's docs. See [Sound API](sound.md) |
-| TweakDB API | T1 (read, from the plugin) passed in game. T2 (write through TweakXL, with undo per package) built, awaits its in-game test. Then T3 (offline through REDbridge). See [TweakDB API](tweakdb.md) |
+| TweakDB API | T1 (read, from the plugin) passed in game. T2 (write through TweakXL, with undo per package) passed in game. T3 (offline through REDbridge) waits for REDbridge's TweakDB methods. See [TweakDB API](tweakdb.md) |
 | P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge, the Node SDK and the generated game API. Events from hooked game functions are still to do |
 | P3 Rules | Not started |
 | P4 Tier 1 | Not started |

@@ -115,6 +115,20 @@ Use the **Test timer**: Start, then Mark after each step.
 4. Press **Clone**: `Items.REDnode_Test_Clone`, a `gamedataWeaponItem_Record`, with the friendly name "REDnode clone". Mark.
 5. Quit the game. I read the logs, including TweakXL's own.
 
+### T2 results
+
+**Result, 2026-10-14: passed.** REDnode 0.20.0, TweakXL 1.11.4, game 2.31. Steps 1 to 3 were marked; the rest is from the logs.
+
+| Check | Result |
+|---|---|
+| Change | `tweakdb.set` on the Lexington's `friendlyName` answered true, and Read showed the new name in the flat and in the record's own `FriendlyName()`: TweakXL's native call through REDnode works, and the record was updated |
+| Undo | Switching the mod off logged `Undid 1 TweakDB change(s) of tweakdb-test (the mod stopped)` the same second; after switching it on, Read showed `w_handgun_militech_lexington` again |
+| Clone | `Items.REDnode_Test_Clone` cloned (true), a `gamedataWeaponItem_Record` with its own friendly name |
+| Speed | A Read of 7 values took about 100 ms (226 ms in T1): the flats now go together, in one game frame |
+| TweakXL's log | Nothing from REDnode's calls. Its errors at load came from other installed mods' tweak files |
+
+Still **unverified**: which objects already in the game see a change (the sample changes a value the game does not show). A test with a visible value is for a later phase or a real mod.
+
 ## Research before T1 and T2
 
 | Question | How to find out |
