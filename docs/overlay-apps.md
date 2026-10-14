@@ -346,7 +346,7 @@ Every node has `set(props)`, which updates the open window at once.
 | `kernel.mcp()` | The address and a token for the [kernel MCP server](mcp.md), for an AI agent in the package. The package must list `"permissions": ["mcp"]` in its manifest, and the player must allow it in the launcher | Node mods and apps |
 | `channel.post(data)`, `channel.on(handler)` | Messages between a package's pages and its own Node mod: a web UI with a Node backend | Node mods and apps |
 | `kernel.requirements()` | The package's `requires`, checked against the game folder (see [Requirements](#requirements)) | Node mods and apps |
-| `tweakdb` | TweakDB's records and flats, read from the running game (see [Reading TweakDB](#reading-tweakdb)) | Node mods and apps |
+| `tweakdb` | TweakDB's records and flats, read from the running game (see [TweakDB](#tweakdb)) | Node mods and apps |
 | `kernel.bridge()` | REDbridge, WolvenKit's engine, for the game's archives and files (see [The game's files through REDbridge](#the-games-files-through-redbridge)). Needs `"permissions": ["bridge"]` and the player's OK | Node mods and apps |
 
 ```js
@@ -479,6 +479,7 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | Int64, Uint64 | `string`: JavaScript numbers lose precision above 2^53 |
 | CName, String | `string` |
 | TweakDBID | `"0x..."`. As an argument, a record path such as `"Items.money"` works too |
+| Variant | `{ "$type": "Float", "value": 1.5 }`: a value with its type's name, such as `Int32`, `CName` or `array:CName` |
 | Enums | The member's name, such as `"Health"` |
 | Structs, such as Vector4 or ItemID | Plain objects. As arguments, missing properties keep their default, and `null` is the default value |
 | Game objects | References: call their methods with `await`. `null` when there is none |
@@ -494,7 +495,7 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | Not supported yet | `script_ref` parameters. Such calls fail with a clear message |
 | Risk | The checks catch wrong types, not wrong values. Calling a function the game does not expect to be called at that moment can still crash it, as with any script mod |
 
-## Reading TweakDB
+## TweakDB
 
 TweakDB is the game's database of tuning data: items, weapons, vehicles, characters, perks. A **record** is one thing (`Items.Preset_Lexington_Default`, a `gamedataWeaponItem_Record`); a **flat** is one value in it (`Items.Preset_Lexington_Default.quality`). `tweakdb` reads them from the running game and needs nothing else installed. Changing them comes later, through TweakXL ([plan](tweakdb.md)).
 
@@ -521,6 +522,36 @@ await tweakdb.records('Vehicle');                                   // every veh
 | `tweakdb.name(id)`, `tweakdb.learn(paths)` | The path of an id when known; tell REDnode more names |
 
 **Names.** TweakDB ids are hashes and the game keeps no names. A path your package passed in is remembered, so it comes back as that path; any other id comes back as `"0x..."`. Both forms work as input everywhere. The record types and their methods are in the [game API reference](game/).
+
+### Changing TweakDB
+
+Changes go through [TweakXL](https://github.com/psiberx/cp2077-tweak-xl), the community's standard for TweakDB edits, so they work beside every other TweakXL mod. List it in your manifest, so a player without it sees what is missing:
+
+```json
+"requires": { "tweakxl": ">=1.10" }
+```
+
+```js
+import { tweakdb } from 'rednode';
+
+await tweakdb.set('Items.Preset_Lexington_Default.friendlyName', "REDnode's Lexington");
+await tweakdb.clone('Items.MyMod_Lexington', 'Items.Preset_Lexington_Default');
+await Promise.all([
+  tweakdb.set('Items.MyMod_Lexington.quality', 'Quality.Legendary'),
+  tweakdb.set('Items.MyMod_Lexington.tags', ['Weapon', 'MyMod'], { type: 'array:CName' }),
+]);
+```
+
+| Call | Does |
+|---|---|
+| `tweakdb.set(path, value, { type? })` | Changes a flat and applies it to its record. The flat keeps its own type; a new flat needs `type` |
+| `tweakdb.clone(path, base)` | A new record copied from another one |
+| `tweakdb.create(path, type)` | A new, empty record of a type |
+| `tweakdb.update(path)` | Applies changed flats to a record; `set` does it already |
+
+**Undone when your package stops.** REDnode remembers each flat's value from before your package first changed it, and puts it back when the package stops: switched off, restarted, hot reloaded or crashed. So a mod sets its values every time it starts, and switching it off really takes its changes away. Records it cloned or created, and flats it added, stay until the game closes, since TweakDB cannot remove them.
+
+Changes made at once, with `Promise.all`, run in the same game frame. Objects already in the game, such as an item in V's inventory, may keep values they copied when they were made: **unverified** which ones.
 
 ## Placing things in the world
 

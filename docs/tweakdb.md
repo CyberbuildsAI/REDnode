@@ -53,7 +53,7 @@ await tweakdb.batch((b) => {
 
 ## T1: built
 
-REDnode 0.19.0. How to use it: [Overlay apps: reading TweakDB](overlay-apps.md#reading-tweakdb).
+REDnode 0.19.0. How to use it: [Overlay apps: TweakDB](overlay-apps.md#tweakdb).
 
 | Piece | Where |
 |---|---|
@@ -90,6 +90,30 @@ Use the **Test timer**: Start, then Mark after each step.
 | Finding | Change |
 |---|---|
 | Reading the vehicle failed: `gamedataVehicle_Record has no method "FriendlyName"`. The sample checked `typeof record.FriendlyName === 'function'`, but a game object answers to every name, since the game decides which methods exist, so the check always passed. REDnode's answer was right | The sample (0.1.1) picks the method by the record's type (`FriendlyName` for items, `DisplayName` otherwise) and reads its flats with one `Promise.all`, so they run in the same game frame instead of one frame each |
+
+## T2: built
+
+REDnode 0.20.0. How to use it: [Overlay apps: changing TweakDB](overlay-apps.md#changing-tweakdb).
+
+| Piece | Where |
+|---|---|
+| Variant | The plugin converts the game's `Variant` to and from JSON as `{ "$type": "Float", "value": 1.5 }`, in every game call, not only TweakDB's |
+| Writes | `tweakdb.set`, `tweakdb.clone`, `tweakdb.create`, `tweakdb.update` in the plugin call TweakXL's native `TweakDBManager` functions, the ones that take a TweakDBID (TweakXL's script overloads take a CName). `set` keeps the flat's own type, read from TweakDB, or takes the one given for a new flat, then updates the record. Without TweakXL they fail with "Changing TweakDB needs TweakXL" |
+| Undo per package | The host keeps, per package, each flat's value from before the package's first change to it, and puts them back, newest first, when the package stops: a mod at every stop (restarts and hot reloads included, told by the mod runner), an app when its last window closes. A package's next calls wait for its undo to finish. Records cloned or created, and new flats, stay. If two packages change the same flat, the first to stop restores what it found |
+| `tweakdb` in the package | `set`, `clone`, `create`, `update`. No separate batch call: changes sent together with `Promise.all` run in one game frame, as W1 measured for game calls |
+| Sample | `apps/tweakdb-test` 0.2.0 requires TweakXL; **Change** sets an item's friendly name and reads it back through the record's own `FriendlyName()`; **Clone** copies the record to `Items.REDnode_Test_Clone` with its own name |
+
+Tested in the mock game, with a stand-in TweakDB that keeps writes: Change set the name and the record's method returned it; a restart of the mod (through the MCP `apps` tool) undid it ("Undid 1 TweakDB change(s) of tweakdb-test"), and Read showed the original name again; Clone made the copy with its own name. A first try undid nothing on a restart: the host only noticed stopped packages, and a restarting mod is starting again by then; the mod runner now tells the host at every stop. **Unverified** in the game: TweakXL's calls through REDnode, and which objects already in the game see a change.
+
+### T2 test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Check that TweakXL is installed: `red4ext/plugins/TweakXL/TweakXL.dll`. In the Mod Manager, the TweakDB test then shows no NEEDS. Start the game and load a save. Mark.
+2. In the TweakDB test, press **Read**, then **Change**: the friendly name and `FriendlyName()` both read "REDnode was here". Mark.
+3. In the Mod Manager, switch the TweakDB test off and on again, then press **Read**: the friendly name is `w_handgun_militech_lexington` again. Mark.
+4. Press **Clone**: `Items.REDnode_Test_Clone`, a `gamedataWeaponItem_Record`, with the friendly name "REDnode clone". Mark.
+5. Quit the game. I read the logs, including TweakXL's own.
 
 ## Research before T1 and T2
 

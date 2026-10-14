@@ -27,7 +27,7 @@ const RESTARTS = 3; // a mod process that crashes more often than this in a minu
  * @param {string} host.logFile                             where mod output goes
  * @param {string} host.runner                              runtime/runner.js
  * @param {string} host.sdk                                 the rednode package's index.js
- * @param {(method: string, params: unknown) => Promise<unknown>} host.call   the game bridge
+ * @param {(method: string, params: unknown, id: string) => Promise<unknown>} host.call   the game bridge, for mod id
  * @param {() => object} host.state                         what game.state() answers
  * @param {object} host.ui                                  open(modId, win, spec), update(modId, win, node, props), close(modId, win), closeAll(modId)
  * @param {() => void} host.changed                         a mod's status changed: refresh the launcher
@@ -35,6 +35,7 @@ const RESTARTS = 3; // a mod process that crashes more often than this in a minu
  * @param {(id: string) => object[]} host.requirementsOf     a mod's requires, checked
  * @param {(id: string) => string | null} host.missingOf     what a mod is missing, in words
  * @param {(id: string, on: boolean) => void} host.soloFor  a mod asks for solo mode, or ends it
+ * @param {(id: string) => void} [host.stopped]               a mod stopped or crashed, even when it starts again at once
  * @param {(entry: object) => void} host.onLog               a mod printed a line: { time, id, level, text }
  */
 function createMods(host) {
@@ -127,6 +128,7 @@ function createMods(host) {
       m.process = null;
       m.stopping = false;
       host.ui.closeAll(id);
+      host.stopped?.(id);
       modLog(id, 'error', `crashed: ${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
       setStatus(id, 'crashed', `${where} ended (code ${code}). Mods in it: ${names.join(', ')}`);
     }
@@ -191,6 +193,7 @@ function createMods(host) {
       host.ui.closeAll(msg.id);
       if (msg.status === 'crashed') modLog(msg.id, 'error', `crashed: ${modFrames(msg.error)}`);
       else modLog(msg.id, 'info', 'Stopped');
+      host.stopped?.(msg.id); // before a restart starts it again
       if (m.pendingStart) {
         m.pendingStart = false;
         start(msg.id);
@@ -225,7 +228,7 @@ function createMods(host) {
     switch (msg.t) {
       case 'call':
         Promise.resolve()
-          .then(() => host.call(msg.method, msg.params))
+          .then(() => host.call(msg.method, msg.params, id))
           .then(
             (result) => reply(p, id, msg.rid, result),
             (err) => reply(p, id, msg.rid, undefined, err?.message || String(err)),

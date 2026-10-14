@@ -451,12 +451,12 @@ function endSolo(why) {
   notifyLauncher();
 }
 
-// Solo ends when its package stops: no window left, and no mod running.
+// Solo ends when its package stops: no window left, and no mod running. TweakDB changes
+// of a stopped package are undone at the same moments.
 function checkSolo() {
+  checkTweaks();
   if (!soloOwner) return;
-  const status = mods?.has(soloOwner) ? mods.info(soloOwner, []).status : null;
-  const running = status === 'running' || status === 'starting' || status === 'not-responding';
-  if (!running && !windowsOfPackage(soloOwner).length) endSolo('the package stopped');
+  if (!packageRunning(soloOwner)) endSolo('the package stopped');
 }
 
 function setPin(id, where, on) {
@@ -1069,7 +1069,77 @@ function hostState() {
   return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer, solo };
 }
 
-ipcMain.handle('rednode:call', (_event, method, params) => bridgeCall(method, params));
+// ---------- TweakDB changes per package (TweakDB API, T2) ----------
+//
+// The first time a package changes a flat, the host keeps the flat's value from before;
+// when the package stops (switched off, restarted, hot reloaded, crashed) the host puts
+// those values back, newest change first. Flats a package added cannot be removed from
+// TweakDB, so they stay until the game closes, as do records it cloned or created.
+// If two packages change the same flat, the one that stops first restores what it found.
+
+const tweakJournal = new Map(); // package id -> Map(path -> { type, value } before its first change, or null)
+const undoing = new Map(); // package id -> the promise of its undo in progress
+
+async function packageCall(id, method, params) {
+  // A restarted package waits until its old changes are undone, so it never saves a
+  // half-restored value as the original.
+  if (id && undoing.has(id)) await undoing.get(id);
+  if (method === 'tweakdb.set' && id && params?.path) {
+    const path = String(params.path);
+    if (!tweakJournal.has(id)) tweakJournal.set(id, new Map());
+    const journal = tweakJournal.get(id);
+    if (!journal.has(path)) journal.set(path, await bridgeCall('tweakdb.get', { path }).catch(() => null));
+  }
+  return bridgeCall(method, params);
+}
+
+function undoTweaks(id, why) {
+  const journal = tweakJournal.get(id);
+  tweakJournal.delete(id);
+  if (!journal?.size || !connected) return;
+  const done = restoreTweaks(id, journal, why).finally(() => {
+    if (undoing.get(id) === done) undoing.delete(id);
+  });
+  undoing.set(id, done);
+}
+
+async function restoreTweaks(id, journal, why) {
+  let restored = 0;
+  let kept = 0;
+  for (const [path, before] of [...journal].reverse()) {
+    if (!before) {
+      kept += 1; // a flat the package added
+      continue;
+    }
+    try {
+      if ((await bridgeCall('tweakdb.set', { path, value: before.value, type: before.type })) === true) restored += 1;
+    } catch (err) {
+      log(`Could not restore TweakDB flat ${path} of ${id}: ${err.message}`);
+    }
+  }
+  log(`Undid ${restored} TweakDB change(s) of ${id} (${why})${kept ? `; ${kept} flat(s) it added stay until the game closes` : ''}`);
+}
+
+// A package's changes are undone once it no longer runs: no window and no mod.
+function packageRunning(id) {
+  const status = mods?.has(id) ? mods.info(id, []).status : null;
+  const running = status === 'running' || status === 'starting' || status === 'not-responding';
+  return running || windowsOfPackage(id).length > 0;
+}
+
+function checkTweaks() {
+  for (const id of [...tweakJournal.keys()]) if (!packageRunning(id)) undoTweaks(id, 'the package stopped');
+}
+
+ipcMain.handle('rednode:call', (event, method, params) => {
+  let id = null;
+  try {
+    id = packageOf(event);
+  } catch {
+    // not a package's page
+  }
+  return packageCall(id, method, params);
+});
 
 ipcMain.handle('rednode:state', () => hostState());
 
@@ -2128,7 +2198,7 @@ app.whenReady().then(() => {
     logFile: modLogFile(),
     runner: path.join(RUNTIME_DIR, 'runner.js'),
     sdk: path.join(SDK_DIR, 'index.js'),
-    call: bridgeCall,
+    call: (method, params, id) => packageCall(id, method, params),
     state: hostState,
     dataDir: dataDirOf,
     appsDirs: APP_ROOTS.filter((r) => !r.builtin).map((r) => r.dir),
@@ -2146,6 +2216,8 @@ app.whenReady().then(() => {
       checkSolo();
     },
     soloFor: setSolo,
+    // A mod's TweakDB changes are undone each time it stops, restarts and hot reloads included.
+    stopped: (id) => undoTweaks(id, 'the mod stopped'),
     onLog: onModLog,
   });
   if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {

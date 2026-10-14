@@ -34,6 +34,8 @@
 //   structs                                               objects of their properties
 //   arrays                                                arrays
 //   handles and weak handles                              {"$ref": n, "$type": "PlayerPuppet"}, or null
+//   Variant                                               {"$type": "Float", "value": 1.5}: a value with its
+//                                                         type, by the type's name (Int32, CName, array:CName)
 //   resource references (rRef, raRef, ResRef)             a depot path such as "base\...\crate_a.mesh",
 //                                                         or its hash as a decimal or "0x..." string;
 //                                                         read back as the hash string (a path needs an
@@ -303,6 +305,19 @@ void ToJson(const rtti::IType* aType, const void* aMem, std::string& aOut, int a
         {
             Quoted64(aOut, false, *static_cast<const uint64_t*>(aMem));
         }
+        else if (name == "Variant")
+        {
+            // A value with its type: {"$type":"Float","value":1.5}, or null when empty.
+            const auto* v = static_cast<const Variant*>(aMem);
+            if (v->IsEmpty() || !v->GetType())
+            {
+                aOut += "null";
+                return;
+            }
+            aOut += "{\"$type\":" + JsonString(Str(v->GetType()->GetName())) + ",\"value\":";
+            ToJson(v->GetType(), v->GetDataPtr(), aOut, aDepth + 1);
+            aOut += "}";
+        }
         else
         {
             CString s;
@@ -528,6 +543,29 @@ bool FromJson(const rtti::IType* aType, void* aMem, const Value& aValue, std::st
                 return false;
             *static_cast<uint64_t*>(aMem) = u;
             return true;
+        }
+        if (name == "Variant")
+        {
+            // {"$type":"Float","value":1.5}: the type by its name, such as Int32, CName,
+            // TweakDBID or array:CName, then the value as that type takes it.
+            const Value* t = aValue.kind == Value::Kind::Object ? aValue.Get("$type") : nullptr;
+            const Value* v = aValue.kind == Value::Kind::Object ? aValue.Get("value") : nullptr;
+            if (!Expect(t && t->kind == Value::Kind::String && v, aType,
+                        "{\"$type\": a type name such as \"Float\", \"value\": the value}", aError))
+                return false;
+            const rtti::IType* inner = CRTTISystem::Get()->GetType(CName(t->text.c_str()));
+            if (!inner)
+            {
+                aError = "Variant: no type \"" + t->text + "\"";
+                return false;
+            }
+            auto* variant = static_cast<Variant*>(aMem);
+            if (!variant->Init(inner))
+            {
+                aError = "Variant: cannot hold a " + t->text;
+                return false;
+            }
+            return FromJson(inner, variant->GetDataPtr(), *v, aError, aDepth + 1);
         }
         if (aValue.kind == Value::Kind::String && aType->FromString(aMem, CString(aValue.text.c_str())))
             return true;
@@ -856,6 +894,8 @@ bool SafeExecute(void* aInstance, CBaseFunction* aFn, void* aOut, StackArgs_t* a
     }
 }
 
+std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aArgs, std::string& aError);
+
 std::string Call(const Value& aParams, std::string& aError)
 {
     static const Value noArgs{Value::Kind::Array};
@@ -872,6 +912,13 @@ std::string Call(const Value& aParams, std::string& aError)
     CBaseFunction* fn = Resolve(aParams, self, args->items.size(), aError);
     if (!fn)
         return {};
+    return Invoke(fn, self, *args, aError);
+}
+
+// Converts the arguments, runs the function on the game thread and converts its answer.
+std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aArgs, std::string& aError)
+{
+    const Value* args = &aArgs;
     if (!fn->flags.isStatic && !self)
     {
         aError = Str(fn->fullName) + " is a method: call it on an object";
@@ -1200,13 +1247,149 @@ std::string TweakRecords(const Value& aParams, std::string& aError)
     }
     return out + "]}";
 }
+// ---------- TweakDB writes, through TweakXL ----------
+//
+//   tweakdb.set     {"path":"Items.X.magazineCapacity","value":60}   the flat's own type is kept; a new
+//                   flat needs "type", such as "Int32" or "array:CName". Then the record is updated.
+//   tweakdb.clone   {"path":"Items.MyGun","base":"Items.Preset_Lexington_Default"}
+//   tweakdb.create  {"path":"Items.MyThing","type":"gamedataItem_Record"}
+//   tweakdb.update  {"path":"Items.MyGun"}   applies changed flats to the record
+// Each answers true or false, as TweakXL does. Without TweakXL they fail and say so.
+
+Value Text(std::string aText)
+{
+    Value v;
+    v.kind = Value::Kind::String;
+    v.text = std::move(aText);
+    return v;
+}
+
+// TweakXL's native TweakDBManager function with this name whose first parameter is a
+// TweakDBID (its script overloads take a CName instead).
+CBaseFunction* TweakXL(const char* aName, std::string& aError)
+{
+    CClass* manager = FindClass("TweakDBManager");
+    if (!manager)
+    {
+        aError = "Changing TweakDB needs TweakXL, which is not installed";
+        return nullptr;
+    }
+    for (auto* f : manager->staticFuncs)
+    {
+        if (Str(f->shortName) == aName && f->params.Size() > 0 && TypeName(f->params[0]->type) == "TweakDBID")
+            return f;
+    }
+    aError = std::string("TweakXL has no TweakDBManager.") + aName + " taking a TweakDBID";
+    return nullptr;
+}
+
+std::string RunTweakXL(const char* aName, std::vector<Value> aArgs, std::string& aError)
+{
+    CBaseFunction* fn = TweakXL(aName, aError);
+    if (!fn)
+        return {};
+    Value args;
+    args.kind = Value::Kind::Array;
+    args.items = std::move(aArgs);
+    Handle<IScriptable> none;
+    return Invoke(fn, none, args, aError);
+}
+
+const Value* Required(const Value& aParams, const char* aKey, std::string& aError)
+{
+    const Value* v = aParams.Get(aKey);
+    if (!v || v->kind != Value::Kind::String || v->text.empty())
+    {
+        aError = std::string("needs params.") + aKey;
+        return nullptr;
+    }
+    return v;
+}
+
+std::string TweakSet(const Value& aParams, std::string& aError)
+{
+    const Value* path = Required(aParams, "path", aError);
+    const Value* value = aParams.Get("value");
+    if (!path || !value)
+    {
+        if (!value)
+            aError = "needs params.value";
+        return {};
+    }
+    // The type: given, or the flat's own.
+    std::string type;
+    if (const Value* t = aParams.Get("type"); t && t->kind == Value::Kind::String)
+        type = t->text;
+    TweakDBID id;
+    if (!TweakId(aParams, "path", id, aError))
+        return {};
+    if (type.empty())
+    {
+        TweakDB* db = Database(aError);
+        if (!db)
+            return {};
+        TweakDB::FlatValue* flat = db->GetFlatValue(id);
+        if (!flat)
+        {
+            aError = "No flat \"" + path->text + "\" yet: give its type, such as \"Int32\"";
+            return {};
+        }
+        type = TypeName(flat->GetValue().type);
+    }
+    Value variant;
+    variant.kind = Value::Kind::Object;
+    variant.fields.emplace_back("$type", Text(type));
+    variant.fields.emplace_back("value", *value);
+    std::string ok = RunTweakXL("SetFlat", {*path, variant}, aError);
+    if (!aError.empty() || ok != "true")
+        return ok;
+    // Apply it to the record: the path up to its last dot.
+    const auto dot = path->text.rfind('.');
+    if (dot != std::string::npos && !path->text.starts_with("0x"))
+        RunTweakXL("UpdateRecord", {Text(path->text.substr(0, dot))}, aError);
+    aError.clear(); // a flat outside any record has nothing to update
+    return ok;
+}
+
+std::string TweakClone(const Value& aParams, std::string& aError)
+{
+    const Value* path = Required(aParams, "path", aError);
+    const Value* base = path ? Required(aParams, "base", aError) : nullptr;
+    if (!path || !base)
+        return {};
+    return RunTweakXL("CloneRecord", {*path, *base}, aError);
+}
+
+std::string TweakCreate(const Value& aParams, std::string& aError)
+{
+    const Value* path = Required(aParams, "path", aError);
+    const Value* type = path ? Required(aParams, "type", aError) : nullptr;
+    if (!path || !type)
+        return {};
+    const rtti::IType* recordType = RecordType(type->text);
+    if (!recordType)
+    {
+        aError = "No record type \"" + type->text + "\"";
+        return {};
+    }
+    return RunTweakXL("CreateRecord", {*path, Text(TypeName(recordType))}, aError);
+}
+
+std::string TweakUpdate(const Value& aParams, std::string& aError)
+{
+    const Value* path = Required(aParams, "path", aError);
+    if (!path)
+        return {};
+    return RunTweakXL("UpdateRecord", {*path}, aError);
+}
 } // namespace
 
 bool IsReflectMethod(const std::string& aMethod)
 {
     return aMethod == "rtti.call" || aMethod == "rtti.get" || aMethod == "rtti.release" || aMethod == "rtti.new" ||
            aMethod == "rtti.set" || aMethod == "tweakdb.get" || aMethod == "tweakdb.record" ||
-           aMethod == "tweakdb.records";
+           aMethod == "tweakdb.records" || aMethod == "tweakdb.set" || aMethod == "tweakdb.clone" ||
+           aMethod == "tweakdb.create" || aMethod == "tweakdb.update";
 }
 
 std::string Reflect(const std::string& aMethod, const json::Value& aParams, std::string& aError)
@@ -1225,6 +1408,14 @@ std::string Reflect(const std::string& aMethod, const json::Value& aParams, std:
         return TweakRecord(aParams, aError);
     if (aMethod == "tweakdb.records")
         return TweakRecords(aParams, aError);
+    if (aMethod == "tweakdb.set")
+        return TweakSet(aParams, aError);
+    if (aMethod == "tweakdb.clone")
+        return TweakClone(aParams, aError);
+    if (aMethod == "tweakdb.create")
+        return TweakCreate(aParams, aError);
+    if (aMethod == "tweakdb.update")
+        return TweakUpdate(aParams, aError);
     return Release(aParams);
 }
 

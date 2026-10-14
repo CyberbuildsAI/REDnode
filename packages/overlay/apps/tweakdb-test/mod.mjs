@@ -1,6 +1,7 @@
-// TweakDB test: a sample of tweakdb in the rednode package (phase T1). Type a record's
-// path; the window shows its type, a few of its flats and a method's answer. Vehicles
-// lists every vehicle record. Reading needs nothing else installed.
+// TweakDB test: a sample of tweakdb in the rednode package (phases T1 and T2). Type a
+// record's path; the window shows its type, a few of its flats and a method's answer.
+// Vehicles lists every vehicle record. Change and Clone write through TweakXL (T2);
+// REDnode undoes the change when this mod stops. Reading needs nothing else installed.
 
 import { tweakdb, ui } from 'rednode';
 
@@ -28,6 +29,7 @@ ui.window({
       },
     }),
     ui.row(ui.button('Read', read), ui.button('Vehicles', vehicles, { variant: 'ghost' })),
+    ui.row(ui.button('Change', change, { variant: 'ghost' }), ui.button('Clone', clone, { variant: 'ghost' })),
     status,
     lines,
   ],
@@ -80,6 +82,41 @@ async function vehicles() {
   } catch (err) {
     status.set({ text: err.message, tone: 'danger' });
     console.log(`Vehicles failed: ${err.message}`);
+  }
+}
+
+// T2: an item's friendly name, changed through TweakXL. Read shows it, through the
+// record's own FriendlyName() too, which proves the record was updated.
+async function change() {
+  try {
+    const flat = `${path}.friendlyName`;
+    const before = await tweakdb.get(flat);
+    if (before === null) {
+      status.set({ text: `${path} has no friendlyName to change (items have one)`, tone: 'danger' });
+      return;
+    }
+    const ok = await tweakdb.set(flat, 'REDnode was here');
+    console.log(`Changed ${flat} from "${before}": ${ok}`);
+    await read();
+    status.set({ text: `Changed: ${ok}. Switch this mod off and on, then Read: it is back.`, tone: 'dim' });
+  } catch (err) {
+    status.set({ text: err.message, tone: 'danger' });
+    console.log(`Change failed: ${err.message}`);
+  }
+}
+
+// T2: a new record copied from this one, with its own friendly name.
+async function clone() {
+  const copy = 'Items.REDnode_Test_Clone';
+  try {
+    const ok = await tweakdb.clone(copy, path);
+    if (ok) await tweakdb.set(`${copy}.friendlyName`, 'REDnode clone');
+    console.log(`Cloned ${path} to ${copy}: ${ok}`);
+    path = copy;
+    await read();
+  } catch (err) {
+    status.set({ text: err.message, tone: 'danger' });
+    console.log(`Clone failed: ${err.message}`);
   }
 }
 

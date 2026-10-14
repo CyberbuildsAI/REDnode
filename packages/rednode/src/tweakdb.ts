@@ -8,8 +8,10 @@
  * remembered, so ids that come back are shown as paths when their name is known,
  * and as `"0x..."` otherwise. Both forms are accepted everywhere.
  *
- * Reading needs nothing else installed. Changing TweakDB comes in a later phase,
- * through TweakXL.
+ * Reading needs nothing else installed. Changing TweakDB goes through TweakXL:
+ * a package that changes it lists `"requires": { "tweakxl": ">=1.10" }`. REDnode
+ * undoes a package's changes when the package stops (switched off, restarted, hot
+ * reloaded), so a mod sets its values every time it starts.
  *
  * @module
  */
@@ -209,6 +211,64 @@ export const tweakdb = {
    */
   learn(paths: string[]): void {
     for (const p of paths) learn(p);
+  },
+
+  /**
+   * Changes a flat, through TweakXL, and applies it to its record. The flat keeps
+   * its own type; a flat that does not exist yet needs `type`, such as `"Int32"`,
+   * `"String"` or `"array:CName"`. Resolves with TweakXL's answer: true when it
+   * took the value.
+   *
+   * REDnode undoes the change when your package stops. Changes made at once (with
+   * `Promise.all`) run in the same game frame.
+   *
+   * Objects already in the game, such as an item in V's inventory, may keep the
+   * values they copied when they were made. **Unverified** which ones.
+   *
+   * @example
+   * ```ts
+   * await tweakdb.set("Items.Preset_Lexington_Default.friendlyName", "REDnode's Lexington");
+   * await Promise.all([
+   *   tweakdb.set("Items.MyGun.quality", "Quality.Legendary"),
+   *   tweakdb.set("Items.MyGun.tags", ["Weapon", "MyMod"], { type: "array:CName" }),
+   * ]);
+   * ```
+   */
+  async set(path: TweakId, value: unknown, options: { type?: string } = {}): Promise<boolean> {
+    withPaths(path);
+    return (await call("tweakdb.set", { path, value, ...(options.type ? { type: options.type } : {}) })) === true;
+  },
+
+  /**
+   * A new record, as a copy of another one, through TweakXL. Change its flats with
+   * {@link tweakdb.set}. Records stay until the game closes: TweakDB cannot remove them.
+   *
+   * @example
+   * ```ts
+   * await tweakdb.clone("Items.MyMod_Lexington", "Items.Preset_Lexington_Default");
+   * ```
+   */
+  async clone(path: TweakId, base: TweakId): Promise<boolean> {
+    learn(path);
+    learn(base);
+    return (await call("tweakdb.clone", { path, base })) === true;
+  },
+
+  /**
+   * A new, empty record of a type, through TweakXL. Most mods clone an existing
+   * record instead, which comes with every flat its type needs.
+   */
+  async create(path: TweakId, type: RecordTypeName | string): Promise<boolean> {
+    learn(path);
+    return (await call("tweakdb.create", { path, type })) === true;
+  },
+
+  /**
+   * Applies a record's changed flats to the record object. {@link tweakdb.set} does
+   * this itself; call it after changing flats some other way.
+   */
+  async update(path: TweakId): Promise<boolean> {
+    return (await call("tweakdb.update", { path })) === true;
   },
 };
 
