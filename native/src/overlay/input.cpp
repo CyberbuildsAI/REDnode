@@ -113,7 +113,11 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
         }
         if (aInteractive)
         {
-            if (down && k.VKey == VK_ESCAPE)
+            if (down && k.VKey == VK_ESCAPE && PointerLocked())
+            {
+                UnlockPointer("Esc"); // as in a browser: Esc ends the lock and goes no further
+            }
+            else if (down && k.VKey == VK_ESCAPE)
             {
                 SetMode(Mode::Passive);
             }
@@ -132,7 +136,13 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
         const auto& m = raw->data.mouse;
         g_rawMouse = true;
         if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE) && (m.lLastX || m.lLastY))
-            MoveCursorTo(g_cursorX + float(m.lLastX), g_cursorY + float(m.lLastY));
+        {
+            // Locked: the cursor stays; the page gets the raw movement.
+            if (PointerLocked())
+                OnMouseDelta(float(m.lLastX), float(m.lLastY));
+            else
+                MoveCursorTo(g_cursorX + float(m.lLastX), g_cursorY + float(m.lLastY));
+        }
         const USHORT f = JustActivated() ? 0 : m.usButtonFlags;
         if (f & RI_MOUSE_LEFT_BUTTON_DOWN)
             OnMouseButton(true, "left");
@@ -142,6 +152,10 @@ LRESULT HandleRawInput(HWND aWnd, WPARAM aWParam, LPARAM aLParam, bool aInteract
             OnMouseButton(true, "right");
         if (f & RI_MOUSE_RIGHT_BUTTON_UP)
             OnMouseButton(false, "right");
+        if (f & RI_MOUSE_MIDDLE_BUTTON_DOWN)
+            OnMouseButton(true, "middle");
+        if (f & RI_MOUSE_MIDDLE_BUTTON_UP)
+            OnMouseButton(false, "middle");
         if (f & RI_MOUSE_WHEEL)
             OnWheel(static_cast<SHORT>(m.usButtonData));
         aHandled = true;
@@ -176,7 +190,9 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
         {
             if (!g_rawKeyboard)
             {
-                if (aWParam == VK_ESCAPE)
+                if (aWParam == VK_ESCAPE && PointerLocked())
+                    UnlockPointer("Esc");
+                else if (aWParam == VK_ESCAPE)
                     SetMode(Mode::Passive);
                 else
                     OnKey(true, UINT(aWParam));
@@ -207,9 +223,17 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     case WM_MOUSEMOVE:
         if (interactive)
         {
-            float x, y;
+            static float lastX = 0, lastY = 0;
+            float x = lastX, y = lastY;
             if (!g_rawMouse && ClientToReference(aLParam, x, y))
-                MoveCursorTo(x, y);
+            {
+                if (PointerLocked())
+                    OnMouseDelta(x - lastX, y - lastY);
+                else
+                    MoveCursorTo(x, y);
+            }
+            lastX = x;
+            lastY = y;
             return 0;
         }
         break;
@@ -217,14 +241,18 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     case WM_LBUTTONUP:
     case WM_RBUTTONDOWN:
     case WM_RBUTTONUP:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
     case WM_LBUTTONDBLCLK:
         if (interactive)
         {
             if (!g_rawMouse && !JustActivated())
             {
-                const bool down = aMsg == WM_LBUTTONDOWN || aMsg == WM_RBUTTONDOWN || aMsg == WM_LBUTTONDBLCLK;
+                const bool down = aMsg == WM_LBUTTONDOWN || aMsg == WM_RBUTTONDOWN || aMsg == WM_MBUTTONDOWN ||
+                                  aMsg == WM_LBUTTONDBLCLK;
                 const bool left = aMsg == WM_LBUTTONDOWN || aMsg == WM_LBUTTONUP || aMsg == WM_LBUTTONDBLCLK;
-                OnMouseButton(down, left ? "left" : "right");
+                const bool middle = aMsg == WM_MBUTTONDOWN || aMsg == WM_MBUTTONUP;
+                OnMouseButton(down, left ? "left" : middle ? "middle" : "right");
             }
             return 0;
         }

@@ -1,0 +1,11 @@
+{
+  "id": "pointer-test",
+  "name": "Pointer lock test",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "A sample of pointer lock in overlay pages (request #11): hold the right mouse button on the pad to turn a camera, as a 3D editor does. The cursor stays put and hidden, and the mouse's raw movement turns the view. Esc or letting go ends it.",
+  "entry": "index.html",
+  "width": 420,
+  "height": 360,
+  "anchor": "center"
+}

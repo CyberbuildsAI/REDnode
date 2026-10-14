@@ -359,6 +359,44 @@ int main()
     Check(View(20).id == 20, "a window shown again is drawn");
     CloseAllWindows();
 
+    // Pointer lock (#11): only the window in use takes it; then raw movement goes to it.
+    g_mode = Mode::Interactive;
+    HandleWindowCommand(R"({"cmd":"window.open","window":30,"x":0,"y":0,"width":800,"height":600})");
+    HandleWindowCommand(R"({"cmd":"window.open","window":31,"x":900,"y":0,"width":200,"height":200})");
+    SubmitFrame(30, 800, 600, Frame(800, 600));
+    SubmitFrame(31, 200, 200, Frame(200, 200));
+    g_sent.clear();
+    HandleWindowCommand(R"({"cmd":"pointer.lock","window":30})");
+    Check(!PointerLocked() && SentContains(R"("window":30,"locked":false)"), "a window not in use cannot lock the pointer");
+    OnMouseMove(400, 300);
+    OnMouseButton(true, "right"); // the player presses on it: it is in use
+    g_sent.clear();
+    HandleWindowCommand(R"({"cmd":"pointer.lock","window":30})");
+    Check(PointerLocked() && SentContains(R"("window":30,"locked":true)"), "the window in use locks the pointer");
+    g_sent.clear();
+    OnMouseDelta(12, -5);
+    Check(SentContains(R"("window":30,"type":"mouseMove","x":400,"y":300,"dx":12,"dy":-5)"),
+          "locked, raw movement goes to the window, at the place the lock began");
+    OnMouseButton(false, "right");
+    Check(SentContains(R"("window":30,"type":"mouseUp")"), "buttons still reach the locked window");
+    g_sent.clear();
+    HandleWindowCommand(R"({"cmd":"pointer.unlock","window":31})");
+    Check(PointerLocked(), "another window cannot end the lock");
+    HandleWindowCommand(R"({"cmd":"pointer.unlock","window":30})");
+    Check(!PointerLocked() && SentContains(R"("window":30,"locked":false,"why":"the page let go")"), "the page ends its lock");
+    OnMouseButton(true, "left");
+    HandleWindowCommand(R"({"cmd":"pointer.lock","window":30})");
+    g_sent.clear();
+    HandleWindowCommand(R"({"cmd":"window.close","window":30})");
+    Check(!PointerLocked() && SentContains(R"("locked":false,"why":"the window closed")"), "closing the window ends its lock");
+    OnMouseMove(950, 50);
+    OnMouseButton(true, "left");
+    HandleWindowCommand(R"({"cmd":"pointer.lock","window":31})");
+    g_sent.clear();
+    OnLeaveInteractive();
+    Check(!PointerLocked() && SentContains(R"("why":"the overlay left interactive mode")"), "leaving interactive mode ends the lock");
+    CloseAllWindows();
+
     std::printf("\n%s: %d failure(s)\n", g_failures ? "FAILED" : "PASSED", g_failures);
     return g_failures ? EXIT_FAILURE : EXIT_SUCCESS;
 }

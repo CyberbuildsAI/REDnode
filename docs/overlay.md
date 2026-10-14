@@ -648,6 +648,28 @@ Use the **Test timer**: Start, then Mark after each step.
 
 **Result, 2026-10-14: passed.** REDnode 0.21.0. Every step worked, marked 1 to 7, with no page errors. The host log shows each one: Combat made and switched to; Ctrl+1 and Ctrl+2 switching back and forth; the Hello mod moved to Combat from its title bar; Coords put in every space from the Mod Manager, back to Main and to every space again; the Mod Manager pinned to the HUD and its position reset from title bars; Combat renamed to Driving, then deleted, its windows moved to Main. The title-bar shape (close, three action icons, ⋯ past three) is to be revisited only if it does not work well in practice.
 
+### Pointer lock: built
+
+Asked for by EDGEbuilder ([#11](https://github.com/Edgemodders/REDnode/issues/11)) for its editor camera, which turns while the right mouse button is held: the cursor must stay put and the mouse keep turning the view. REDnode 0.22.0.
+
+| Piece | Where |
+|---|---|
+| Plugin | `pointer.lock` and `pointer.unlock` for a window. Only the window in use may take it (the focused one, or the one a button is held on) in interactive mode. While locked, the cursor stays where the lock began and is not drawn, and the mouse's raw movement goes to that window as `mouseMove` with `dx` and `dy`; buttons and the wheel still reach it. Esc ends the lock (and goes no further, as in a browser); so do leaving interactive mode, the window closing or being hidden, and another window taking the lock. The plugin reports each start and end, with why, as `pointer-lock`. The middle mouse button now reaches pages too. Unit tests for each rule |
+| Host and page | Pages use the web's own Pointer Lock API: `requestPointerLock()`, `document.exitPointerLock()`, `document.pointerLockElement`, `pointerlockchange` and `pointerlockerror`. Chromium drawn off screen cannot hold a real cursor, so `preload.js` puts in its own versions, which ask the plugin. Chromium also drops `movementX` and `movementY` from injected moves (found in testing), so the host sends the raw movement as a message and the page's code dispatches `pointermove` and `mousemove` on the locked element, with the movement in `movementX` and `movementY` |
+| Sample | `apps/pointer-test`: hold the right button on its pad to turn a camera; it shows the yaw and pitch |
+
+Tested in the mock game: a right-button press on the pad locked the pointer, five moves of 40 by -20 turned the camera by 30 degrees of yaw and 15 of pitch (0.15 degrees per unit), and letting go ended the lock ("the page let go"). **Unverified** in the game: the plugin's held and hidden cursor and its raw movement.
+
+### Pointer lock: test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Mark.
+2. F10. In the Mod Manager, switch on **Pointer lock test**. Hold the right mouse button on its pad and move the mouse: the cursor goes and stays where you pressed, Yaw and Pitch change smoothly, and they keep changing however far you move. Let go: the cursor is back where you pressed. Mark.
+3. Hold the right button again and press Esc while holding it: the lock ends and the cursor comes back, and the overlay stays interactive. Mark.
+4. Hold the right button and press F10: the lock ends with interactive mode. Mark.
+5. Quit the game.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:

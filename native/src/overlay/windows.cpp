@@ -23,12 +23,17 @@
 //   {"cmd":"window.hud","window":1,"onHud":true}   changes onHud ("Pin to HUD")
 //   {"cmd":"window.layer","window":1,"layer":"tool"}   "tool" or "app", the packages' layer
 //   {"cmd":"window.hidden","window":1,"hidden":true}   hidden: not drawn, takes no input (solo mode)
+//   {"cmd":"pointer.lock","window":1}     the focused window holds the cursor in place and gets the
+//                                         mouse's raw movement (mouseMove with dx, dy), as the web's
+//                                         Pointer Lock does
+//   {"cmd":"pointer.unlock","window":1}
 //   {"cmd":"window.drag","window":1,"regions":[x,y,w,h, ...]}   page pixels
 //   {"cmd":"window.close","window":1}
 // Plugin -> host events:
 //   {"event":"input","window":1,"type":"mouseMove","x":..,"y":..}   page pixels
 //   {"event":"focus","window":1}     0 when no window has focus
 //   {"event":"moved","window":1,"x":..,"y":..}   after a drag, reference pixels
+//   {"event":"pointer-lock","window":1,"locked":true|false,"why":".."}   the lock began or ended
 
 #include "json.hpp"
 #include "overlay.hpp"
@@ -96,6 +101,7 @@ uint64_t g_handleTime = 0;
 float g_handleX = 0, g_handleY = 0;
 constexpr uint64_t DoubleClickMs = 450;
 constexpr float DoubleClickSlop = 6.0f; // reference pixels the cursor may move between the clicks
+uint32_t g_lock = 0;                     // the window holding the pointer lock, or 0
 std::atomic_bool g_compositorActive{false}; // false until Present is hooked
 float g_mouseX = 0, g_mouseY = 0;
 
@@ -229,6 +235,17 @@ std::string MouseJson(uint32_t aWindow, const char* aType, float aX, float aY, c
 void Send(Actions& aActions, std::string aJson)
 {
     aActions.push_back([json = std::move(aJson)]() mutable { SendJson(std::move(json)); });
+}
+
+// Ends the pointer lock (under g_mutex) and tells the host why.
+void EndLock(Actions& aActions, const char* aWhy)
+{
+    if (!g_lock)
+        return;
+    Log("Overlay: pointer lock of window %u ended: %s", g_lock, aWhy);
+    Send(aActions, "{\"event\":\"pointer-lock\",\"window\":" + std::to_string(g_lock) + ",\"locked\":false,\"why\":" +
+                       JsonString(aWhy) + "}");
+    g_lock = 0;
 }
 
 void SetFocus(Actions& aActions, uint32_t aId)
@@ -378,12 +395,40 @@ void HandleWindowCommand(const std::string& aJson)
             BringToFront(uint32_t(id));
             w = Find(uint32_t(id));
         }
+        else if (cmd == "pointer.lock" && w)
+        {
+            // Only the window the player is using may take the cursor: the focused one,
+            // or the one a button is held on, in interactive mode.
+            const bool mine = w->id == g_focus || w->id == g_capture;
+            if (GetMode() != Mode::Interactive || w->hidden || !w->placed || !mine)
+            {
+                Send(actions, "{\"event\":\"pointer-lock\",\"window\":" + std::to_string(w->id) +
+                                  ",\"locked\":false,\"why\":\"" +
+                                  (GetMode() != Mode::Interactive ? "the overlay is not interactive" : "the window is not in use") +
+                                  "\"}");
+            }
+            else
+            {
+                if (g_lock && g_lock != w->id)
+                    EndLock(actions, "another window took it");
+                g_lock = w->id;
+                Log("Overlay: pointer locked by window %u", w->id);
+                Send(actions, "{\"event\":\"pointer-lock\",\"window\":" + std::to_string(w->id) + ",\"locked\":true}");
+            }
+        }
+        else if (cmd == "pointer.unlock" && w)
+        {
+            if (g_lock == w->id)
+                EndLock(actions, "the page let go");
+        }
         else if (cmd == "window.hidden" && w)
         {
             w->hidden = json::Bool(aJson, "hidden", false);
             if (w->hidden)
             {
                 const uint32_t gone = w->id;
+                if (g_lock == gone)
+                    EndLock(actions, "the window was hidden");
                 if (g_focus == gone)
                     SetFocus(actions, 0);
                 if (g_hover == gone)
@@ -416,6 +461,8 @@ void HandleWindowCommand(const std::string& aJson)
                 actions.push_back([frameId]() { AckFrames({frameId}); });
             }
             g_windows.erase(g_windows.begin() + (w - g_windows.data()));
+            if (g_lock == closing)
+                EndLock(actions, "the window closed");
             if (g_focus == closing)
                 SetFocus(actions, 0);
             if (g_hover == closing)
@@ -777,6 +824,38 @@ void OnChar(wchar_t aChar)
                  std::to_string(unsigned(aChar)) + "}");
 }
 
+bool PointerLocked()
+{
+    std::scoped_lock lock(g_mutex);
+    return g_lock != 0;
+}
+
+void OnMouseDelta(float aDx, float aDy)
+{
+    std::string json;
+    {
+        std::scoped_lock lock(g_mutex);
+        const Window* w = Find(g_lock);
+        if (!w)
+            return;
+        // Where the lock began stays the position; the movement is in dx and dy.
+        json = MouseJson(w->id, "mouseMove", g_mouseX - w->x, g_mouseY - w->y);
+        json.pop_back();
+        json += ",\"dx\":" + std::to_string(int(aDx)) + ",\"dy\":" + std::to_string(int(aDy)) + "}";
+    }
+    SendJson(std::move(json));
+}
+
+void UnlockPointer(const char* aWhy)
+{
+    Actions actions;
+    {
+        std::scoped_lock lock(g_mutex);
+        EndLock(actions, aWhy);
+    }
+    Run(actions);
+}
+
 void OnLeaveInteractive()
 {
     Actions actions;
@@ -788,6 +867,7 @@ void OnLeaveInteractive()
             Send(actions, "{\"event\":\"moved\",\"window\":" + std::to_string(d->id) +
                               ",\"x\":" + std::to_string(int(d->x)) + ",\"y\":" + std::to_string(int(d->y)) + "}");
         g_capture = g_dragging = 0;
+        EndLock(actions, "the overlay left interactive mode");
         SetHover(actions, 0);
         // Input goes back to the game, so no window keeps keyboard focus. Without
         // this, clicking the same window again changed nothing and it stayed dimmed.

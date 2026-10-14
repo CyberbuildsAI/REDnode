@@ -921,7 +921,11 @@ function onInput(m) {
   switch (m.type) {
     case 'mouseMove':
     case 'mouseLeave':
-      wc.sendInputEvent({ type: m.type, x: m.x, y: m.y });
+      // With the pointer locked, the raw movement is in dx, dy. Chromium drops movementX
+      // and movementY from injected moves (found in testing), so the page's Pointer Lock
+      // code in preload.js makes the pointermove itself.
+      if (m.dx !== undefined) toPage(w, { event: 'pointer-move', dx: m.dx, dy: m.dy });
+      else wc.sendInputEvent({ type: m.type, x: m.x, y: m.y });
       break;
     case 'mouseDown':
     case 'mouseUp':
@@ -1060,6 +1064,13 @@ function onGameMessage(m) {
       toAllPages(m);
       mods?.broadcast(m);
       return;
+    case 'pointer-lock': {
+      // The plugin began or ended a window's pointer lock: the page's Pointer Lock follows.
+      const w = windows.get(m.window);
+      if (w) toPage(w, { event: 'pointer-lock', locked: !!m.locked, why: m.why ?? null });
+      if (!m.locked && m.why) log(`Pointer lock of ${w?.app.manifest.id ?? m.window} ended: ${m.why}`);
+      return;
+    }
     case 'title-dblclick': {
       // A double-click on a window's title bar: the page decides (rn-window rolls up).
       const w = windows.get(m.window);
@@ -1667,6 +1678,16 @@ ipcMain.handle('rednode:app:action', (event, action, arg) => {
     throw new Error(`Unknown window action "${action}"`);
   }
   return windowInfo(w);
+});
+
+// Pointer lock (#11): a page asks the plugin to hold the cursor for its window. The answer
+// comes back as {event: 'pointer-lock', locked}; the page's Pointer Lock API follows it.
+ipcMain.handle('rednode:app:pointer-lock', (event, on) => {
+  const w = windowFor(event.sender);
+  if (!w) throw new Error('Unknown window');
+  if (!connected) throw new Error('Pointer lock needs the game');
+  sendJson({ cmd: on ? 'pointer.lock' : 'pointer.unlock', window: w.id });
+  return true;
 });
 
 // The launcher and the Mod Manager: list, switch, make, rename, delete, move.

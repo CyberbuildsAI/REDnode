@@ -131,6 +131,13 @@ void OnWheel(int aDelta);
 void OnKey(bool aDown, UINT aVk);
 void OnChar(wchar_t aChar);
 void OnLeaveInteractive();
+// Pointer lock (request #11): a page holds the cursor in place and gets the mouse's raw
+// movement. True while a window holds it; the cursor is then neither moved nor drawn.
+bool PointerLocked();
+// Raw mouse movement while the pointer is locked: sent to the window that holds it.
+void OnMouseDelta(float aDx, float aDy);
+// Ends the pointer lock, if any, and tells the host why.
+void UnlockPointer(const char* aWhy);
 
 // compositor.cpp
 bool InstallCompositor(HWND& aWindow);

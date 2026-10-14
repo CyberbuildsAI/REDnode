@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pointer lock test</title>
+<script src="rednode://ui/rednode-ui.js"></script>
+<style>
+  html, body { margin: 0; width: 420px; height: 360px; overflow: hidden; background: transparent; }
+  rn-window { position: absolute; inset: 0; }
+  #pad { flex: 1; min-height: 150px; display: grid; place-items: center; border: 1px dashed var(--rn-line);
+    background: var(--rn-panel); font: 13px var(--rn-mono); color: var(--rn-dim); user-select: none; }
+  #pad.locked { border-style: solid; border-color: var(--rn-accent); color: var(--rn-accent); }
+  .row { display: flex; justify-content: space-between; font: 13px var(--rn-mono); }
+  .row b { color: var(--rn-fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <rn-window title="Pointer lock test" draggable closable>
+    <div id="pad">Hold the right mouse button here</div>
+    <div class="row"><span>Yaw</span><b id="yaw">0.0°</b></div>
+    <div class="row"><span>Pitch</span><b id="pitch">0.0°</b></div>
+    <div class="row"><span>Lock</span><b id="state">off</b></div>
+  </rn-window>
+<script>
+  // A camera turned by raw mouse movement while the right button is held: the cursor
+  // stays where the press was, hidden, and movementX and movementY turn the view.
+  const pad = document.getElementById('pad');
+  let yaw = 0;
+  let pitch = 0;
+  let moves = 0;
+  const show = () => {
+    document.getElementById('yaw').textContent = `${yaw.toFixed(1)}°`;
+    document.getElementById('pitch').textContent = `${pitch.toFixed(1)}°`;
+  };
+  pad.addEventListener('contextmenu', (e) => e.preventDefault());
+  pad.addEventListener('pointerdown', (e) => {
+    if (e.button !== 2) return;
+    moves = 0;
+    pad.requestPointerLock().catch((err) => {
+      document.getElementById('state').textContent = `refused: ${err.message}`;
+      console.log(`Pointer lock refused: ${err.message}`);
+    });
+  });
+  window.addEventListener('pointerup', (e) => {
+    if (e.button === 2 && document.pointerLockElement) document.exitPointerLock();
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (document.pointerLockElement !== pad) return;
+    moves += 1;
+    yaw = (yaw + e.movementX * 0.15 + 360) % 360;
+    pitch = Math.max(-89, Math.min(89, pitch - e.movementY * 0.15));
+    show();
+  });
+  document.addEventListener('pointerlockchange', () => {
+    const on = document.pointerLockElement === pad;
+    pad.classList.toggle('locked', on);
+    pad.textContent = on ? 'Locked: move the mouse' : 'Hold the right mouse button here';
+    document.getElementById('state').textContent = on ? 'on' : 'off';
+    console.log(on ? 'Pointer locked' : `Pointer unlocked after ${moves} moves; yaw ${yaw.toFixed(1)}, pitch ${pitch.toFixed(1)}`);
+  });
+</script>
+</body>
+</html>

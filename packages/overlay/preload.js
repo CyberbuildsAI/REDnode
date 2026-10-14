@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld('rednode', {
   debug: () => ipcRenderer.invoke('rednode:app:debug'),
   /** What this window's title bar may offer: { spaces: {names, current}, space, tool, onHud, canPin, canReset }. Changes arrive as {event: 'window-info', info}. */
   windowInfo: () => ipcRenderer.invoke('rednode:app:info'),
+  /** Asks the plugin to hold the cursor for this window (true) or let it go (false); used by the page's Pointer Lock API. */
+  pointerLock: (on) => ipcRenderer.invoke('rednode:app:pointer-lock', !!on),
   /** A title-bar action on this window: 'space' (to a space's name or '*'), 'pin-hud' (true or false), 'reset'. */
   windowAction: (action, arg) => ipcRenderer.invoke('rednode:app:action', action, arg),
   /** Installed apps and mods. Only the built-in launcher and Mod Manager may use these; other apps get an error. */
@@ -175,3 +177,68 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(schedule, 1000); // shadow DOM changes are not observed above; this catches them
   watch();
 });
+
+// The web's Pointer Lock API, for overlay pages (request #11). Chromium drawn off screen
+// cannot hold a real cursor, so the REDnode plugin does: it stops and hides its cursor and
+// sends the mouse's raw movement. Chromium drops movementX and movementY from injected
+// moves, so this code dispatches the pointermove and mousemove itself, on the locked
+// element, with the movement in movementX and movementY, as a browser does.
+// requestPointerLock, exitPointerLock, document.pointerLockElement and the
+// pointerlockchange and pointerlockerror events work as in a browser. Esc, leaving
+// interactive mode (F10) or the window closing ends the lock.
+if (location.protocol !== 'devtools:') {
+  webFrame.executeJavaScript(`(() => {
+    const api = window.rednode;
+    if (!api || !api.pointerLock) return;
+    let locked = null;
+    let pending = null; // { element, resolve, reject }
+    const fire = (type) => document.dispatchEvent(new Event(type));
+    let buttons = 0; // which buttons are held, for the moves made here
+    let x = 0;
+    let y = 0;
+    for (const t of ['pointerdown', 'pointerup']) addEventListener(t, (e) => (buttons = e.buttons), true);
+    addEventListener('pointermove', (e) => {
+      if (e.isTrusted) {
+        x = e.clientX;
+        y = e.clientY;
+      }
+    }, true);
+    api.on((m) => {
+      if (m.event === 'pointer-move' && locked) {
+        const init = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, screenX: x, screenY: y,
+          movementX: m.dx, movementY: m.dy, buttons, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+        locked.dispatchEvent(new PointerEvent('pointermove', init));
+        locked.dispatchEvent(new MouseEvent('mousemove', init));
+        return;
+      }
+      if (m.event !== 'pointer-lock') return;
+      if (m.locked && pending) {
+        locked = pending.element;
+        pending.resolve();
+        pending = null;
+        fire('pointerlockchange');
+      } else if (!m.locked && pending) {
+        pending.reject(new DOMException(m.why || 'Pointer lock was refused', 'NotAllowedError'));
+        pending = null;
+        fire('pointerlockerror');
+      } else if (!m.locked && locked) {
+        locked = null;
+        fire('pointerlockchange');
+      }
+    });
+    Element.prototype.requestPointerLock = function () {
+      return new Promise((resolve, reject) => {
+        pending = { element: this, resolve, reject };
+        api.pointerLock(true).catch((err) => {
+          pending = null;
+          reject(err);
+          fire('pointerlockerror');
+        });
+      });
+    };
+    Document.prototype.exitPointerLock = function () {
+      if (locked || pending) api.pointerLock(false).catch(() => {});
+    };
+    Object.defineProperty(Document.prototype, 'pointerLockElement', { configurable: true, get: () => locked });
+  })()`);
+}

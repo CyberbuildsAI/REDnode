@@ -410,6 +410,24 @@ An `rn-window` title bar shows close and up to three action icons, right to left
 <rn-window title="Speedometer" draggable no-rollup>...</rn-window>
 ```
 
+## Pointer lock
+
+A page can hold the cursor in place and get the mouse's raw movement, as a 3D editor's camera or a game's view needs. Use the web's own Pointer Lock API; REDnode's plugin does the holding in the game.
+
+```js
+pad.addEventListener('pointerdown', (e) => {
+  if (e.button === 2) pad.requestPointerLock(); // rejects if the overlay is not interactive
+});
+document.addEventListener('pointermove', (e) => {
+  if (document.pointerLockElement === pad) turnCamera(e.movementX, e.movementY);
+});
+addEventListener('pointerup', (e) => {
+  if (e.button === 2) document.exitPointerLock();
+});
+```
+
+While locked, the cursor stays where the lock began and is hidden, and every mouse movement arrives as `pointermove` (and `mousemove`) on the locked element, with `movementX` and `movementY`. Buttons and the wheel work as usual, the middle button included. The lock ends with `document.exitPointerLock()`, Esc, leaving interactive mode (F10), or the window closing; `pointerlockchange` tells the page each time. Only the window the player is using may take the lock. The [Pointer lock test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/pointer-test) sample turns a camera with it.
+
 ## Staying on top and solo mode
 
 REDnode's own windows (the launcher tab, Mod log, Mod Manager, debuggers) live in a **tool layer**, above every package's windows: a full-screen package cannot cover them. A package can ask to join them with `"permissions": ["front"]`; the player allows it in the Mod Manager. The Test timer does this.
