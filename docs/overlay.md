@@ -603,6 +603,14 @@ Called **spaces**, not layers: "layer" already means the z-order (the tool layer
 
 Rules either way, agreed in principle with the user: no cascading menus; at most a few icons on a title bar; a frequent action stays one click. A middle way to mock up too: a direct icon only for the frequent action (the space icon opens the list of spaces, one level), with rarer actions in a menu.
 
+**Leading option, the user's (2026-10-14): an icon row with overflow.** At most three icons, close included. When a window has more actions, a **⋯** button appears left of the icons and holds the rest, each with its icon and its name. The title bar never grows past three icons and ⋯, however many actions there are. Details to settle in the mockup:
+
+| Question | Proposal |
+|---|---|
+| Which actions get the icon slots | Close always, rightmost. The others by a fixed priority, highest nearest close: move to space, then debug (Developer mode), then the rest. An action that is not available (debug outside Developer mode, spaces with only one space) takes no slot, so most windows show close and nothing else |
+| An action with choices in the overflow (move to space) | The ⋯ list swaps to the choices, with a back row, instead of opening a second menu beside it: one level on screen at a time |
+| Whether ⋯ counts as one of the three | No: three icons, plus ⋯ when needed. To check in the mockup whether that looks too wide on small windows |
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:
