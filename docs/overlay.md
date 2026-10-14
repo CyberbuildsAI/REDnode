@@ -646,6 +646,8 @@ Use the **Test timer**: Start, then Mark after each step.
 7. In the launcher, **Rename** Combat to `Driving`, then **Delete** it: its windows come back to Main. Mark.
 8. Quit the game.
 
+**Result, 2026-10-14: passed.** REDnode 0.21.0. Every step worked, marked 1 to 7, with no page errors. The host log shows each one: Combat made and switched to; Ctrl+1 and Ctrl+2 switching back and forth; the Hello mod moved to Combat from its title bar; Coords put in every space from the Mod Manager, back to Main and to every space again; the Mod Manager pinned to the HUD and its position reset from title bars; Combat renamed to Driving, then deleted, its windows moved to Main. The title-bar shape (close, three action icons, ⋯ past three) is to be revisited only if it does not work well in practice.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:
