@@ -1,6 +1,6 @@
 {
   "name": "@rednode/overlay",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "private": true,
   "description": "REDnode overlay host and Tier 2 runtime: overlay apps and Node mods. See docs/overlay.md.",
   "license": "MIT",

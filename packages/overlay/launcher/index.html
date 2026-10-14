@@ -36,6 +36,16 @@
   .footer { display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 10px; border-top: 1px solid var(--rn-line); }
   .switches { display: flex; gap: 18px; }
   .themes { display: flex; align-items: center; gap: 6px; }
+  /* Spaces: the one shown now, and making, renaming and deleting them. */
+  .spaces, .space-edit { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .spaces .label { font: 600 11px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim); margin-right: 4px; }
+  .spaces .now { font: 700 13px var(--rn-mono); color: var(--rn-accent-2); margin-right: 4px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .spaces rn-button::part(button), .space-edit rn-button::part(button), #space-switch::part(button) { min-height: 28px; padding: 4px 10px; font-size: 12px; }
+  .space-edit rn-input { flex: 1; min-width: 0; }
+  #space-switch::part(button) { min-height: 26px; color: var(--rn-accent-2); }
+  #space-tab { display: inline-block; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+  .space-error { font: 12px var(--rn-mono); color: var(--rn-danger); }
+  .rn-window-menu .key { margin-left: auto; font: 11px var(--rn-mono); color: var(--rn-dim); }
   .version { text-align: right; font: 10px var(--rn-mono); letter-spacing: .12em; color: var(--rn-dim); opacity: .8; }
   .themes .label { font: 600 11px var(--rn-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--rn-dim); margin-right: 4px; }
   .themes rn-button::part(button) { min-height: 28px; padding: 4px 10px; font-size: 12px; }
@@ -62,7 +72,7 @@
 </head>
 <body>
   <div class="dock">
-    <rn-window id="panel" title="REDnode apps and mods" hidden>
+    <rn-window id="panel" title="REDnode apps and mods" no-rollup hidden>
       <span class="status" slot="status">GAME <b id="link" class="off">OFF</b></span>
       <div class="more" id="more" hidden><span id="more-text"></span><rn-button id="more-open" variant="ghost">Open</rn-button></div>
       <div id="apps"><p class="empty">Looking for apps...</p></div>
@@ -78,6 +88,18 @@
         <div class="switches">
           <rn-toggle id="dev" label="Developer mode"></rn-toggle>
         </div>
+        <div class="spaces">
+          <span class="label">Space</span>
+          <span class="now" id="space-now">Main</span>
+          <rn-button id="space-new" variant="ghost">New</rn-button>
+          <rn-button id="space-rename" variant="ghost">Rename</rn-button>
+          <rn-button id="space-delete" variant="ghost">Delete</rn-button>
+        </div>
+        <div class="space-edit" id="space-edit" hidden>
+          <rn-input id="space-input" placeholder="Space name, then Enter"></rn-input>
+          <rn-button id="space-cancel" variant="ghost">Cancel</rn-button>
+        </div>
+        <div class="space-error" id="space-error" hidden></div>
         <div class="themes">
           <span class="label">Theme</span>
           <rn-button data-theme="rednode" variant="ghost">REDnode</rn-button>
@@ -90,6 +112,7 @@
     <div class="tab">
       <div class="grip" data-rednode-drag title="Drag to move"></div>
       <rn-button id="toggle" variant="ghost">REDnode <span id="count"></span></rn-button>
+      <rn-button id="space-switch" variant="ghost" hidden title="Switch space (Ctrl+1 to 9 in the overlay)">&#x25BE; <span id="space-tab"></span></rn-button>
       <div class="solo" id="solo" hidden title="Solo mode: this package hid the other packages' windows">
         <span>SOLO <span id="solo-name"></span></span><rn-button id="solo-end" variant="ghost">End</rn-button>
       </div>

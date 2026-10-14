@@ -55,6 +55,10 @@ contextBridge.exposeInMainWorld('rednode', {
   close: () => ipcRenderer.send('rednode:app:close'),
   /** Opens the debugger for this window. Only in Developer mode; the UI kit's window debug button uses it. */
   debug: () => ipcRenderer.invoke('rednode:app:debug'),
+  /** What this window's title bar may offer: { spaces: {names, current}, space, tool, onHud, canPin, canReset }. Changes arrive as {event: 'window-info', info}. */
+  windowInfo: () => ipcRenderer.invoke('rednode:app:info'),
+  /** A title-bar action on this window: 'space' (to a space's name or '*'), 'pin-hud' (true or false), 'reset'. */
+  windowAction: (action, arg) => ipcRenderer.invoke('rednode:app:action', action, arg),
   /** Installed apps and mods. Only the built-in launcher and Mod Manager may use these; other apps get an error. */
   apps: {
     list: () => ipcRenderer.invoke('rednode:apps:list'),
@@ -67,6 +71,8 @@ contextBridge.exposeInMainWorld('rednode', {
     inspectMod: (id, where) => ipcRenderer.invoke('rednode:mods:inspect', id, where),
     /** Copies a debugged mod's inspector address, for VS Code or REDcode. */
     copyInspector: (id) => ipcRenderer.invoke('rednode:mods:copy-inspector', id),
+    /** Spaces: op 'list', 'switch' (name), 'create' (name), 'rename' (from, to), 'delete' (name), 'move' (window key or package id, space or '*'). Answers { names, current }. */
+    spaces: (op, a, b) => ipcRenderer.invoke('rednode:spaces', op, a, b),
     /** Ends a package's solo mode: the launcher's End solo button. */
     endSolo: () => ipcRenderer.invoke('rednode:host:end-solo'),
     /** Gets Developer mode, or turns it on or off. On, window title bars show a debug button. */

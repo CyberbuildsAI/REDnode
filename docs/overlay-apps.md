@@ -400,6 +400,16 @@ await bridge.call('archive.extract', { path: found.items[0].name, outFile: 'C:/t
 
 Parameters go by name, as REDbridge's [method list](https://edgemodders.github.io/REDbridge/) gives them. The [Packaging test](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/packaging-test) sample lists and searches the archives.
 
+## Spaces and the title bar
+
+Players can sort windows into **spaces**, like virtual desktops: the launcher's **Space** row makes them, the tab switches them, and so does Ctrl+1 to 9 while the overlay is open. Only the current space's windows show; REDnode's own tools show in all. A package needs nothing to take part: its windows join the space the player is in, and the player moves them from the title bar or the Mod Manager.
+
+An `rn-window` title bar shows close and up to three action icons, right to left: move to space (once there is a second space), roll up, pin to HUD, reset position (after the window was moved), and debug in Developer mode. More than three: ⋯ on the far left holds the rest. The overlay-window actions (space, pin, reset) show only on a page's only `rn-window`, since they act on the whole page. To leave one out for a window, add `no-space`, `no-rollup` or `no-debug`.
+
+```html
+<rn-window title="Speedometer" draggable no-rollup>...</rn-window>
+```
+
 ## Staying on top and solo mode
 
 REDnode's own windows (the launcher tab, Mod log, Mod Manager, debuggers) live in a **tool layer**, above every package's windows: a full-screen package cannot cover them. A package can ask to join them with `"permissions": ["front"]`; the player allows it in the Mod Manager. The Test timer does this.

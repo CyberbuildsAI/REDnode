@@ -125,7 +125,30 @@
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--rn-scroll-thumb); }
 ::-webkit-scrollbar-thumb:hover { background: var(--rn-scroll-thumb-hover); }
-::-webkit-scrollbar-button { display: none; }`;
+::-webkit-scrollbar-button { display: none; }
+/* A window title bar's menu (rn-window): the overflow and the list of spaces.
+   It floats over the page, so a short window does not cut it off. */
+.rn-window-menu { position: fixed; z-index: 2147483000; min-width: 190px; max-height: calc(100vh - 8px); overflow: auto;
+  padding: 4px; box-sizing: border-box; background: var(--rn-panel-2); border: 1px solid var(--rn-accent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .5); font: 500 15px var(--rn-body); color: var(--rn-fg); }
+.rn-window-menu button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; cursor: pointer; }
+.rn-window-menu button:hover, .rn-window-menu button:focus-visible { background: color-mix(in srgb, var(--rn-accent) 18%, transparent); }
+.rn-window-menu svg { width: 13px; height: 13px; flex: none; color: var(--rn-dim); }
+.rn-window-menu .rn-head { padding: 6px 8px 4px; font: 500 11px var(--rn-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--rn-dim); }
+.rn-window-menu .rn-on { margin-left: auto; color: var(--rn-accent); font: 12px var(--rn-mono); }
+.rn-window-menu hr { border: 0; border-top: 1px solid var(--rn-line); margin: 4px 0; }`;
+
+  // Icons for a window's title-bar actions.
+  const ACTION_ICONS = {
+    space: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="4.5" width="9" height="9"/><path d="M5.5 4.5V1.5h9v9h-4"/></svg>',
+    rollup: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 10l5-5 5 5"/></svg>',
+    rolldown: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6l5 5 5-5"/></svg>',
+    pin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 1.5h4l-.5 5 2.5 2.5H4L6.5 6.5z M8 9v5.5"/></svg>',
+    reset: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/></svg>',
+    debug: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="6" height="8" rx="3"/><path d="M6 5V3.5h4V5M5 8H2m12 0h-3M5 11H2.5m11 0H11M5.5 6 3 4m7.5 2L13 4M8 7v6"/></svg>',
+    more: '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>',
+  };
 
   function installGlobals() {
     if (document.getElementById('rn-ui-globals')) return;
@@ -209,7 +232,7 @@
   // ---------- rn-window ----------
 
   class RnWindow extends Base {
-    static observedAttributes = ['title', 'draggable', 'closable'];
+    static observedAttributes = ['title', 'draggable', 'closable', 'no-rollup', 'no-debug', 'no-space'];
     constructor() {
       super(
         `
@@ -229,15 +252,15 @@ header { display: flex; align-items: center; gap: 10px; padding: 9px 12px 8px 14
 .mark { width: 8px; height: 8px; background: var(--rn-title-mark); flex: none; }
 :host(.unfocused) .mark { background: var(--rn-dim); }
 h1 { margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 15px var(--rn-display); letter-spacing: .1em; text-transform: var(--rn-title-case); }
-.close, .debug { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid var(--rn-title-line);
+.close, .act { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; flex: none; border: 1px solid var(--rn-title-line);
   background: transparent; color: var(--rn-title-dim); font: 14px var(--rn-mono); cursor: pointer; }
 .close[hidden] { display: none; }
-.close:hover, .debug:hover { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
-/* The debug button shows only in Developer mode. */
-.debug { display: none; }
-:host-context(html[rn-developer]) .debug { display: grid; }
-:host([no-debug]) .debug { display: none !important; }
-.debug svg { width: 14px; height: 14px; }
+.close:hover, .act:hover, .act[aria-expanded="true"] { color: var(--rn-title-hover-fg); background: var(--rn-title-hover-bg); border-color: var(--rn-title-hover-bg); }
+.act.on { color: var(--rn-title-mark); }
+.act svg { width: 13px; height: 13px; }
+/* Close and up to three actions, right to left; more than three: the overflow on the far left. */
+.actions { display: flex; align-items: center; gap: 6px; }
+.actions:empty { display: none; }
 .body { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 footer:empty { display: none; }
 /* Rolled up: only the title bar shows; the rest of the page is transparent and clicks through. */
@@ -246,7 +269,7 @@ footer:empty { display: none; }
 :host([rolled]) { bottom: auto !important; height: auto !important; min-height: 0 !important; }
 :host([rolled]) header { border-bottom: 0; }
 :host([rolled]) .mark { background: transparent; box-shadow: inset 0 0 0 2px var(--rn-title-mark); }`,
-        `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><button class="debug" title="Debug this window" aria-label="Debug"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="6" height="8" rx="3"/><path d="M6 5V3.5h4V5M5 8H2m12 0h-3M5 11H2.5m11 0H11M5.5 6 3 4m7.5 2L13 4M8 7v6"/></svg></button><button class="close" hidden aria-label="Close">✕</button></header>
+        `<header part="titlebar"><span class="grip"><span class="mark"></span><h1></h1></span><slot name="status"></slot><span class="actions"></span><button class="close" hidden aria-label="Close">✕</button></header>
 <div class="body" part="body"><slot></slot></div><footer><slot name="footer"></slot></footer>`,
       );
       this.$('.close').addEventListener('click', () => {
@@ -258,17 +281,26 @@ footer:empty { display: none; }
         if (window.rednode?.close && document.querySelectorAll('rn-window').length === 1) window.rednode.close();
         else this.hidden = true;
       });
-      // Opens the debugger for this window: Chromium's DevTools, or the Node debugger for
-      // a mod window whose mod runs with the debugger.
-      this.$('.debug').addEventListener('click', () => {
-        playSound(soundFor(this, 'press'));
-        window.rednode?.debug?.().catch?.(() => {});
-      });
+      // Title-bar actions (move to space, roll up, pin to HUD, reset position, debug) need
+      // what the overlay host knows about this window; they follow its changes.
+      this._info = null;
+      window.rednode?.windowInfo?.().then(
+        (info) => {
+          this._info = info;
+          this.renderActions();
+        },
+        () => {},
+      );
       // Dim the title when the overlay window loses focus. A double-click on the
       // title bar rolls the window up to its title bar; the REDnode plugin sees
       // presses on drag handles first and reports the double-click.
       window.rednode?.on?.((m) => {
         if (m.event === 'focus') this.classList.toggle('unfocused', !m.focused);
+        if (m.event === 'window-info') {
+          this._info = m.info;
+          this.renderActions();
+        }
+        if (m.event === 'developer') this.renderActions();
         if (m.event === 'title-dblclick') {
           const r = this.$('header').getBoundingClientRect();
           if (m.x >= r.left && m.x < r.right && m.y >= r.top && m.y < r.bottom) this.toggleRollup();
@@ -276,11 +308,178 @@ footer:empty { display: none; }
       });
       // Outside the game (the host's --window mode), a real double-click does the same.
       this.$('header').addEventListener('dblclick', (e) => {
-        if (!e.target.closest?.('.close, .debug')) this.toggleRollup();
+        if (!e.target.closest?.('.close, .act')) this.toggleRollup();
       });
     }
     connectedCallback() {
       this.restoreRollup();
+      this.renderActions();
+    }
+    disconnectedCallback() {
+      this.closeMenu();
+    }
+
+    // The window's actions, most used first: the first three get icons next to close.
+    // Overlay-window actions (spaces, the HUD pin, position) show only on a page's only
+    // window, since they act on the whole page.
+    actions() {
+      const info = this._info;
+      const whole = !!info && !!window.rednode && document.querySelectorAll('rn-window').length === 1;
+      const run = (action, arg) => () => window.rednode.windowAction(action, arg).catch(() => {});
+      const list = [];
+      if (whole && !info.tool && info.spaces.names.length > 1 && !this.hasAttribute('no-space')) {
+        list.push({
+          id: 'space',
+          name: 'Move to space',
+          choices: () => [
+            ...info.spaces.names.map((n) => ({ name: n, on: info.space === n, run: run('space', n) })),
+            { name: 'All spaces', on: info.space === '*', run: run('space', '*') },
+          ],
+        });
+      }
+      if (!this.hasAttribute('no-rollup')) {
+        const rolled = this.hasAttribute('rolled');
+        list.push({ id: rolled ? 'rolldown' : 'rollup', name: rolled ? 'Roll down' : 'Roll up', run: () => this.toggleRollup() });
+      }
+      if (whole && info.canPin) {
+        list.push({ id: 'pin', name: info.onHud ? 'Unpin from HUD' : 'Pin to HUD', on: info.onHud, run: run('pin-hud', !info.onHud) });
+      }
+      if (whole && info.canReset) list.push({ id: 'reset', name: 'Reset position', run: run('reset') });
+      if (document.documentElement.hasAttribute('rn-developer') && window.rednode?.debug && !this.hasAttribute('no-debug')) {
+        list.push({ id: 'debug', name: 'Debug', run: () => window.rednode.debug().catch(() => {}) });
+      }
+      return list;
+    }
+
+    renderActions() {
+      const box = this.$('.actions');
+      if (!box) return;
+      const list = this.actions();
+      const shown = list.slice(0, 3);
+      const overflow = list.slice(3);
+      const buttons = [];
+      if (overflow.length) {
+        const more = this.actionButton({ id: 'more', name: 'More' });
+        more.addEventListener('click', () => this.toggleMenu(more, () => this.menuOf(overflow, more)));
+        buttons.push(more);
+      }
+      for (const a of [...shown].reverse()) {
+        const b = this.actionButton(a);
+        b.addEventListener('click', () => (a.choices ? this.toggleMenu(b, () => this.choicesOf(a, null)) : this.runAction(a)));
+        buttons.push(b);
+      }
+      this.closeMenu();
+      box.replaceChildren(...buttons);
+    }
+
+    actionButton(a) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = a.on ? 'act on' : 'act';
+      b.title = a.name;
+      b.setAttribute('aria-label', a.name);
+      if (a.id === 'more' || a.choices) {
+        b.setAttribute('aria-haspopup', 'menu');
+        b.setAttribute('aria-expanded', 'false');
+      }
+      b.innerHTML = ACTION_ICONS[a.id];
+      return b;
+    }
+
+    runAction(a) {
+      playSound(soundFor(this, 'press'));
+      this.closeMenu();
+      a.run();
+    }
+
+    // One menu on screen at a time: an action with choices swaps its list in, with Back.
+    toggleMenu(anchor, build) {
+      const open = this._menu && this._menuAnchor === anchor;
+      this.closeMenu();
+      if (open) return;
+      playSound(soundFor(this, 'press'));
+      this.showMenu(anchor, build());
+    }
+
+    showMenu(anchor, items) {
+      this.closeMenu();
+      const menu = document.createElement('div');
+      menu.className = 'rn-window-menu';
+      menu.setAttribute('role', 'menu');
+      menu.append(...items);
+      document.body.append(menu);
+      const r = anchor.getBoundingClientRect();
+      menu.style.top = Math.max(4, Math.min(r.bottom + 4, innerHeight - menu.offsetHeight - 4)) + 'px';
+      menu.style.left = Math.max(4, Math.min(r.right - menu.offsetWidth, innerWidth - menu.offsetWidth - 4)) + 'px';
+      anchor.setAttribute('aria-expanded', 'true');
+      this._menu = menu;
+      this._menuAnchor = anchor;
+      this._menuOff = (e) => {
+        if (!e.composedPath().some((n) => n === menu || n === anchor)) this.closeMenu();
+      };
+      this._menuKey = (e) => {
+        if (e.key === 'Escape') this.closeMenu();
+      };
+      setTimeout(() => {
+        if (this._menu !== menu) return;
+        document.addEventListener('pointerdown', this._menuOff, true);
+        document.addEventListener('keydown', this._menuKey, true);
+      });
+    }
+
+    closeMenu() {
+      if (!this._menu) return;
+      this._menu.remove();
+      if (this._menuAnchor) this._menuAnchor.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', this._menuOff, true);
+      document.removeEventListener('keydown', this._menuKey, true);
+      this._menu = null;
+      this._menuAnchor = null;
+    }
+
+    menuOf(list, anchor) {
+      return list.map((a) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.innerHTML = ACTION_ICONS[a.id] + '<span></span>' + (a.choices ? '<span class="rn-on">\u203a</span>' : a.on ? '<span class="rn-on">\u25cf</span>' : '');
+        b.querySelector('span').textContent = a.name;
+        b.addEventListener('click', () => {
+          if (!a.choices) return this.runAction(a);
+          playSound(soundFor(this, 'press'));
+          this.showMenu(anchor, this.choicesOf(a, () => this.showMenu(anchor, this.menuOf(list, anchor))));
+        });
+        return b;
+      });
+    }
+
+    choicesOf(a, back) {
+      const items = [];
+      if (back) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = '\u2039 Back';
+        b.addEventListener('click', () => {
+          playSound(soundFor(this, 'press'));
+          back();
+        });
+        items.push(b, document.createElement('hr'));
+      }
+      const head = document.createElement('div');
+      head.className = 'rn-head';
+      head.textContent = a.name;
+      items.push(head);
+      for (const c of a.choices()) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitemradio');
+        b.setAttribute('aria-checked', String(!!c.on));
+        b.innerHTML = '<span></span>' + (c.on ? '<span class="rn-on">\u25cf</span>' : '');
+        b.querySelector('span').textContent = c.name;
+        b.addEventListener('click', () => this.runAction(c));
+        items.push(b);
+      }
+      return items;
     }
     // The saved state is kept per page and title; a title set later (mod windows) restores it then.
     restoreRollup() {
@@ -306,6 +505,7 @@ footer:empty { display: none; }
         // storage is a convenience
       }
       this.emit('rollup', { rolled });
+      this.renderActions();
     }
     attributeChangedCallback(name) {
       if (name === 'title') this.restoreRollup();
@@ -314,6 +514,7 @@ footer:empty { display: none; }
       if (this.bool('draggable')) grip.setAttribute('data-rednode-drag', '');
       else grip.removeAttribute('data-rednode-drag');
       this.$('.close').hidden = !this.bool('closable');
+      if (name.startsWith('no-')) this.renderActions();
     }
   }
 

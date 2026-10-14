@@ -18,7 +18,7 @@ The overlay host serves the kit to every app at `rednode://ui/rednode-ui.js`. It
 
 Double-click an `rn-window`'s title bar to roll it up to the title bar, and again to roll it down. Each window remembers its state. In the game the REDnode plugin reports the double-click, because it handles presses on title bars for dragging. The window emits `rollup` with `{ rolled }`; `toggleRollup()` does the same from code, and the `no-rollup` attribute turns it off for a window.
 
-In Developer mode (the launcher's switch), every `rn-window` shows a debug button next to close. It opens the debugger for that window: Chromium's DevTools for the page, or the Node debugger for a mod window whose mod runs with the debugger. `no-debug` hides it for a window.
+**Title-bar actions.** An `rn-window` shows close and up to three action icons, right to left, the most used next to close: move to space (once the player has a second space), roll up, pin to HUD, reset position (after the window was moved), and debug in Developer mode (Chromium's DevTools for the page, or the Node debugger for a mod window whose mod runs with the debugger). More than three: a ⋯ button on the far left holds the rest; an action with choices swaps the menu's list for them, with a Back row. The overlay-window actions (space, pin, reset) need the REDnode host and show only on a page's only `rn-window`. `no-space`, `no-rollup` and `no-debug` leave one out.
 
 ## Themes
 
@@ -38,7 +38,7 @@ Themes are CSS custom properties, so an app can adjust one: `--rn-bg`, `--rn-pan
 
 | Element | Attributes | Events (`detail`) |
 |---|---|---|
-| `rn-window` | `title`, `draggable` (title area becomes the drag handle), `closable`, `no-debug` (no debug button in Developer mode). Slots: default, `status` (right of the title), `footer` | `close` (cancelable; hides the window unless cancelled) |
+| `rn-window` | `title`, `draggable` (title area becomes the drag handle), `closable`, `no-space`, `no-rollup`, `no-debug` (leave that title-bar action out). Slots: default, `status` (right of the title), `footer` | `close` (cancelable; hides the window unless cancelled) |
 | `rn-panel` | `title` | |
 | `rn-button` | `variant`: `ghost` or `danger`; `disabled`; `sound`, `hover-sound` | normal `click` |
 | `rn-toggle` | `label`, `checked`, `disabled`, `sound` | `change` (`{ checked }`) |

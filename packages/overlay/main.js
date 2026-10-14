@@ -406,9 +406,142 @@ function soloHides(w) {
   return !!soloOwner && windowLayer(w) !== 'tool' && ownerOf(w)?.manifest.id !== soloOwner;
 }
 
+// Hidden by solo mode or by the current space. Solo wins: its package's windows show
+// in every space while it lasts.
+function windowHidden(w) {
+  return soloOwner ? soloHides(w) : spaceHides(w);
+}
+
 function applySolo() {
   if (!connected) return;
-  for (const w of windows.values()) sendJson({ cmd: 'window.hidden', window: w.id, hidden: soloHides(w) });
+  for (const w of windows.values()) sendJson({ cmd: 'window.hidden', window: w.id, hidden: windowHidden(w) });
+}
+
+// ---------- spaces (O11) ----------
+//
+// Named sets of windows, like virtual desktops. The player switches the space (the
+// launcher tab, or Ctrl+1 to 9 in the overlay) and only its windows show. A window
+// belongs to one space or to all of them ("*"); tool windows show in every space. A
+// window with no space yet joins the one the player is in when it first opens. A
+// package can be put in a space as a whole (the Mod Manager); a window's own choice
+// (its title bar) wins over its package's.
+// settings.spaces: { names: ['Main', ...], current: 'Main', of: { windowKey | packageId: name | '*' } }
+
+const MAIN_SPACE = 'Main';
+
+function spaces() {
+  const s = settings.spaces ?? {};
+  const names = Array.isArray(s.names) && s.names.length ? s.names : [MAIN_SPACE];
+  const current = names.includes(s.current) ? s.current : names[0];
+  settings.spaces = { names, current, of: s.of ?? {} };
+  return settings.spaces;
+}
+
+const spaceKey = (w) => w.app.manifest.id;
+
+function spaceOf(w) {
+  const s = spaces();
+  const own = s.of[spaceKey(w)];
+  const pkg = ownerOf(w)?.manifest.id;
+  const found = own ?? (pkg ? s.of[pkg] : undefined);
+  return found === '*' || s.names.includes(found) ? found : null;
+}
+
+function spaceHides(w) {
+  if (windowLayer(w) === 'tool') return false;
+  const s = spaces();
+  const of = spaceOf(w);
+  return of !== null && of !== '*' && of !== s.current;
+}
+
+// A window opening for the first time joins the space the player is in.
+function placeInSpace(w) {
+  if (windowLayer(w) === 'tool' || spaceOf(w) !== null) return;
+  const s = spaces();
+  s.of[spaceKey(w)] = s.current;
+  writeJson('settings.json', settings);
+}
+
+function spacesChanged(why) {
+  writeJson('settings.json', settings);
+  applySolo();
+  for (const w of windows.values()) toPage(w, { event: 'window-info', info: windowInfo(w) });
+  notifyLauncher();
+  if (why) log(`Spaces: ${why}`);
+}
+
+function checkSpaceName(name, s) {
+  const n = String(name ?? '').trim();
+  if (!n || n.length > 24) throw new Error('A space name is 1 to 24 characters');
+  if (n === '*') throw new Error('"*" means every space');
+  if (s.names.some((x) => x.toLowerCase() === n.toLowerCase())) throw new Error(`There is already a space "${n}"`);
+  return n;
+}
+
+function switchSpace(name) {
+  const s = spaces();
+  if (!s.names.includes(name)) throw new Error(`No space "${name}"`);
+  if (s.current === name) return s;
+  s.current = name;
+  spacesChanged(`now in ${name}`);
+  return s;
+}
+
+function createSpace(name) {
+  const s = spaces();
+  const n = checkSpaceName(name, s);
+  s.names.push(n);
+  s.current = n;
+  spacesChanged(`made ${n}, and switched to it`);
+  return s;
+}
+
+function renameSpace(from, to) {
+  const s = spaces();
+  if (!s.names.includes(from)) throw new Error(`No space "${from}"`);
+  const n = checkSpaceName(to, s);
+  s.names = s.names.map((x) => (x === from ? n : x));
+  if (s.current === from) s.current = n;
+  for (const [k, v] of Object.entries(s.of)) if (v === from) s.of[k] = n;
+  spacesChanged(`renamed ${from} to ${n}`);
+  return s;
+}
+
+function deleteSpace(name) {
+  const s = spaces();
+  if (!s.names.includes(name)) throw new Error(`No space "${name}"`);
+  if (s.names.length === 1) throw new Error('The last space cannot be deleted');
+  s.names = s.names.filter((x) => x !== name);
+  const to = s.names[0];
+  for (const [k, v] of Object.entries(s.of)) if (v === name) s.of[k] = to; // its windows move, nothing is lost
+  if (s.current === name) s.current = to;
+  spacesChanged(`deleted ${name}; its windows moved to ${to}`);
+  return s;
+}
+
+// Moves a window (its key) or a whole package (its id) to a space, or to every space ("*").
+function moveToSpace(key, space) {
+  const s = spaces();
+  if (space !== '*' && !s.names.includes(space)) throw new Error(`No space "${space}"`);
+  s.of[key] = space;
+  // A package moved as a whole: its windows follow, whatever they chose before.
+  if (apps.has(key)) for (const k of Object.keys(s.of)) if (k.startsWith(`${key}~`)) delete s.of[k];
+  spacesChanged(`${key} to ${space === '*' ? 'every space' : space}`);
+  return s;
+}
+
+// What a window's title bar needs: the spaces, its own, and whether its package is on the HUD.
+function windowInfo(w) {
+  const s = spaces();
+  const owner = ownerOf(w);
+  return {
+    spaces: { names: [...s.names], current: s.current },
+    space: spaceOf(w),
+    tool: windowLayer(w) === 'tool',
+    onHud: windowOnHud(w),
+    canPin: !!owner && !owner.pinned && owner.manifest.kind !== 'hud',
+    canReset: !!positions[spaceKey(w)],
+  };
 }
 
 // Tells a package's pages and its mod that its solo mode started or ended.
@@ -472,6 +605,7 @@ function setPin(id, where, on) {
     }
   }
   log(`${on ? 'Pinned' : 'Unpinned'} ${id} ${on ? 'to' : 'from'} the ${where === 'hud' ? 'HUD' : 'launcher'}`);
+  if (where === 'hud') for (const w of windows.values()) if (ownerOf(w) === entry) toPage(w, { event: 'window-info', info: windowInfo(w) });
   notifyLauncher();
 }
 
@@ -694,7 +828,7 @@ function openInGame(w) {
     draggable: m.kind !== 'hud',
     onHud: windowOnHud(w),
     layer: windowLayer(w),
-    hidden: soloHides(w),
+    hidden: windowHidden(w),
   });
   sendJson({ cmd: 'window.drag', window: w.id, regions: w.dragRegions });
   repaint(w.win.webContents); // send a full frame now
@@ -769,6 +903,7 @@ function keyName(vk) {
 
 let ctrlDown = false;
 let shiftDown = false;
+let swallowChar = false;
 // Editing shortcuts, run by the host on the focused page.
 const EDIT_KEYS = {
   V: (wc) => wc.paste(),
@@ -801,6 +936,15 @@ function onInput(m) {
       // shortcuts work: the editing ones are run directly, which is reliable.
       if (m.vk === 17) ctrlDown = m.type === 'keyDown';
       if (m.vk === 16) shiftDown = m.type === 'keyDown';
+      // Ctrl+1 to 9: switch to that space. The key is not passed on, nor the digit it types.
+      if (ctrlDown && m.vk >= 0x31 && m.vk <= 0x39) {
+        if (m.type === 'keyDown') {
+          const name = spaces().names[m.vk - 0x31];
+          if (name) switchSpace(name);
+          swallowChar = true;
+        }
+        break;
+      }
       const keyCode = keyName(m.vk);
       if (m.type === 'keyDown' && ctrlDown && EDIT_KEYS[keyCode]) {
         EDIT_KEYS[keyCode](wc);
@@ -811,6 +955,10 @@ function onInput(m) {
       break;
     }
     case 'char':
+      if (swallowChar) {
+        swallowChar = false; // the digit of a Ctrl+number space switch
+        break;
+      }
       // Control characters (Ctrl+V makes 0x16) would arrive as junk; real keys came as keyDown.
       if (m.code >= 32) wc.sendInputEvent({ type: 'char', keyCode: String.fromCharCode(m.code) });
       break;
@@ -854,8 +1002,10 @@ function onGameMessage(m) {
       const w = windows.get(m.window);
       if (w) {
         const { width, height } = w.app.manifest;
+        const first = !positions[w.app.manifest.id];
         positions[w.app.manifest.id] = { x: m.x, y: m.y, width, height };
         writeJson('window-positions.json', positions);
+        if (first) toPage(w, { event: 'window-info', info: windowInfo(w) }); // Reset position is offered now
       }
       return;
     }
@@ -1066,7 +1216,11 @@ function modLogFile() {
 
 function hostState() {
   const solo = soloOwner ? { id: soloOwner, name: apps.get(soloOwner)?.manifest.name ?? soloOwner } : null;
-  return { connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer, solo };
+  const s = spaces();
+  return {
+    connected, mode, windowed, version: VERSION, game: gameState(), theme: theme(), developer: !!settings.developer, solo,
+    spaces: { names: [...s.names], current: s.current },
+  };
 }
 
 // ---------- TweakDB changes per package (TweakDB API, T2) ----------
@@ -1186,6 +1340,13 @@ function appList() {
         mod: m.main ? mods.info(m.id, metrics) : null,
         closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
         hasWindow: windowsOfPackage(m.id).length > 0,
+        // Its space: set for the package, else the one its open windows share, else null.
+        space: (() => {
+          const s = spaces();
+          if (s.of[m.id]) return s.of[m.id];
+          const of = [...new Set(windowsOfPackage(m.id).map((w) => spaceOf(w)).filter(Boolean))];
+          return of.length === 1 ? of[0] : of.length > 1 ? 'mixed' : null;
+        })(),
         requires: requirementsOf(m.id),
         bridge: m.permissions.includes('bridge') ? redbridge.status() : null,
         permissions: m.permissions.map((name) => ({ name, what: PERMISSIONS[name], granted: isGranted(m.id, name) })),
@@ -1476,6 +1637,49 @@ ipcMain.handle('rednode:apps:show-window', (event, id, win) => {
   rememberClosed(builtKey(id, win), false);
   if (playerClosed.has(builtKey(id, win))) mods.toMod(id, { event: 'ui', window: String(win), type: 'show' });
   return appList();
+});
+
+// ---------- window actions and spaces (O11) ----------
+
+// A window's own title bar: what it may offer, and its actions.
+ipcMain.handle('rednode:app:info', (event) => {
+  const w = windowFor(event.sender);
+  return w ? windowInfo(w) : null;
+});
+
+ipcMain.handle('rednode:app:action', (event, action, arg) => {
+  const w = windowFor(event.sender);
+  if (!w) throw new Error('Unknown window');
+  const key = spaceKey(w);
+  if (action === 'space') {
+    moveToSpace(key, String(arg));
+  } else if (action === 'pin-hud') {
+    const owner = ownerOf(w);
+    if (!owner || owner.pinned) throw new Error('This window cannot be pinned');
+    setPin(owner.manifest.id, 'hud', !!arg);
+  } else if (action === 'reset') {
+    delete positions[key];
+    writeJson('window-positions.json', positions);
+    if (connected) openInGame(w); // back to its anchor
+    log(`Reset the position of ${key}`);
+    toPage(w, { event: 'window-info', info: windowInfo(w) });
+  } else {
+    throw new Error(`Unknown window action "${action}"`);
+  }
+  return windowInfo(w);
+});
+
+// The launcher and the Mod Manager: list, switch, make, rename, delete, move.
+ipcMain.handle('rednode:spaces', (event, op, a, b) => {
+  fromLauncher(event);
+  const s =
+    op === 'switch' ? switchSpace(String(a))
+    : op === 'create' ? createSpace(a)
+    : op === 'rename' ? renameSpace(String(a), b)
+    : op === 'delete' ? deleteSpace(String(a))
+    : op === 'move' ? moveToSpace(String(a), String(b))
+    : spaces();
+  return { names: [...s.names], current: s.current };
 });
 
 // An app's own close button: the same as switching it off in the launcher.
@@ -2127,6 +2331,7 @@ function openApp(entry) {
     dressDebugger(w);
     win.loadURL(nodeDevToolsUrl(entry.inspector));
   } else win.loadFile(path.join(entry.dir, m.entry), entry.query ? { query: entry.query } : undefined);
+  placeInSpace(w);
   if (connected) openInGame(w);
   log(`Opened ${m.id}`);
   notifyLauncher();

@@ -189,7 +189,7 @@ Rules that make borderless windows behave:
 | **O8 Mod Manager** | A built-in Mod Manager app with a table of every package, search, paging and bulk actions. **Pin to launcher** keeps the launcher short; **Pin to HUD** decides which windows stay on screen during gameplay. See [O8 Mod Manager: plan](#o8-mod-manager-plan) | With dozens of packages, the launcher lists only the pinned ones, and any package is found, switched and inspected in the Mod Manager |
 | **O9 Debugger** | Chromium DevTools for any overlay app, from an **Inspect** button: first in a desktop window, then, if a prototype works, inside the overlay as a built-in Debugger app. Node mods debugged through Node's inspector, attachable from VS Code and REDcode. See [O9 Debugger: plan](#o9-debugger-plan) | An app's page is inspected and a breakpoint hit while the game runs; a Node mod stops at a breakpoint set in VS Code |
 | **O10 Layers** | A tool layer above packages' windows for REDnode's own windows and packages the player lets stay on top; solo mode, in which one package hides every other package's windows. Asked for by EDGEbuilder ([#10](https://github.com/Edgemodders/REDnode/issues/10), [#7](https://github.com/Edgemodders/REDnode/issues/7)). See [O10 Layers](#o10-layers-built) | A full-screen package cannot cover the launcher or the Test timer, and its solo mode hides everything else until it ends |
-| **O11 Spaces** | Named sets of windows, like virtual desktops: the player switches the space and only its windows show; tool windows and windows set to "all spaces" show in every space. See [O11 Spaces: plan](#o11-spaces-plan) | A player with many HUD widgets keeps them in two or three spaces and switches between them without switching packages on and off |
+| **O11 Spaces** | Named sets of windows, like virtual desktops: the player switches the space and only its windows show; tool windows and windows set to "all spaces" show in every space. Title-bar actions with overflow. See [O11 Spaces: plan](#o11-spaces-plan) | A player with many HUD widgets keeps them in two or three spaces and switches between them without switching packages on and off |
 
 ### O1 Windows: test
 
@@ -589,7 +589,7 @@ Use the **Test timer**: Start, then Mark after each step.
 
 ### O11 Spaces: plan
 
-Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Order decided with the user on 2026-10-14: after O10's test and the TweakDB API.
+Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Order decided with the user on 2026-10-14: after O10's test and the TweakDB API. Built in REDnode 0.21.0: see [O11 Spaces: built](#o11-spaces-built).
 
 Called **spaces**, not layers: "layer" already means the z-order (the tool layer above packages' windows, O10).
 
@@ -618,6 +618,33 @@ Rules either way, agreed in principle with the user: no cascading menus; at most
 | Which actions get the icon slots | Close always, rightmost. The others by a fixed priority, highest nearest close (in the mockup: move to space, roll up, pin to HUD, reset position, debug). An action that is not available (debug outside Developer mode, spaces with only one space) takes no slot, so most windows show close and little else |
 | An action with choices in the overflow (move to space) | The ⋯ list swaps to the choices, with a back row, instead of opening a second menu beside it: one level on screen at a time |
 | Width on small windows | Five buttons at 22 px with their gaps take about 140 px of the title bar; the title shortens with an ellipsis on narrow windows |
+
+### O11 Spaces: built
+
+REDnode 0.21.0. Decided with the user on 2026-10-14 besides the title bar: Pin to HUD stays as it is beside spaces (a space picks which windows show at all; Pin to HUD which of them stay during gameplay), and Ctrl+1 to 9 switches spaces while the overlay is open.
+
+| Piece | Where |
+|---|---|
+| Spaces | The host keeps `settings.spaces`: the names, the current one, and the space of each window (by its id) or of a whole package (by the package's id; a window's own choice wins). A window with no space yet joins the current one when it first opens, so nothing moves for a player who never makes a second space. Tool windows show in every space. A space hides windows with the plugin's `window.hidden` (O10); solo mode wins over the space while it lasts |
+| Launcher | A **Space** row in its settings: the current space, **New**, **Rename**, **Delete** (with a name field, since overlay pages have no dialogs). Deleting a space moves its windows to the first space. Once there is a second space, the tab shows **▾ name**, a list of the spaces with their Ctrl+number |
+| Ctrl+1 to 9 | The host catches Ctrl+number before the page, switches space, and drops the digit the key would type |
+| Title bar (UI kit `rn-window`) | Close and up to three action icons, right to left, most used next to close: move to space (with a second space), roll up, pin to HUD, reset position (after a window was moved), debug (Developer mode). More than three: ⋯ on the far left holds the rest; an action with choices swaps the ⋯ list for its choices with **‹ Back**. The menu floats over the page, so a short window does not cut it off. The overlay-window actions (space, pin, reset) show only on a page's only `rn-window`. `no-space`, `no-rollup` and `no-debug` hide one action for a window. The old debug button is now the debug action |
+| Mod Manager | A **Space** column, shown once there is a second space, and **Main / ... / All** buttons in a package's details to move the whole package |
+
+Tested in the mock game: **New** made "Combat" and switched to it, which hid the Hello mod (in Main); Ctrl+1 brought Main back and the Hello mod with it. Its title bar showed the space icon next to close; the list held Main (current), Combat and All spaces; picking Combat hid it, and Ctrl+2 showed it again. With Developer mode on and a saved position, five actions made the title bar show ⋯, pin, roll up, space and close, and ⋯ held Reset position and Debug. The Mod Manager showed the Space column (Combat) and the space buttons. **Unverified** in the game.
+
+### O11 Spaces: test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Mark.
+2. F10. In the launcher's settings, **Space**: press **New**, type `Combat` and Enter. The tab shows **▾ Combat**, and every package window and HUD widget goes away; the launcher, Mod Manager and Test timer stay. Mark.
+3. Ctrl+1: Main comes back with everything in it. Ctrl+2: Combat again. Then Ctrl+1. Mark.
+4. On the Hello mod's title bar, the space icon is next to close: choose **Combat**. The Hello mod goes; Ctrl+2 shows it; Ctrl+1. Mark.
+5. In the Mod Manager, the **Space** column shows each package's space. Select Coords and press **All**: it shows in Main and in Combat. Mark.
+6. On a window, try roll up and the pin (Pin to HUD) on its title bar. Drag it, then use **Reset position**. Switch Developer mode on: ⋯ appears on the far left with the actions past three. Mark.
+7. In the launcher, **Rename** Combat to `Driving`, then **Delete** it: its windows come back to Main. Mark.
+8. Quit the game.
 
 ### UI kit
 

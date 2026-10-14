@@ -82,6 +82,11 @@ const statusLabel = (i) => (i.mod ? STATUS[i.mod.status] ?? i.mod.status.toUpper
 // What a package's "requires" asks for and the game does not have.
 const missingOf = (i) => (i.requires ?? []).filter((r) => !r.ok);
 const wantsText = (r) => `${r.name}${r.wants && r.wants !== '*' ? ` ${r.wants}` : ''}`;
+// Spaces (O11): shown only once the player has made a second one.
+let spaceState = { names: ['Main'], current: 'Main' };
+const manySpaces = () => spaceState.names.length > 1;
+const spaceLabel = (i) => (i.space === '*' ? 'All' : i.space === 'mixed' ? 'Mixed' : i.space ?? '-');
+
 const hasError = (i) =>
   missingOf(i).length > 0 || (!!i.mod && (i.mod.status === 'crashed' || i.mod.status === 'not-responding' || !!i.mod.error));
 const processOf = (i) => (!i.mod ? '' : i.mod.shared && i.mod.canShare ? 'shared' : 'own');
@@ -93,6 +98,7 @@ const COLUMNS = [
   { key: 'name', label: 'Name' },
   { key: 'kind', label: 'Kind' },
   { key: 'status', label: 'Status' },
+  { key: 'space', label: 'Space', title: 'The space its windows show in', spaces: true },
   { key: 'memory', label: 'Mem' },
   { key: 'version', label: 'Version' },
   { key: 'author', label: 'Author' },
@@ -103,6 +109,7 @@ const SORT = {
   name: (i) => i.name.toLowerCase(),
   kind: (i) => kindLabel(i),
   status: (i) => statusLabel(i),
+  space: (i) => spaceLabel(i),
   memory: (i) => -(i.mod?.memoryMB ?? 0),
   process: (i) => processOf(i),
   version: (i) => i.version ?? '',
@@ -138,9 +145,22 @@ function matches(i) {
 
 // ---------- the table ----------
 
+// Column widths; the name takes the rest. The Space column shows only with a second space.
+const WIDTHS = { select: 28, launcher: 30, hud: 30, kind: 88, status: 96, space: 72, memory: 58, version: 60, author: 96 };
+const columns = () => COLUMNS.filter((c) => !c.spaces || manySpaces());
+
 function renderHead() {
+  const narrow = manySpaces() ? { kind: 78, author: 70 } : {};
+  $('cols').replaceChildren(
+    ...columns().map((c) => {
+      const col = document.createElement('col');
+      const w = narrow[c.key] ?? WIDTHS[c.key];
+      if (w) col.style.width = `${w}px`;
+      return col;
+    }),
+  );
   $('head').replaceChildren(
-    ...COLUMNS.map((c) => {
+    ...columns().map((c) => {
       const th = el('th', c.nosort ? 'nosort' : view.sort === c.key ? 'sorted' : '', c.label);
       if (c.title) th.title = c.title;
       if (c.key === view.sort) th.textContent += view.desc ? ' ▼' : ' ▲';
@@ -232,6 +252,7 @@ Needs ${missing.map(wantsText).join(', ')}` : ''}`;
         name,
         el('td', 'dim', kindLabel(i)),
         el('td', `mono st-${statusOf(i)}`, statusLabel(i)),
+        ...(manySpaces() ? [el('td', 'dim', spaceLabel(i))] : []),
         el('td', 'mono dim', i.mod?.memoryMB ? `${i.mod.memoryMB} MB` : ''),
         el('td', 'mono dim', i.version ?? ''),
         el('td', 'dim', i.builtin ? 'REDnode' : i.author ?? ''),
@@ -314,6 +335,15 @@ function renderDetails() {
   parts.push(
     toggle('Pin to HUD', i.onHud, (on) => act(i.name, () => window.rednode.apps.pin(i.id, 'hud', on)), i.kind === 'hud'),
   );
+  if (manySpaces() && !i.builtin) {
+    // The whole package to a space, or to every space; a window's own title bar can still choose.
+    const row = el('div', 'row spaces-row');
+    row.append(el('span', 'dim', 'Space'));
+    for (const [value, label] of [...spaceState.names.map((n) => [n, n]), ['*', 'All']]) {
+      row.append(button(label, () => act(i.name, () => window.rednode.apps.spaces('move', i.id, value)), i.space === value ? null : 'ghost'));
+    }
+    parts.push(row);
+  }
   if (i.mod) {
     parts.push(
       // A mod being debugged runs alone, so the switch waits until Debug is off.
@@ -412,6 +442,7 @@ async function refresh() {
   refreshing = true;
   try {
     items = await window.rednode.apps.list();
+    spaceState = (await window.rednode.state()).spaces ?? spaceState;
     const fresh = items.filter((i) => i.isNew).map((i) => i.id);
     for (const id of fresh) freshThisVisit.add(id);
     if (fresh.length) await window.rednode.apps.seen(fresh); // listed here: no longer "new" in the launcher

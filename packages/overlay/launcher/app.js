@@ -206,6 +206,7 @@ async function refresh() {
     // Solo mode: which package has the screen, and a way out.
     $('solo').hidden = !state.solo;
     $('solo-name').textContent = state.solo?.name ?? '';
+    if (state.spaces) showSpaces(state.spaces);
     const all = await window.rednode.apps.list();
     // Only packages pinned to the launcher, the Mod Manager first; a crashed one shows
     // even unpinned, so an error never hides. The Mod Manager lists everything.
@@ -241,6 +242,95 @@ async function refresh() {
     refreshing = false;
   }
 }
+
+// ---------- spaces (O11) ----------
+// Named sets of windows. The switcher on the tab shows once there is a second space.
+let spaceState = { names: ['Main'], current: 'Main' };
+let editing = null; // 'new' or 'rename'
+
+function showSpaces(s) {
+  spaceState = s ?? spaceState;
+  $('space-now').textContent = spaceState.current;
+  $('space-tab').textContent = spaceState.current;
+  $('space-switch').hidden = spaceState.names.length < 2;
+  if (spaceState.names.length < 2) $('space-delete').setAttribute('disabled', '');
+  else $('space-delete').removeAttribute('disabled');
+}
+
+function spaceError(text) {
+  $('space-error').textContent = text ?? '';
+  $('space-error').hidden = !text;
+}
+
+function editSpace(mode) {
+  editing = mode;
+  spaceError(null);
+  $('space-edit').hidden = false;
+  $('space-input').value = mode === 'rename' ? spaceState.current : '';
+  $('space-input').focus();
+}
+
+function endEdit() {
+  editing = null;
+  $('space-edit').hidden = true;
+}
+
+async function spaceOp(...args) {
+  try {
+    showSpaces(await window.rednode.apps.spaces(...args));
+    spaceError(null);
+    return true;
+  } catch (err) {
+    spaceError(cleanError(err));
+    return false;
+  }
+}
+
+$('space-new').addEventListener('click', () => editSpace('new'));
+$('space-rename').addEventListener('click', () => editSpace('rename'));
+$('space-cancel').addEventListener('click', endEdit);
+$('space-delete').addEventListener('click', () => spaceOp('delete', spaceState.current));
+$('space-input').addEventListener('submit', async (e) => {
+  const name = String(e.detail?.value ?? '').trim();
+  const ok = editing === 'rename' ? await spaceOp('rename', spaceState.current, name) : await spaceOp('create', name);
+  if (ok) endEdit();
+});
+
+// The tab's switcher: the list of spaces, Ctrl+number beside each.
+let spaceMenu = null;
+function closeSpaceMenu() {
+  spaceMenu?.remove();
+  spaceMenu = null;
+}
+$('space-switch').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (spaceMenu) return closeSpaceMenu();
+  spaceMenu = document.createElement('div');
+  spaceMenu.className = 'rn-window-menu';
+  spaceMenu.setAttribute('role', 'menu');
+  spaceMenu.innerHTML = '<div class="rn-head">Spaces</div>';
+  spaceState.names.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitemradio');
+    b.setAttribute('aria-checked', String(name === spaceState.current));
+    b.innerHTML = `<span></span>${name === spaceState.current ? '<span class="rn-on">&#x25CF;</span>' : ''}${i < 9 ? `<span class="key">Ctrl+${i + 1}</span>` : ''}`;
+    b.querySelector('span').textContent = name;
+    b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      closeSpaceMenu();
+      await spaceOp('switch', name);
+    });
+    spaceMenu.append(b);
+  });
+  document.body.append(spaceMenu);
+  const r = $('space-switch').getBoundingClientRect();
+  spaceMenu.style.left = `${Math.max(4, Math.min(r.left, innerWidth - spaceMenu.offsetWidth - 4))}px`;
+  spaceMenu.style.top = `${Math.max(4, r.top - spaceMenu.offsetHeight - 4)}px`;
+});
+document.addEventListener('click', (e) => {
+  if (spaceMenu && !spaceMenu.contains(e.target)) closeSpaceMenu();
+});
 
 $('solo-end').addEventListener('click', () => act('Solo mode', () => window.rednode.apps.endSolo()));
 
