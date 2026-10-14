@@ -40,6 +40,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | REDagent | An in-game assistant, powered by Claude, that writes, runs and fixes REDnode mods with the player. C1, the [kernel MCP server](mcp.md) in this repo, and C2, the chat in the game, passed in game. C3, authoring, passed in game. C4, chat history and a picture of the game's screen (`game_image`), passed in game. C5, other mods asking REDagent (`agent.ask`), passed in game. Its [guide](https://edgemodders.github.io/REDagent/), repo and design: [Edgemodders/REDagent](https://github.com/Edgemodders/REDagent) |
 | World API | Planned: W1 (build objects, set properties, resource references, entity events through Codeware, `api.spawn`) and W2 (`requires` in manifests, `kernel.bridge()`), asked for by EDGEbuilder. W1 and W2 passed in game. See [World API](world.md) |
 | Window layers | O10: a tool layer for REDnode's own windows and packages allowed `front`, and solo mode (`ui.solo`). Built, awaits its in-game test. See [HTML overlay](overlay.md#o10-layers-built) |
+| Spaces | O11, proposed: named sets of windows the player switches between, like virtual desktops. See [HTML overlay](overlay.md#o11-spaces-plan) |
 | TweakDB API | Planned: T1 read TweakDB from the plugin, T2 write through TweakXL with undo per package, T3 offline through REDbridge. See [TweakDB API](tweakdb.md) |
 | P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge, the Node SDK and the generated game API. Events from hooked game functions are still to do |
 | P3 Rules | Not started |

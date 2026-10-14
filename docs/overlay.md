@@ -189,6 +189,7 @@ Rules that make borderless windows behave:
 | **O8 Mod Manager** | A built-in Mod Manager app with a table of every package, search, paging and bulk actions. **Pin to launcher** keeps the launcher short; **Pin to HUD** decides which windows stay on screen during gameplay. See [O8 Mod Manager: plan](#o8-mod-manager-plan) | With dozens of packages, the launcher lists only the pinned ones, and any package is found, switched and inspected in the Mod Manager |
 | **O9 Debugger** | Chromium DevTools for any overlay app, from an **Inspect** button: first in a desktop window, then, if a prototype works, inside the overlay as a built-in Debugger app. Node mods debugged through Node's inspector, attachable from VS Code and REDcode. See [O9 Debugger: plan](#o9-debugger-plan) | An app's page is inspected and a breakpoint hit while the game runs; a Node mod stops at a breakpoint set in VS Code |
 | **O10 Layers** | A tool layer above packages' windows for REDnode's own windows and packages the player lets stay on top; solo mode, in which one package hides every other package's windows. Asked for by EDGEbuilder ([#10](https://github.com/Edgemodders/REDnode/issues/10), [#7](https://github.com/Edgemodders/REDnode/issues/7)). See [O10 Layers](#o10-layers-built) | A full-screen package cannot cover the launcher or the Test timer, and its solo mode hides everything else until it ends |
+| **O11 Spaces** | Named sets of windows, like virtual desktops: the player switches the space and only its windows show; tool windows and windows set to "all spaces" show in every space. See [O11 Spaces: plan](#o11-spaces-plan) | A player with many HUD widgets keeps them in two or three spaces and switches between them without switching packages on and off |
 
 ### O1 Windows: test
 
@@ -577,6 +578,30 @@ Use the **Test timer**: Start, then Mark after each step.
 5. Press **End** beside the launcher tab: everything comes back, and the Layers test says "Solo: off". Press **Solo on** again, then switch the Layers test off in the Mod Manager: everything comes back. Mark.
 6. Checks from 0.17.1: the Mod Manager's Packaging test lists ArchiveXL as "not installed" if its DLL is gone (#9); the World test's **Spawn box** shows the level-design kit's orange box (#6). Mark.
 7. Quit the game.
+
+### O11 Spaces: plan
+
+Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Not scheduled yet; its order relative to the TweakDB API is to be agreed.
+
+Called **spaces**, not layers: "layer" already means the z-order (the tool layer above packages' windows, O10).
+
+| Piece | Plan |
+|---|---|
+| Spaces | Named by the player; one, "Main", to begin with. A window belongs to one space or to all of them. Tool windows show in every space. Kept per window (a package with several windows places each), keyed like saved positions |
+| Switching | On the launcher tab: `REDNODE · 4/20  ▾ Main`, a list of spaces with **New space**. A hotkey to cycle spaces (to choose: such as F10 then 1 to 9). Gamepad later |
+| Moving a window | From its title bar (see below), and a Space column in the Mod Manager for moving many at once |
+| No cost until used | Until the player makes a second space, nothing new shows: no switcher, no title-bar control |
+| Mechanics | The host hides the other spaces' windows with `window.hidden`, as solo mode does (O10). Solo wins over the space. Windows in other spaces could pause rendering, which a switched-off package cannot do without losing its state |
+| Pin to HUD | Pin to HUD decides gameplay versus interactive mode; a space decides which set shows at all. They combine. To decide: keep both, or make Pin to HUD a per-space setting |
+
+**Open: the title-bar controls.** A window's title bar has close, and the debug button in Developer mode. Spaces add "move to space", and more may follow (reset position, roll up). Two shapes, to try as mockups before choosing:
+
+| Shape | For | Against |
+|---|---|---|
+| A few icons, like a desktop window's minimize, maximize and close | One click for what is used often | More than three or four clutter every window |
+| One menu button holding the actions | One small button, however many actions | Two clicks for frequent actions, and an action with its own choices (which space) becomes a menu inside a menu |
+
+Rules either way, agreed in principle with the user: no cascading menus; at most a few icons on a title bar; a frequent action stays one click. A middle way to mock up too: a direct icon only for the frequent action (the space icon opens the list of spaces, one level), with rarer actions in a menu.
 
 ### UI kit
 
