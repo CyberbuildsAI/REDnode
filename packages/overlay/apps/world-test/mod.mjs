@@ -6,9 +6,13 @@
 import { api, game, ui, world } from 'rednode';
 
 // Base-game assets only (issue #6): a bare entity with no components or appearances
-// (a suitcase placeholder), and two meshes from the level-design kit.
+// (a suitcase placeholder), a textured cardboard box, and the level-design kit's marker.
+// (The kit's "orange" box has only an untextured editor material and shows black.)
 const TEMPLATE = 'base\\gameplay\\loot\\containers\\common_suitcases\\appearances\\suitcase_small_placeholder.ent';
-const MESHES = ['base\\environment\\ld_kit\\box_1_1_1_snappoints_orange.mesh', 'base\\environment\\ld_kit\\marker.mesh'];
+const MESHES = [
+  'base\\environment\\decoration\\containers\\packaging\\cardboard_box\\cardboard_box_a_closed.mesh',
+  'base\\environment\\ld_kit\\marker.mesh',
+];
 
 let spawned = null; // { id, at: {x, y, z} }
 let meshIndex = 0;

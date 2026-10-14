@@ -579,6 +579,14 @@ Use the **Test timer**: Start, then Mark after each step.
 6. Checks from 0.17.1: the Mod Manager's Packaging test lists ArchiveXL as "not installed" if its DLL is gone (#9); the World test's **Spawn box** shows the level-design kit's orange box (#6). Mark.
 7. Quit the game.
 
+**Result, 2026-10-14: passed.** REDnode 0.18.0. Every step worked, with the Test timer's Mark pressed above the Layers test's full-screen tint (steps 2 to 6 marked). The tool layer kept the launcher tab, the Mod Manager and the Test timer clickable above the tint; Solo on hid the other packages' windows and HUD widgets, and End and switching the package off both brought them back. The World test spawned and removed its box from base-game assets only, in about 200 ms, with its entity events.
+
+| Finding | Change |
+|---|---|
+| A Node mod's window closed with its close button came back at the next start of the game. Closing an app's own page saved "off", but a mod opens its windows again at every start | REDnode 0.18.1: the host keeps the player's closed mod windows in its settings (`closedWindows`). A mod that opens such a window gets it closed, as if the player had just closed it, and the launcher and Mod Manager offer **Show**, which takes it off the list. Switching the mod off and on again shows its windows again |
+| The World test's box spawned black. The level-design kit's `box_1_1_1_snappoints_orange.mesh` has one appearance whose only material is an untextured editor material (`metal_base.remt`), read through REDbridge | REDnode 0.18.1: the World test spawns `cardboard_box_a_closed.mesh`, a base-game box with textured multilayered materials |
+| ArchiveXL showed as installed | Correct: the player had deployed it again, so its DLL was back. The #9 rule (a plugin folder without a DLL is not installed) was checked against the folder while the DLL was missing |
+
 ### O11 Spaces: plan
 
 Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Order decided with the user on 2026-10-14: after O10's test and the TweakDB API.

@@ -1132,7 +1132,10 @@ ipcMain.handle('rednode:apps:list', (event) => {
 function setPackageOpen(id, open) {
   const entry = apps.get(id);
   if (!entry || entry.pinned) throw new Error(`No app or mod "${id}"`);
+  const wasOn = isEnabled(entry);
   settings.apps[id] = { ...settings.apps[id], open: !!open };
+  // Switching a mod on (from off) shows the windows the player had closed.
+  if (open && !wasOn) settings.closedWindows = (settings.closedWindows ?? []).filter((k) => !k.startsWith(`${id}~`));
   writeJson('settings.json', settings);
   if (entry.manifest.entry) {
     if (open) openApp(entry);
@@ -1400,6 +1403,7 @@ ipcMain.handle('rednode:apps:seen', (event, ids) => {
 // Shows a mod window the player closed again: the mod reopens it as it is now.
 ipcMain.handle('rednode:apps:show-window', (event, id, win) => {
   fromLauncher(event);
+  rememberClosed(builtKey(id, win), false);
   if (playerClosed.has(builtKey(id, win))) mods.toMod(id, { event: 'ui', window: String(win), type: 'show' });
   return appList();
 });
@@ -1864,6 +1868,19 @@ const builtKey = (modId, win) => `${modId}~${win}`;
 // The launcher offers to show them again. key -> { modId, win }
 const playerClosed = new Map();
 
+// The same, kept across restarts in settings.closedWindows: a mod opens its windows at
+// every start, and one the player closed stays closed until Show, or until the player
+// switches the mod off and on again.
+const closedForGood = (key) => (settings.closedWindows ?? []).includes(key);
+function rememberClosed(key, closed) {
+  const list = new Set(settings.closedWindows ?? []);
+  if (closed ? list.has(key) : !list.has(key)) return;
+  if (closed) list.add(key);
+  else list.delete(key);
+  settings.closedWindows = [...list];
+  writeJson('settings.json', settings);
+}
+
 function findNode(spec, id) {
   if (spec.id === id) return spec;
   for (const c of spec.children ?? []) {
@@ -1876,6 +1893,15 @@ function findNode(spec, id) {
 const ui = {
   open(modId, win, spec) {
     const key = builtKey(modId, win);
+    if (closedForGood(key)) {
+      // Kept closed: the mod sees it closed, as if the player had just closed it.
+      built.set(key, { modId, win, spec });
+      playerClosed.set(key, { modId, win });
+      mods.toMod(modId, { event: 'ui', window: win, type: 'close' });
+      log(`Kept ${key} closed, as the player left it`);
+      notifyLauncher();
+      return;
+    }
     closeApp(key);
     if (playerClosed.delete(key)) notifyLauncher();
     built.set(key, { modId, win, spec });
@@ -1937,6 +1963,7 @@ ipcMain.on('rednode:builder:event', (event, e) => {
   if (e?.type === 'close') {
     ui.close(b.modId, b.win);
     playerClosed.set(builtKey(b.modId, b.win), { modId: b.modId, win: b.win });
+    rememberClosed(builtKey(b.modId, b.win), true);
     mods.toMod(b.modId, { event: 'ui', window: b.win, type: 'close' });
     notifyLauncher();
   } else {

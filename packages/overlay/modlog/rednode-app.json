@@ -1,7 +1,7 @@
 {
   "id": "modlog",
   "name": "Mod log",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "author": "Edgemodders",
   "description": "What every Node mod prints, live: errors in red, a filter per mod, and Copy to paste the lines anywhere.",
   "entry": "index.html",

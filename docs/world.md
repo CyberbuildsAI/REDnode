@@ -51,7 +51,7 @@ Checked before the game: both scripts compile with the redscript compiler (v1.0.
 
 ### W1 test
 
-Use the **Test timer**: Start, then Mark after each step. At the time of this test the World test used World Builder's empty entity and box (`base\spawner\...`). Since REDnode 0.17.1 it uses only base-game assets ([#6](https://github.com/Edgemodders/REDnode/issues/6)): the bare `suitcase_small_placeholder.ent` and the level-design kit's box and marker meshes.
+Use the **Test timer**: Start, then Mark after each step. At the time of this test the World test used World Builder's empty entity and box (`base\spawner\...`). Since REDnode 0.17.1 it uses only base-game assets ([#6](https://github.com/Edgemodders/REDnode/issues/6)): the bare `suitcase_small_placeholder.ent`, a textured cardboard box (`cardboard_box_a_closed.mesh`, since 0.18.1: the level-design kit's box rendered black) and the kit's marker mesh.
 
 1. Close the game. Deploy REDnode. Start the game and load a save. Check `r6/logs/redscript_rCURRENT.log` compiled without errors (REDnode's scripts are in it). Mark.
 2. F10, Mod Manager: switch **World test** on. Its window says "World API ready (Codeware found)". Mark.
