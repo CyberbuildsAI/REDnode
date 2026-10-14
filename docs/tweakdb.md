@@ -76,6 +76,21 @@ Use the **Test timer**: Start, then Mark after each step.
 5. Checks from 0.18.1: close the Hello mod's window with its close button, quit the game, start it and load a save: the window stays closed, and the launcher's **Show** brings it back. In the World test, **Spawn box** shows a cardboard box with its texture. Mark.
 6. Quit the game.
 
+### T1 results
+
+**Result, 2026-10-14: passed.** REDnode 0.19.0, game 2.31. The Test timer was not used this time; the times below are from the logs.
+
+| Check | Result |
+|---|---|
+| Reading a record | The Lexington: its type (`gamedataWeaponItem_Record`), five flats and `FriendlyName()`, 7 values in 226 ms, one game call after another |
+| Listing records | `tweakdb.records("Vehicle")`: 1,377 vehicle records in 26 ms, in one call |
+| A missing record | `Items.not_a_thing`: "No record" |
+| 0.18.1 | The Hello mod's closed window stayed closed after a restart of the game ("Kept hello-mod~main closed"); the World test spawned the textured cardboard box |
+
+| Finding | Change |
+|---|---|
+| Reading the vehicle failed: `gamedataVehicle_Record has no method "FriendlyName"`. The sample checked `typeof record.FriendlyName === 'function'`, but a game object answers to every name, since the game decides which methods exist, so the check always passed. REDnode's answer was right | The sample (0.1.1) picks the method by the record's type (`FriendlyName` for items, `DisplayName` otherwise) and reads its flats with one `Promise.all`, so they run in the same game frame instead of one frame each |
+
 ## Research before T1 and T2
 
 | Question | How to find out |

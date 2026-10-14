@@ -1,7 +1,7 @@
 {
   "id": "tweakdb-test",
   "name": "TweakDB test",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Edgemodders",
   "description": "A sample of the TweakDB API (T1): reads a record's flats and calls its methods, and lists every vehicle record, from the running game. Needs nothing else installed.",
   "main": "mod.mjs"

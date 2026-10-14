@@ -46,12 +46,20 @@ async function read() {
       return;
     }
     const out = [`type  ${type}`, `id  ${tweakdb.id(path)}`];
-    for (const name of FLATS) {
-      const flat = await tweakdb.flat(`${path}.${name}`);
-      if (flat) out.push(`${name}  ${show(flat.value)}  (${flat.type})`);
+    // All at once: calls waiting when a game frame starts run in that frame.
+    const flats = await Promise.all(FLATS.map((name) => tweakdb.flat(`${path}.${name}`)));
+    FLATS.forEach((name, i) => {
+      if (flats[i]) out.push(`${name}  ${show(flats[i].value)}  (${flats[i].type})`);
+    });
+    // A method of the record. Game objects answer to any name (the game decides which
+    // methods exist), so pick one by the record's type: FriendlyName is an item's.
+    const method = /Item_Record$/.test(type) ? 'FriendlyName' : 'DisplayName';
+    const record = await tweakdb.record(path);
+    try {
+      out.push(`${method}()  ${show(await record[method]())}`);
+    } catch (err) {
+      out.push(`${method}()  ${err.message}`);
     }
-    const record = await tweakdb.record(path, 'Item');
-    if (record && typeof record.FriendlyName === 'function') out.push(`FriendlyName()  ${await record.FriendlyName()}`);
     status.set({ text: `${path} in ${Date.now() - t0} ms`, tone: 'dim' });
     lines.set({ text: out.join('\n') });
     console.log(`Read ${path}: ${type}, ${out.length - 2} values in ${Date.now() - t0} ms`);
