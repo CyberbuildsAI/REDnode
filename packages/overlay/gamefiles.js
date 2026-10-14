@@ -56,6 +56,40 @@ function fileVersion(file) {
   return version;
 }
 
+// ---------- versions RED4ext logged ----------
+
+/**
+ * Plugin versions from RED4ext's newest log: each plugin reports its version to RED4ext
+ * when it loads, also when its DLL has no version resource (REDnode's own, audioware,
+ * RedData). Map of DLL path (lower case) -> { version, at: the log's time }.
+ */
+function loggedVersions(gameDir) {
+  const versions = new Map();
+  const logs = path.join(gameDir, 'red4ext', 'logs');
+  let newest = null;
+  for (const f of listDirs(logs)) {
+    if (!f.isFile() || !/^red4ext-.*\.log$/i.test(f.name)) continue;
+    const file = path.join(logs, f.name);
+    const mtimeMs = fs.statSync(file).mtimeMs;
+    if (!newest || mtimeMs > newest.mtimeMs) newest = { file, mtimeMs };
+  }
+  if (!newest) return versions;
+  let loading = null;
+  for (const line of fs.readFileSync(newest.file, 'utf8').split(/\r?\n/)) {
+    const from = /Loading plugin from '([^']+)'/.exec(line);
+    if (from) {
+      loading = from[1].toLowerCase();
+      continue;
+    }
+    const loaded = /\(version: ([0-9][^,)]*)[,)].*has been loaded/.exec(line);
+    if (loaded && loading) {
+      versions.set(loading, { version: loaded[1].trim(), at: newest.mtimeMs });
+      loading = null;
+    }
+  }
+  return versions;
+}
+
 // ---------- the game folder ----------
 
 const listDirs = (dir) => {
@@ -96,6 +130,7 @@ function scanGame(gameDir) {
   // without a DLL is not a plugin: uninstalls and mod managers leave such folders
   // behind with only logs, configs or Vortex's marker (issue #9).
   const plugins = path.join(gameDir, 'red4ext', 'plugins');
+  let logged = null;
   for (const d of listDirs(plugins)) {
     if (!d.isDirectory()) continue;
     const dir = path.join(plugins, d.name);
@@ -106,7 +141,15 @@ function scanGame(gameDir) {
       continue;
     }
     const file = path.join(dir, own);
-    add(d.name, 'red4ext', file, fileVersion(file));
+    // The DLL's version resource; else what the plugin told RED4ext when it last loaded,
+    // if the DLL has not changed since.
+    let version = fileVersion(file);
+    if (!version) {
+      logged ??= loggedVersions(gameDir);
+      const hit = logged.get(file.toLowerCase());
+      if (hit && fs.statSync(file).mtimeMs <= hit.at) version = hit.version;
+    }
+    add(d.name, 'red4ext', file, version);
     // A plugin whose DLL has another name can be required by either.
     add(path.parse(own).name, 'red4ext', file, found.get(key(d.name))?.version);
   }

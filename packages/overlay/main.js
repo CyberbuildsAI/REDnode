@@ -598,11 +598,15 @@ function sendFrame(windowId, image, dirty) {
   windowStats.get(windowId).frames += 1;
 }
 
-// Tells the plugin about a window. A saved position wins over the manifest's anchor.
+// Tells the plugin about a window. A saved position wins over the manifest's anchor,
+// but only for a window of the size it was saved with: a package whose window changed
+// size (a small panel that became a full-screen page) starts at its anchor again (#8).
+// Positions saved before sizes were kept have none, and are ignored once.
 function openInGame(w) {
   const m = w.app.manifest;
   const saved = positions[m.id];
-  const place = saved ? { anchor: 'top-left', x: saved.x, y: saved.y } : { anchor: m.anchor, x: m.x, y: m.y };
+  const fits = saved && saved.width === m.width && saved.height === m.height;
+  const place = fits ? { anchor: 'top-left', x: saved.x, y: saved.y } : { anchor: m.anchor, x: m.x, y: m.y };
   sendJson({
     cmd: 'window.open',
     window: w.id,
@@ -771,7 +775,8 @@ function onGameMessage(m) {
     case 'moved': {
       const w = windows.get(m.window);
       if (w) {
-        positions[w.app.manifest.id] = { x: m.x, y: m.y };
+        const { width, height } = w.app.manifest;
+        positions[w.app.manifest.id] = { x: m.x, y: m.y, width, height };
         writeJson('window-positions.json', positions);
       }
       return;

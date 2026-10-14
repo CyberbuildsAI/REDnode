@@ -324,7 +324,7 @@ game.on('PlayerPuppet.OnGameAttached', () => console.log('A save was loaded'));
 | `ui.input({ label, placeholder, value, onChange, onSubmit })` | A text field |
 | `ui.progress(value, { label, max })` | A progress bar |
 | `ui.row(...nodes)`, `ui.column(...nodes)` | Layout |
-| `ui.window({ title, width, height, anchor, x, y, children, onClose })` | Opens the window. The player can drag it in interactive mode, and its position is saved |
+| `ui.window({ title, width, height, anchor, x, y, children, onClose })` | Opens the window. The player can drag it in interactive mode, and its position is saved. A saved position applies only while the window keeps the size it was saved with; after a size change it opens at its anchor again |
 
 Every node has `set(props)`, which updates the open window at once.
 
@@ -368,7 +368,7 @@ A package that needs other mods says so in its manifest. REDnode checks the game
 
 | What a name can be | Version from |
 |---|---|
-| A RED4ext plugin: its folder in `red4ext/plugins`, or its DLL's name | The DLL's file version, when it has one. Codeware, ArchiveXL and TweakXL do. A plugin without one counts as installed, "version unknown" |
+| A RED4ext plugin: its folder in `red4ext/plugins`, or its DLL's name. A folder without a DLL is not a plugin (uninstalls leave such folders behind) | The DLL's file version, when it has one (Codeware, ArchiveXL, TweakXL). Otherwise the version the plugin reported to RED4ext the last time the game loaded it, from RED4ext's newest log, if the DLL has not changed since. Else "version unknown", which still counts as installed |
 | A redscript module: a folder or `.reds` file in `r6/scripts` | None: installed or not |
 | A Cyber Engine Tweaks mod: a folder in `bin/x64/plugins/cyber_engine_tweaks/mods` | None |
 | `red4ext`, `cet` (or `cyber engine tweaks`), `redscript` | RED4ext's and CET's file versions; redscript has none |
@@ -490,7 +490,8 @@ const mesh = await api.$new('entMeshComponent', {
   meshAppearance: 'default',
 });
 const { id } = await world.spawn({
-  template: 'base\\spawner\\empty_entity.ent', // an empty entity template
+  // A bare entity in the base game: no components, no appearances.
+  template: 'base\\gameplay\\loot\\containers\\common_suitcases\\appearances\\suitcase_small_placeholder.ent',
   position: { x: -1234, y: 987, z: 12 },
   yaw: 90,
   components: [mesh],

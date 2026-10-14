@@ -51,7 +51,7 @@ Checked before the game: both scripts compile with the redscript compiler (v1.0.
 
 ### W1 test
 
-Use the **Test timer**: Start, then Mark after each step. The World test uses World Builder's empty entity and box (`base\spawner\...`), which the user's game has.
+Use the **Test timer**: Start, then Mark after each step. At the time of this test the World test used World Builder's empty entity and box (`base\spawner\...`). Since REDnode 0.17.1 it uses only base-game assets ([#6](https://github.com/Edgemodders/REDnode/issues/6)): the bare `suitcase_small_placeholder.ent` and the level-design kit's box and marker meshes.
 
 1. Close the game. Deploy REDnode. Start the game and load a save. Check `r6/logs/redscript_rCURRENT.log` compiled without errors (REDnode's scripts are in it). Mark.
 2. F10, Mod Manager: switch **World test** on. Its window says "World API ready (Codeware found)". Mark.
@@ -122,4 +122,8 @@ Use the **Test timer**: Start, then Mark after each step.
 
 | Finding | Change |
 |---|---|
-| ArchiveXL counted as installed, "version unknown", though its folder held only logs and Vortex's marker after a purge ([#9](https://github.com/Edgemodders/REDnode/issues/9), found by the EDGEbuilder session) | REDnode 0.17.1: a RED4ext plugin counts only when its folder holds a DLL. A folder without one is "not installed", with a note that it is left over from an uninstall |
+| ArchiveXL counted as installed, "version unknown", though its folder held only logs and Vortex's marker after a purge ([#9](https://github.com/Edgemodders/REDnode/issues/9), found by the EDGEbuilder session) | REDnode 0.17.1: a RED4ext plugin counts only when its folder holds a DLL; RED4ext's own log confirms it loads nothing else (after the purge it loaded exactly the two folders with a DLL, Codeware and REDnode). A folder without one is "not installed", with a note that it is left over from an uninstall |
+| Plugins whose DLL has no version resource (REDnode's own, audioware, RedData) read "version unknown" | REDnode 0.17.1: the version each plugin reported to RED4ext, from RED4ext's newest log, while the DLL is unchanged since |
+
+Also in REDnode 0.17.1, from EDGEbuilder's requests: the World test sample uses only base-game assets ([#6](https://github.com/Edgemodders/REDnode/issues/6)), and a saved window position applies only while the window keeps the size it was saved with ([#8](https://github.com/Edgemodders/REDnode/issues/8)). Positions saved before 0.17.1 have no size and are ignored once.
+

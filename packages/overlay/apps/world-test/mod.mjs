@@ -5,9 +5,10 @@
 
 import { api, game, ui, world } from 'rednode';
 
-// World Builder's empty entity and box; the marker mesh is in the base game.
-const TEMPLATE = 'base\\spawner\\empty_entity.ent';
-const MESHES = ['base\\spawner\\cube_aligned.mesh', 'base\\environment\\ld_kit\\marker.mesh'];
+// Base-game assets only (issue #6): a bare entity with no components or appearances
+// (a suitcase placeholder), and two meshes from the level-design kit.
+const TEMPLATE = 'base\\gameplay\\loot\\containers\\common_suitcases\\appearances\\suitcase_small_placeholder.ent';
+const MESHES = ['base\\environment\\ld_kit\\box_1_1_1_snappoints_orange.mesh', 'base\\environment\\ld_kit\\marker.mesh'];
 
 let spawned = null; // { id, at: {x, y, z} }
 let meshIndex = 0;
