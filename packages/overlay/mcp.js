@@ -6,7 +6,7 @@
 //                                Authorization: Bearer <token> (see the launcher)
 //
 // Tools: logs, apps, game_state, perf, gameapi_lookup, window_text, window_image,
-// window_console, game_image, api_call, api_get. See docs/mcp.md.
+// window_console, game_image, api_call, api_get, tweakdb. See docs/mcp.md.
 
 'use strict';
 
@@ -23,6 +23,7 @@ REDnode runs overlay apps (web pages drawn on top of the game) and Node mods (No
 - gameapi_lookup: game types and functions with the exact signatures api uses. Look before calling.
 - window_text, window_image: what an overlay window shows. window_console: what its page logged.
 - game_image: the game's screen as the player sees it, with or without the overlay.
+- tweakdb: TweakDB flats and records, read from the running game.
 - api_call, api_get: live calls into the game. Game objects come back as {"$ref": n, "$type": "..."}; pass {"$ref": n} back as self. Most functions take the game instance first: pass {}. 64-bit numbers are strings. References die when a save loads.
 api_call can change the player's game, such as their money or health: ask before changes the user did not request.
 Guide: https://edgemodders.github.io/REDnode/overlay-apps.html`;
@@ -286,6 +287,39 @@ function createMcp(host) {
       async ({ self, prop }) => {
         try {
           return text(await host.call('rtti.get', { self: { $ref: self }, prop }));
+        } catch (err) {
+          return fail(err.message);
+        }
+      },
+    );
+
+    mcp.registerTool(
+      'tweakdb',
+      {
+        title: 'TweakDB',
+        description:
+          "Reads TweakDB, the game's tuning database, from the running game. op 'get': a flat's type and value " +
+          "(path such as 'Items.Preset_Lexington_Default.magazineCapacity'). op 'record': the record as a game " +
+          "object reference, to call its methods with api_call (path such as 'Items.money'). op 'records': the ids " +
+          "of every record of a type (type such as 'Vehicle' or 'gamedataVehicle_Record'). Ids are hashes shown as " +
+          '"0x..."; the game keeps no names. Record types and their methods are in gameapi_lookup.',
+        inputSchema: {
+          op: z.enum(['get', 'record', 'records']),
+          path: z.string().optional().describe("A record or flat path, or an id as '0x...' (get, record)"),
+          type: z.string().optional().describe('A record type (records)'),
+          limit: z.number().int().min(1).max(5000).optional().describe('records: the most ids to list. Default 500'),
+        },
+        annotations: READ,
+      },
+      async ({ op, path, type, limit }) => {
+        try {
+          if (op === 'records') {
+            const r = await host.call('tweakdb.records', { type });
+            const max = limit ?? 500;
+            return text({ type: r.type, count: r.ids.length, ids: r.ids.slice(0, max), more: Math.max(0, r.ids.length - max) });
+          }
+          const r = await host.call(op === 'get' ? 'tweakdb.get' : 'tweakdb.record', { path });
+          return text(r ?? `TweakDB has no ${op === 'get' ? 'flat' : 'record'} "${path}"`);
         } catch (err) {
           return fail(err.message);
         }

@@ -136,7 +136,8 @@ function fromWire(v: unknown): unknown {
   return out;
 }
 
-async function invoke(method: string, params: Record<string, unknown>): Promise<unknown> {
+/** @internal A bridge call whose answer has game objects in it, such as `tweakdb.record`. */
+export async function invoke(method: string, params: Record<string, unknown>): Promise<unknown> {
   try {
     return fromWire(await transport().call(method, toWire(params)));
   } catch (err) {

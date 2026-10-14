@@ -51,6 +51,31 @@ await tweakdb.batch((b) => {
 | **T2 Write** | `Variant` conversion in the plugin (to a flat's own type, or a type given). `tweakdb.set`, `clone`, `create`, `update`, `batch` through TweakXL's `TweakDBManager`. Undo per package. `kernel.requirements()` tells the mod when TweakXL is missing. The sample changes a weapon's magazine size and puts it back | A changed value shows in game; switching the mod off restores it; hot reload does not stack edits |
 | **T3 Offline and tools** | When REDbridge ships its `tweakdb` methods: the same reads through `kernel.bridge()` without the game, for REDcode and REDagent. Game API reference pages for record types with notes in `gameapi/notes/` | REDagent answers "what fields does a vehicle record have" without the game running |
 
+## T1: built
+
+REDnode 0.19.0. How to use it: [Overlay apps: reading TweakDB](overlay-apps.md#reading-tweakdb).
+
+| Piece | Where |
+|---|---|
+| Plugin | `tweakdb.get` (a flat's type and value, through the SDK's `TweakDB::GetFlatValue`; the flat carries its own type, converted with REDnode's JSON conversion), `tweakdb.record` (the record object as a reference, `TryGetRecord`), `tweakdb.records` (every record id of a type, `TryGetRecordsByType`; the type by its native name, script name or short name). In `reflect.cpp`, on the game thread, beside `rtti.*`. A path is a record or flat path, or an id as `"0x..."` |
+| `tweakdb` in the `rednode` package | `get`, `flat`, `record` (typed through a generated `RecordTypes` map of 966 record types, by native and short name), `records`, `type`, `id` (the game's id of a path, computed in JavaScript: CRC32 of the path and its length), `name`, `learn`. Ids come back as paths when their names are known |
+| Names | TweakDB ids are hashes, and the game keeps no names. A package's own paths are remembered (and a flat's record path with it); `tweakdb.learn` adds more. Names for everything else: requested from REDbridge, which already loads WolvenKit's names list ([REDbridge #3](https://github.com/Edgemodders/REDbridge/issues/3)) |
+| For agents | The kernel MCP server's `tweakdb` tool: `get`, `record` and `records` (capped at 500 ids unless asked) |
+| Sample | `apps/tweakdb-test`: reads the Lexington's record (type, flats, a method) and lists every vehicle record |
+
+Tested in the mock game, with a stand-in TweakDB: the sample read the Lexington's type, five flats and `FriendlyName()`, and listed the vehicle records, naming the one whose path it knew. `tweakdb.id` matches CRC32's check value. **Unverified** in the game: the SDK's TweakDB functions on game 2.31, and the timing of a large `records` call.
+
+### T1 test
+
+Use the **Test timer**: Start, then Mark after each step.
+
+1. Close the game. Deploy REDnode. Start the game and load a save. Mark.
+2. F10. In the Mod Manager, switch on **TweakDB test** (new). Press **Read**: it shows `gamedataWeaponItem_Record`, the Lexington's quality, item type, display name, friendly name and tags, and `FriendlyName()`. Mark.
+3. Type `Vehicle.v_sport2_quadra_type66_player` and press Enter: the type is `gamedataVehicle_Record`. Then type `Items.not_a_thing`: "No record". Mark.
+4. Press **Vehicles**: the number of vehicle records and how long it took. Mark.
+5. Checks from 0.18.1: close the Hello mod's window with its close button, quit the game, start it and load a save: the window stays closed, and the launcher's **Show** brings it back. In the World test, **Spawn box** shows a cardboard box with its texture. Mark.
+6. Quit the game.
+
 ## Research before T1 and T2
 
 | Question | How to find out |

@@ -346,6 +346,7 @@ Every node has `set(props)`, which updates the open window at once.
 | `kernel.mcp()` | The address and a token for the [kernel MCP server](mcp.md), for an AI agent in the package. The package must list `"permissions": ["mcp"]` in its manifest, and the player must allow it in the launcher | Node mods and apps |
 | `channel.post(data)`, `channel.on(handler)` | Messages between a package's pages and its own Node mod: a web UI with a Node backend | Node mods and apps |
 | `kernel.requirements()` | The package's `requires`, checked against the game folder (see [Requirements](#requirements)) | Node mods and apps |
+| `tweakdb` | TweakDB's records and flats, read from the running game (see [Reading TweakDB](#reading-tweakdb)) | Node mods and apps |
 | `kernel.bridge()` | REDbridge, WolvenKit's engine, for the game's archives and files (see [The game's files through REDbridge](#the-games-files-through-redbridge)). Needs `"permissions": ["bridge"]` and the player's OK | Node mods and apps |
 
 ```js
@@ -492,6 +493,34 @@ await shop.GiveItem(player, await api.MarketSystem.Money(), 100);   // a change:
 | Out parameters | A function with out parameters returns `{ result, out }` |
 | Not supported yet | `script_ref` parameters. Such calls fail with a clear message |
 | Risk | The checks catch wrong types, not wrong values. Calling a function the game does not expect to be called at that moment can still crash it, as with any script mod |
+
+## Reading TweakDB
+
+TweakDB is the game's database of tuning data: items, weapons, vehicles, characters, perks. A **record** is one thing (`Items.Preset_Lexington_Default`, a `gamedataWeaponItem_Record`); a **flat** is one value in it (`Items.Preset_Lexington_Default.quality`). `tweakdb` reads them from the running game and needs nothing else installed. Changing them comes later, through TweakXL ([plan](tweakdb.md)).
+
+```js
+import { tweakdb } from 'rednode';
+
+await tweakdb.get('Items.Preset_Lexington_Default.friendlyName');   // 'w_handgun_militech_lexington'
+await tweakdb.flat('Items.Preset_Lexington_Default.quality');       // { type: 'TweakDBID', value: '0x...' }
+tweakdb.learn(['Quality.Common', 'Quality.Rare']);
+await tweakdb.get('Items.Preset_Lexington_Default.quality');        // 'Quality.Common', now that the name is known
+const gun = await tweakdb.record('Items.Preset_Lexington_Default', 'WeaponItem');
+await gun?.FriendlyName();                                          // a typed method of the record
+await tweakdb.records('Vehicle');                                   // every vehicle record's id
+```
+
+| Call | Gives |
+|---|---|
+| `tweakdb.get(path)` | A flat's value, or `null` |
+| `tweakdb.flat(path)` | The value with its type, such as `Float`, `TweakDBID` or `array:CName` |
+| `tweakdb.record(path, type?)` | The record as a game object, or `null`. The type (`WeaponItem`, `gamedataVehicle_Record`) only types its methods |
+| `tweakdb.records(type)` | The ids of every record of a type |
+| `tweakdb.type(path)` | A record's type, or `null` |
+| `tweakdb.id(path)` | The game's id of a path, `"0x..."`, computed without the game |
+| `tweakdb.name(id)`, `tweakdb.learn(paths)` | The path of an id when known; tell REDnode more names |
+
+**Names.** TweakDB ids are hashes and the game keeps no names. A path your package passed in is remembered, so it comes back as that path; any other id comes back as `"0x..."`. Both forms work as input everywhere. The record types and their methods are in the [game API reference](game/).
 
 ## Placing things in the world
 

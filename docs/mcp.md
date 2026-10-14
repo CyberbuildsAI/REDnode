@@ -29,6 +29,7 @@ The server listens only on `127.0.0.1`, port 41820, and every request needs the 
 | `window_image` | A picture of an overlay window: its own pixels, before REDnode places it on the game. Not the game behind it, its place on screen, or the cursor | No |
 | `window_console` | What an overlay window's page logged (`console.log`, `console.error` and the like) and its uncaught errors: the last 200 messages since it opened. `level` keeps that level and above; `limit` the newest few (default 50). Node mods log to `logs` instead. REDnode 0.16.0 or later | No |
 | `game_image` | A picture of the game's screen now: the game alone, or with `overlay: true` the overlay windows and cursor on it, as the player sees it. Scaled to at most `maxWidth` (default 1280). HDR is converted to SDR, so its colors are approximate. Fails while the game is loading or minimized. Plugin 0.13.0 or later | No |
+| `tweakdb` | TweakDB from the running game: a flat's type and value (`get`), a record as an object reference for `api_call` (`record`), or the ids of every record of a type (`records`, at most 500 unless `limit` says more). Ids are `"0x..."` hashes. REDnode 0.19.0 or later | No |
 | `api_call` | A live game call, as `api` makes it: a global function, a static function (`class`), or a method (`self`). Game objects come back as `{ "$ref": n, "$type": "..." }` | **Yes**: it can change the player's game, such as money or health |
 | `api_get` | A property of a game object | No |
 

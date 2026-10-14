@@ -215,6 +215,27 @@ for (const [native, funcs] of staticsOf) {
 }
 w('');
 
+// TweakDB record types, for the tweakdb module: the native name and the short name
+// (gamedataVehicle_Record and Vehicle) both map to the record's interface.
+function isRecord(name) {
+  for (let n = name; n; n = classes.get(n)?.parent) if (n === 'gamedataTweakDBRecord') return true;
+  return false;
+}
+const records = data.classes.filter((c) => isRecord(c.name));
+w('/** TweakDB record types by name, for `tweakdb` in the rednode package: native names and short names. */');
+w('export interface RecordTypes {');
+const recordKeys = new Set();
+for (const c of records) {
+  const short = c.name.replace(/^gamedata/, '').replace(/_Record$/, '');
+  for (const k of [c.name, short]) {
+    if (recordKeys.has(k)) continue;
+    recordKeys.add(k);
+    w(`  ${key(k)}: ${typeName(c.name)};`);
+  }
+}
+w('}');
+w('');
+
 w('/** The game API: global functions, and the static functions of each class by its script name. */');
 w('export interface GameApi {');
 const globalNames = new Set(globals.map((f) => f.name));
@@ -234,6 +255,6 @@ for (const file of [outFile, distFile]) {
   writeFileSync(file, text);
 }
 console.log(
-  `Game API types: ${data.classes.length} classes, ${data.enums.length} enums, ${globals.length} global functions, ` +
+  `Game API types: ${data.classes.length} classes (${records.length} TweakDB records), ${data.enums.length} enums, ${globals.length} global functions, ` +
     `${namespaces.length} classes with static functions (${(text.length / 1048576).toFixed(1)} MB) -> ${outFile}`,
 );

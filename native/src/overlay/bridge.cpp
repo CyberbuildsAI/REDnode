@@ -9,6 +9,7 @@
 //   audio.play       {"params":{"name":"ui_menu_onpress"}}: plays a game sound event
 //                    through AudioSystem.Play with no entity, as UI sounds are played
 //   rtti.call, rtti.get, rtti.set, rtti.new, rtti.release   the generic game API, in reflect.cpp
+//   tweakdb.get, tweakdb.record, tweakdb.records           TweakDB, read, in reflect.cpp
 
 #include "json.hpp"
 #include "jvalue.hpp"

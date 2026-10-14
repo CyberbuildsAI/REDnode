@@ -15,6 +15,15 @@
 //                    released), or a struct's value
 //   rtti.set      {"self":{"$ref":3},"prop":"visualScale","value":{"X":2,"Y":2,"Z":2}}
 //
+// TweakDB (the TweakDB API, phase T1), read from the game's own database:
+//   tweakdb.get      {"path":"Items.money.quality"}   a flat: {"type":"TweakDBID","value":"0x..."},
+//                    or null when there is none. The flat carries its own type.
+//   tweakdb.record   {"path":"Items.money"}           the record object, {"$ref":n,"$type":"gamedataItem_Record"},
+//                    or null
+//   tweakdb.records  {"type":"gamedataVehicle_Record"} the ids of every record of that type ("Vehicle_Record"
+//                    and "Vehicle" work too): {"type":..., "ids":["0x...", ...]}
+//   A path is a record or flat path, or a TweakDBID as "0x...".
+//
 // Values:
 //   Bool, Int8 to Int32, Uint8 to Uint32, Float, Double   JSON booleans and numbers
 //   Int64, Uint64, CRUID                                  strings, since JSON numbers lose precision
@@ -36,6 +45,7 @@
 #include "overlay.hpp"
 
 #include <RED4ext/ResourcePath.hpp>
+#include <RED4ext/TweakDB.hpp>
 #include <RED4ext/ResourceReference.hpp>
 #include <RED4ext/Scripting/Natives/ScriptGameInstance.hpp>
 
@@ -1084,12 +1094,119 @@ std::string Release(const Value& aParams)
     }
     return "{\"refs\":" + std::to_string(g_refs.size()) + "}";
 }
+// ---------- TweakDB ----------
+
+bool TweakId(const Value& aParams, const char* aKey, TweakDBID& aOut, std::string& aError)
+{
+    const Value* v = aParams.Get(aKey);
+    if (!v || v->kind != Value::Kind::String || v->text.empty())
+    {
+        aError = std::string("needs params.") + aKey + ", a TweakDB path such as \"Items.money\" or \"0x...\"";
+        return false;
+    }
+    static const rtti::IType* idType = CRTTISystem::Get()->GetType("TweakDBID");
+    return FromJson(idType, &aOut, *v, aError, 0);
+}
+
+TweakDB* Database(std::string& aError)
+{
+    TweakDB* db = TweakDB::Get();
+    if (!db)
+        aError = "TweakDB is not loaded yet";
+    return db;
+}
+
+std::string TweakGet(const Value& aParams, std::string& aError)
+{
+    TweakDBID id;
+    if (!TweakId(aParams, "path", id, aError))
+        return {};
+    TweakDB* db = Database(aError);
+    if (!db)
+        return {};
+    // GetFlatValue takes the database's lock itself. The value is read at once, on the game
+    // thread, before anything can grow the flat buffer.
+    TweakDB::FlatValue* flat = db->GetFlatValue(id);
+    if (!flat)
+        return "null";
+    const CStackType value = flat->GetValue();
+    std::string out = "{\"type\":" + JsonString(TypeName(value.type)) + ",\"value\":";
+    ToJson(value.type, value.value, out, 0);
+    return out + "}";
+}
+
+std::string TweakRecord(const Value& aParams, std::string& aError)
+{
+    TweakDBID id;
+    if (!TweakId(aParams, "path", id, aError))
+        return {};
+    TweakDB* db = Database(aError);
+    if (!db)
+        return {};
+    Handle<IScriptable> record;
+    if (!db->TryGetRecord(id, record) || !record)
+        return "null";
+    std::string out;
+    HandleToJson(record, out);
+    return out;
+}
+
+// A record type by its native name, its script name, or the short name between them.
+const rtti::IType* RecordType(const std::string& aName)
+{
+    auto* rtti = CRTTISystem::Get();
+    for (const std::string& name : {aName, "gamedata" + aName, "gamedata" + aName + "_Record"})
+    {
+        if (const rtti::IType* t = rtti->GetType(CName(name.c_str())))
+            return t;
+        if (const rtti::IType* t = rtti->GetClassByScriptName(CName(name.c_str())))
+            return t;
+    }
+    return nullptr;
+}
+
+std::string TweakRecords(const Value& aParams, std::string& aError)
+{
+    const Value* typeName = aParams.Get("type");
+    if (!typeName || typeName->kind != Value::Kind::String)
+    {
+        aError = "needs params.type, a record type such as \"gamedataVehicle_Record\" or \"Vehicle\"";
+        return {};
+    }
+    const rtti::IType* type = RecordType(typeName->text);
+    if (!type)
+    {
+        aError = "No record type \"" + typeName->text + "\"";
+        return {};
+    }
+    TweakDB* db = Database(aError);
+    if (!db)
+        return {};
+    DynArray<Handle<IScriptable>> records;
+    db->TryGetRecordsByType(const_cast<rtti::IType*>(type), records);
+    std::string out = "{\"type\":" + JsonString(TypeName(type)) + ",\"ids\":[";
+    bool first = true;
+    for (const auto& r : records)
+    {
+        if (!r)
+            continue;
+        char buf[24];
+        std::snprintf(buf, sizeof(buf), "\"0x%016llX\"",
+                      static_cast<unsigned long long>(static_cast<const TweakDBRecord*>(r.GetPtr())->recordID.value));
+        if (!first)
+            out += ',';
+        out += buf;
+        first = false;
+    }
+    return out + "]}";
+}
 } // namespace
 
 bool IsReflectMethod(const std::string& aMethod)
 {
     return aMethod == "rtti.call" || aMethod == "rtti.get" || aMethod == "rtti.release" || aMethod == "rtti.new" ||
-           aMethod == "rtti.set";
+           aMethod == "rtti.set" || aMethod == "tweakdb.get" || aMethod == "tweakdb.record" ||
+           aMethod == "tweakdb.records";
 }
 
 std::string Reflect(const std::string& aMethod, const json::Value& aParams, std::string& aError)
@@ -1102,6 +1219,12 @@ std::string Reflect(const std::string& aMethod, const json::Value& aParams, std:
         return New(aParams, aError);
     if (aMethod == "rtti.set")
         return Set(aParams, aError);
+    if (aMethod == "tweakdb.get")
+        return TweakGet(aParams, aError);
+    if (aMethod == "tweakdb.record")
+        return TweakRecord(aParams, aError);
+    if (aMethod == "tweakdb.records")
+        return TweakRecords(aParams, aError);
     return Release(aParams);
 }
 
