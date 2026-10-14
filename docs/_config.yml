@@ -39,6 +39,8 @@ nav:
     url: /world.html
   - title: TweakDB API
     url: /tweakdb.html
+  - title: Sound API
+    url: /sound.html
   - title: P0 findings
     url: /p0-findings.html
   - title: P1 results
