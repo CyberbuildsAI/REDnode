@@ -581,7 +581,7 @@ Use the **Test timer**: Start, then Mark after each step.
 
 ### O11 Spaces: plan
 
-Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Not scheduled yet; its order relative to the TweakDB API is to be agreed.
+Proposed by the user on 2026-10-14, after O10: HUD apps will crowd the screen, and today the only way to thin them is to switch packages off and on in the Mod Manager. Order decided with the user on 2026-10-14: after O10's test and the TweakDB API.
 
 Called **spaces**, not layers: "layer" already means the z-order (the tool layer above packages' windows, O10).
 
