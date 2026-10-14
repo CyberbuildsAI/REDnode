@@ -602,7 +602,7 @@ Called **spaces**, not layers: "layer" already means the z-order (the tool layer
 | Mechanics | The host hides the other spaces' windows with `window.hidden`, as solo mode does (O10). Solo wins over the space. Windows in other spaces could pause rendering, which a switched-off package cannot do without losing its state |
 | Pin to HUD | Pin to HUD decides gameplay versus interactive mode; a space decides which set shows at all. They combine. To decide: keep both, or make Pin to HUD a per-space setting |
 
-**Open: the title-bar controls.** A window's title bar has close, and the debug button in Developer mode. Spaces add "move to space", and more may follow (reset position, roll up). Two shapes, to try as mockups before choosing:
+**The title-bar controls** (decided below). A window's title bar has close, and the debug button in Developer mode. Spaces add "move to space", and more may follow (reset position, roll up). Two shapes, to try as mockups before choosing:
 
 | Shape | For | Against |
 |---|---|---|
@@ -611,13 +611,13 @@ Called **spaces**, not layers: "layer" already means the z-order (the tool layer
 
 Rules either way, agreed in principle with the user: no cascading menus; at most a few icons on a title bar; a frequent action stays one click. A middle way to mock up too: a direct icon only for the frequent action (the space icon opens the list of spaces, one level), with rarer actions in a menu.
 
-**Leading option, the user's (2026-10-14): an icon row with overflow.** At most four icons on a title bar: close and up to three actions. When a window has more than three actions, a **⋯** button takes the third slot, left of the others, and holds the rest, each with its icon and its name: close, two actions and ⋯. The title bar never grows past four icons, however many actions there are. Details to settle in the mockup:
+**Decided with the user on 2026-10-14, after interactive mockups of the three shapes (A every action an icon, B icons with overflow, C one menu): B, an icon row with overflow.** Close and up to three action icons, flowing right to left: close on the far right, the most used action next to it. A window with more than three actions gets a **⋯** button on the far left, holding the rest, each with its icon and its name. So a title bar shows at most five buttons (⋯, three actions, close), and ⋯ only appears when there are more than three actions. To revisit if it does not work well in practice.
 
 | Question | Proposal |
 |---|---|
-| Which actions get the icon slots | Close always, rightmost. The others by a fixed priority, highest nearest close: move to space, then debug (Developer mode), then the rest. An action that is not available (debug outside Developer mode, spaces with only one space) takes no slot, so most windows show close and nothing else |
+| Which actions get the icon slots | Close always, rightmost. The others by a fixed priority, highest nearest close (in the mockup: move to space, roll up, pin to HUD, reset position, debug). An action that is not available (debug outside Developer mode, spaces with only one space) takes no slot, so most windows show close and little else |
 | An action with choices in the overflow (move to space) | The ⋯ list swaps to the choices, with a back row, instead of opening a second menu beside it: one level on screen at a time |
-| Width on small windows | Four icons at 22 px with their gaps take about 110 px of the title bar; to check in the mockup that small windows keep room for their title |
+| Width on small windows | Five buttons at 22 px with their gaps take about 140 px of the title bar; the title shortens with an ellipsis on narrow windows |
 
 ### UI kit
 
