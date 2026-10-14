@@ -110,3 +110,16 @@ Use the **Test timer**: Start, then Mark after each step.
 5. In the Packaging test window, press **Archives**: after a few seconds it says 57 archives and about 584,000 files. Press **Search**: it lists files named `player_ma_tpp`. Mark.
 6. Check the theme change from 0.16.1: in the launcher pick **EDGE**, then open a window debugger (Developer mode's bug button): its title bar is yellow. Switch back to the theme you like. Mark.
 7. Quit the game.
+
+### W2 results
+
+**Result, 2026-10-14: passed.** REDnode 0.17.0. Every step worked, the 0.16.1 theme check included.
+
+| Check | What the logs show |
+|---|---|
+| `requires` | The Packaging test showed NEEDS, with Codeware and ArchiveXL ticked and `not-a-real-mod` missing; its log line said so at each start |
+| `kernel.bridge()` | REDnode picked the newest copy it found, REDdeck's REDbridge 0.6.0, and started it with the game folder: 57 archives and 583,798 files loaded in 3.0 seconds **while the game ran**, which W2 had marked unverified. The Packaging test listed them twice and found 7 `player_ma_tpp` files |
+
+| Finding | Change |
+|---|---|
+| ArchiveXL counted as installed, "version unknown", though its folder held only logs and Vortex's marker after a purge ([#9](https://github.com/Edgemodders/REDnode/issues/9), found by the EDGEbuilder session) | REDnode 0.17.1: a RED4ext plugin counts only when its folder holds a DLL. A folder without one is "not installed", with a note that it is left over from an uninstall |

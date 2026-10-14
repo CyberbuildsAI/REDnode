@@ -1,7 +1,7 @@
 {
   "id": "modmanager",
   "name": "Mod Manager",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "author": "Edgemodders",
   "description": "Every installed app and mod in one table: search, sort, switch on and off, pin to the launcher or the HUD, and see a package's details, permissions and log.",
   "entry": "index.html",

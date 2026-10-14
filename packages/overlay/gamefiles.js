@@ -72,6 +72,8 @@ const listDirs = (dir) => {
  */
 function scanGame(gameDir) {
   const found = new Map();
+  const leftovers = new Set(); // plugin folders without a DLL, for a clearer "not installed"
+  found.leftovers = leftovers;
   const add = (name, kind, file, version) => {
     const k = key(name);
     if (!k || found.has(k)) return;
@@ -90,17 +92,23 @@ function scanGame(gameDir) {
   }
   if (found.has('cyberenginetweaks')) found.set('cet', found.get('cyberenginetweaks'));
 
-  // RED4ext plugins: a folder each, usually with a DLL of the same name.
+  // RED4ext plugins: a folder each, with a DLL, usually of the same name. A folder
+  // without a DLL is not a plugin: uninstalls and mod managers leave such folders
+  // behind with only logs, configs or Vortex's marker (issue #9).
   const plugins = path.join(gameDir, 'red4ext', 'plugins');
   for (const d of listDirs(plugins)) {
     if (!d.isDirectory()) continue;
     const dir = path.join(plugins, d.name);
     const dlls = listDirs(dir).filter((f) => f.isFile() && /\.dll$/i.test(f.name)).map((f) => f.name);
     const own = dlls.find((f) => key(path.parse(f).name) === key(d.name)) ?? dlls[0];
-    const file = own ? path.join(dir, own) : dir;
-    add(d.name, 'red4ext', file, own ? fileVersion(file) : null);
+    if (!own) {
+      leftovers.add(key(d.name));
+      continue;
+    }
+    const file = path.join(dir, own);
+    add(d.name, 'red4ext', file, fileVersion(file));
     // A plugin whose DLL has another name can be required by either.
-    if (own) add(path.parse(own).name, 'red4ext', file, found.get(key(d.name))?.version);
+    add(path.parse(own).name, 'red4ext', file, found.get(key(d.name))?.version);
   }
 
   // redscript modules: folders and loose .reds files in r6/scripts.
@@ -190,7 +198,12 @@ function checkRequires(requires, installed) {
   return Object.entries(requires ?? {}).map(([name, wants]) => {
     const hit = installed.get(key(name));
     const anyVersion = String(wants).trim() === '' || String(wants).trim() === '*';
-    if (!hit) return { name, wants, found: null, installed: false, ok: false, kind: null, note: 'not installed' };
+    if (!hit) {
+      const note = installed.leftovers?.has(key(name))
+        ? 'not installed (its folder in red4ext/plugins has no plugin DLL, left over from an uninstall)'
+        : 'not installed';
+      return { name, wants, found: null, installed: false, ok: false, kind: null, note };
+    }
     if (anyVersion) return { name: hit.name, wants, found: hit.version, installed: true, ok: true, kind: hit.kind, note: '' };
     if (!hit.version) {
       // Installed, but its files carry no version: it counts, and says so.
