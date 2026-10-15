@@ -688,6 +688,8 @@ Use the **Test timer**: Start, then Mark after each step.
 4. Hold the right button and press F10: the lock ends with interactive mode. Mark.
 5. Quit the game.
 
+**Result, 2026-10-15: passed.** REDnode 0.22.0, steps 1 to 4 marked. The cursor stayed put and hidden while the right button was held, and the camera kept turning. The plugin log shows three locks by the test window, each ended a different way: letting go ("the page let go"), Esc, and F10 ("the overlay left interactive mode"). [#11](https://github.com/Edgemodders/REDnode/issues/11) closed.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:

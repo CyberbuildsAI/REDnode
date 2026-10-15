@@ -42,7 +42,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | World API | Planned: W1 (build objects, set properties, resource references, entity events through Codeware, `api.spawn`) and W2 (`requires` in manifests, `kernel.bridge()`), asked for by EDGEbuilder. W1 and W2 passed in game. See [World API](world.md) |
 | Window layers | O10: a tool layer for REDnode's own windows and packages allowed `front`, and solo mode (`ui.solo`). Passed in game. See [HTML overlay](overlay.md#o10-layers-built) |
 | Console | O12, proposed: a CET-style console for free-form JavaScript with the `rednode` package ready, in the HUD style. See [HTML overlay](overlay.md#o12-console-plan) |
-| Pointer lock | EDGEbuilder's request #11: the web's Pointer Lock API in overlay pages, the cursor held by the plugin. Built, awaits its in-game test. See [HTML overlay](overlay.md#pointer-lock-built) |
+| Pointer lock | EDGEbuilder's request #11: the web's Pointer Lock API in overlay pages, the cursor held by the plugin. Passed in game. See [HTML overlay](overlay.md#pointer-lock-built) |
 | Spaces | O11: named sets of windows the player switches between, like virtual desktops, and title-bar actions with overflow. Passed in game. See [HTML overlay](overlay.md#o11-spaces-built) |
 | Sound API | Planned: REDnode's own engine in the plugin (S1 play, S2 space, S3 effects and voices, S4 game events), clean room from Audioware's docs. See [Sound API](sound.md) |
 | TweakDB API | T1 (read, from the plugin) passed in game. T2 (write through TweakXL, with undo per package) passed in game. T3 (offline through REDbridge) waits for REDbridge's TweakDB methods. See [TweakDB API](tweakdb.md) |
