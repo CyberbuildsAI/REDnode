@@ -59,7 +59,7 @@ From Audioware's documentation (D) and what a modder needs (N). "Match" is to ha
 | Phase | Builds | Test proves |
 |---|---|---|
 | **S1 Play** | The engine in the plugin; files from a package's folder; categories following the game's volume sliders; pause with the game; the settings of the spec; the `audio` module | A package plays an OGG that gets quieter with the game's effects slider and stops while the game is paused |
-| **S2 Space** | Sound on entities and positions: distance, direction, doppler; cleanup on despawn; the typed wrapper of the game's own events | A sound on a spawned box gets louder as V walks to it and moves left and right as she turns |
+| **S2 Space** | Sound on entities and positions: distance, direction, doppler; cleanup on despawn; the typed wrapper of the game's own events | A sound on a spawned box gets louder as V walks to it and moves left and right as V turns |
 | **S3 Effects and voices** | Reverb, EQ presets, voice lines with subtitles | Later |
 | **S4 Game events** | Hearing, muting and replacing the game's own sound events, with Tier 1 | Later |
 
@@ -72,3 +72,31 @@ From Audioware's documentation (D) and what a modder needs (N). "Match" is to ha
 | The listener's position: the camera or V | The camera system; compare with how the game's own 3D sounds pan |
 | Whether miniaudio's WASAPI output coexists with the game's own output on every common setup (exclusive mode, Bluetooth headsets) | A spike in the plugin |
 | Whether overlay pages can play audio at all, and whether REDnode should allow it | A test in the overlay host |
+
+## S1 research spike: built
+
+REDnode 0.23.0 answers the first four questions in game. The fifth (audio in overlay pages) waits for S1 itself.
+
+| Piece | What it does |
+|---|---|
+| `native/src/overlay/audio.cpp` | REDnode's own output on miniaudio 0.11.25 (public domain or MIT-0), started on first use, stopped with the overlay. One bridge method for now, `audio.tone` (`hz`, `ms`, `volume`), which answers the output device and its format. The plugin log gets an `Audio: output started on "<device>"` line |
+| `packages/overlay/apps/sound-test` | A Node mod with a window. **Play test tone** and **Low** play a 440 Hz and a 220 Hz tone. **Read settings** lists every setting under the game's `/audio` group with its value and type. Every half second it reads whether the game is paused, the time dilation and the camera position, and logs each change |
+
+The sample reads the settings through `GameInstance.GetSettingsSystem().GetGroup('/audio')`, the pause through `TimeSystem.IsPausedState()`, the dilation through `TimeSystem.GetActiveTimeDilation`, and the camera through `CameraSystem.GetActiveCameraWorldTransform`. Which of these answer usefully in game is what the test finds out.
+
+### Test
+
+Switch on **Test timer** and **Sound test** in the launcher. Press **Start** on the timer, and **Mark** after each step.
+
+| Step | Do | Look for |
+|---|---|---|
+| 1 | Load a save. In the Sound test window, press **Read settings** | A list of audio settings with names and numbers (the master, music, effects and dialogue volumes, among others) |
+| 2 | Open the game's Settings, Sound. Move the master volume and the effects volume to different values. Back in the game, press **Read settings** again | The two values changed in the list |
+| 3 | Press **Play test tone**, then **Low**, with game sound playing around you | Two short beeps, clean, without crackling, and the game's own sound keeps playing. Note if the game's sound dips or stops |
+| 4 | Open the pause menu, wait a moment, close it. Then open the map and close it | The window's "time" line says paused, then not paused (the Mod log has each change) |
+| 5 | Slow time if you can (a Sandevistan, or the slow motion at a dodge or a scanner). Otherwise skip | The dilation number changes below 1 |
+| 6 | Walk a few steps, then turn the camera around | The camera line's numbers change as you walk, and stay put as you only turn |
+| 7 | Alt+Tab out of the game and back, then press **Play test tone** | The tone still plays |
+| 8 | If you have headphones or a second output, switch Windows' output to it, then press **Play test tone** | Note where the tone plays: the new output or the old one |
+
+Then quit the game, so the logs are complete.

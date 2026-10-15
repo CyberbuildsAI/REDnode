@@ -22,6 +22,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(red4ext_sdk)
 
+# miniaudio 0.11.25 (public domain or MIT-0), REDnode's own audio output (Sound API).
+# One header; its own CMake project (tests, examples) is not built.
+FetchContent_Declare(
+  miniaudio
+  GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+  GIT_TAG 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+  SOURCE_SUBDIR do-not-build
+  SYSTEM
+)
+FetchContent_MakeAvailable(miniaudio)
+
 add_library(REDnode SHARED
   src/main.cpp
   src/dump.cpp
@@ -34,8 +45,10 @@ add_library(REDnode SHARED
   src/overlay/windows.cpp
   src/overlay/host.cpp
   src/overlay/gamestate.cpp
+  src/overlay/audio.cpp
 )
 target_link_libraries(REDnode PRIVATE RED4ext::SDK d3d12 d3dcompiler)
+target_include_directories(REDnode SYSTEM PRIVATE ${miniaudio_SOURCE_DIR})
 target_compile_definitions(REDnode PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(REDnode PRIVATE /W4 /utf-8 /MP)
 target_compile_definitions(REDnode PRIVATE

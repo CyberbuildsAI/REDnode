@@ -175,6 +175,10 @@ struct Value;
 }
 bool IsReflectMethod(const std::string& aMethod);
 std::string Reflect(const std::string& aMethod, const json::Value& aParams, std::string& aError); // result JSON
+// REDnode's own audio output (audio.cpp): audio.tone for now. Game thread.
+bool IsAudioMethod(const std::string& aMethod);
+std::string Audio(const std::string& aMethod, const json::Value& aParams, std::string& aError);
+void StopAudio();
 void ClearRefs();
 } // namespace detail
 } // namespace rednode::overlay

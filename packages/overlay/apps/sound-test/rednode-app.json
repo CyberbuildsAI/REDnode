@@ -1,0 +1,8 @@
+{
+  "id": "sound-test",
+  "name": "Sound test",
+  "version": "0.1.0",
+  "author": "Edgemodders",
+  "description": "The Sound API's research spike (S1): reads the game's audio settings, its pause and slow-motion state and the camera, live, and plays a test tone through REDnode's own audio output beside the game's.",
+  "main": "mod.mjs"
+}

@@ -44,7 +44,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | Console | O12, proposed: a CET-style console for free-form JavaScript with the `rednode` package ready, in the HUD style. See [HTML overlay](overlay.md#o12-console-plan) |
 | Pointer lock | EDGEbuilder's request #11: the web's Pointer Lock API in overlay pages, the cursor held by the plugin. Passed in game. See [HTML overlay](overlay.md#pointer-lock-built) |
 | Spaces | O11: named sets of windows the player switches between, like virtual desktops, and title-bar actions with overflow. Passed in game. See [HTML overlay](overlay.md#o11-spaces-built) |
-| Sound API | Planned: REDnode's own engine in the plugin (S1 play, S2 space, S3 effects and voices, S4 game events), clean room from Audioware's docs. See [Sound API](sound.md) |
+| Sound API | S1 research spike built in REDnode 0.23.0 (miniaudio output with a test tone, the `sound-test` sample reading the game's audio settings, pause, dilation and camera), awaits its in-game test. Planned: REDnode's own engine in the plugin (S1 play, S2 space, S3 effects and voices, S4 game events), clean room from Audioware's docs. See [Sound API](sound.md) |
 | TweakDB API | T1 (read, from the plugin) passed in game. T2 (write through TweakXL, with undo per package) passed in game. T3 (offline through REDbridge) waits for REDbridge's TweakDB methods. See [TweakDB API](tweakdb.md) |
 | P2 Tier 2 | Mostly covered by overlay phase O6: the pipe bridge, the Node SDK and the generated game API. Events from hooked game functions are still to do |
 | P3 Rules | Not started |

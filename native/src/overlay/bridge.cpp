@@ -10,6 +10,7 @@
 //                    through AudioSystem.Play with no entity, as UI sounds are played
 //   rtti.call, rtti.get, rtti.set, rtti.new, rtti.release   the generic game API, in reflect.cpp
 //   tweakdb.get, tweakdb.record, tweakdb.records           TweakDB, read, in reflect.cpp
+//   audio.tone                                             REDnode's own audio output, in audio.cpp
 
 #include "json.hpp"
 #include "jvalue.hpp"
@@ -161,7 +162,7 @@ std::string Handle(const std::string& aJson, uint64_t aFrame)
         return PlayerPosition(id);
     if (method == "audio.play")
         return AudioPlay(id, aJson);
-    if (IsReflectMethod(method))
+    if (IsReflectMethod(method) || IsAudioMethod(method))
     {
         json::Value request;
         std::string error;
@@ -169,7 +170,8 @@ std::string Handle(const std::string& aJson, uint64_t aFrame)
             return Error(id, ("Bad request: " + error).c_str());
         static const json::Value none;
         const json::Value* params = request.Get("params");
-        std::string result = Reflect(method, params ? *params : none, error);
+        std::string result =
+            IsAudioMethod(method) ? Audio(method, params ? *params : none, error) : Reflect(method, params ? *params : none, error);
         if (!error.empty())
             return Error(id, error.c_str());
         return Reply(id, "\"result\":" + result);

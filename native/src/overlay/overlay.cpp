@@ -97,6 +97,7 @@ void Stop()
 {
     detail::UninstallInput();
     detail::UninstallCompositor();
+    detail::StopAudio();
     detail::StopLink();
     detail::StopHost();
     g_installed = false;
