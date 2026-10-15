@@ -6,7 +6,12 @@
 //                 {"class":"GameInstance","fn":"GetStatsSystem","args":[{}]}   a static function
 //                 {"self":{"$ref":3},"fn":"GetWorldPosition","args":[]}    a method
 //                 -> the return value, or {"result":..., "out":{name: value}} when the
-//                    function has out parameters
+//                    function has out parameters. An argument {"$out":true} asks for that
+//                    parameter's value after the call too: native functions such as
+//                    CameraSystem.GetActiveCameraWorldTransform write into parameters the
+//                    game does not mark as out.
+//                 Objects in the answer that only the answer holds (made by the call, such as
+//                 the settings system's groups) are kept alive until released.
 //   rtti.get      {"self":{"$ref":3},"prop":"quickSlotsManager"}            a property's value
 //   rtti.release  {"refs":[3,4]}                                           forget object references:
 //                                                                         once per time each was received
@@ -102,6 +107,8 @@ struct Ref
 std::unordered_map<uint32_t, Ref> g_refs;
 std::unordered_map<IScriptable*, uint32_t> g_refIds;
 uint32_t g_nextRef = 1;
+// Set while a call's answer is converted: objects nothing else holds are kept (see Invoke).
+bool g_keepFresh = false;
 
 // Forgets references to objects the game has deleted.
 void PruneRefs()
@@ -252,7 +259,9 @@ void HandleToJson(const Handle<IScriptable>& aObject, std::string& aOut)
         aOut += "null";
         return;
     }
-    aOut += "{\"$ref\":" + std::to_string(RefFor(aObject)) + ",\"$type\":" +
+    // An object only the answer holds would be freed with it, so the reference keeps it.
+    const bool keep = g_keepFresh && aObject.GetUseCount() == 1;
+    aOut += "{\"$ref\":" + std::to_string(RefFor(aObject, keep)) + ",\"$type\":" +
             JsonString(Str(aObject->GetType()->GetName())) + "}";
 }
 
@@ -926,12 +935,18 @@ std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aA
     }
 
     std::vector<std::unique_ptr<Slot>> slots;
+    std::vector<bool> wanted(fn->params.Size(), false); // parameters asked for with {"$out":true}
     StackArgs_t stack;
     for (uint32_t k = 0; k < fn->params.Size(); ++k)
     {
         const CProperty* p = fn->params[k];
         auto slot = std::make_unique<Slot>(p->type);
-        if (k < args->items.size() && !args->items[k].IsNull())
+        const Value* outFlag = k < args->items.size() ? args->items[k].Get("$out") : nullptr;
+        if (outFlag && outFlag->kind == Value::Kind::Bool && outFlag->boolean)
+        {
+            wanted[k] = true;
+        }
+        else if (k < args->items.size() && !args->items[k].IsNull())
         {
             if (!FromJson(p->type, slot->mem, args->items[k], aError, 0))
             {
@@ -971,6 +986,7 @@ std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aA
         return {};
     }
 
+    g_keepFresh = true;
     std::string result;
     if (ret)
         ToJson(ret->type, ret->mem, result, 0);
@@ -982,7 +998,7 @@ std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aA
     for (uint32_t k = 0; k < fn->params.Size(); ++k)
     {
         const CProperty* p = fn->params[k];
-        if (!p->flags.isOut)
+        if (!p->flags.isOut && !wanted[k])
             continue;
         out += hasOut ? "," : "";
         hasOut = true;
@@ -990,6 +1006,7 @@ std::string Invoke(CBaseFunction* fn, Handle<IScriptable>& self, const Value& aA
         ToJson(p->type, slots[k]->mem, out, 0);
     }
     out += "}";
+    g_keepFresh = false;
     return hasOut ? "{\"result\":" + result + ",\"out\":" + out + "}" : result;
 }
 

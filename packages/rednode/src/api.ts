@@ -184,6 +184,21 @@ export interface ApiExtras {
    * ```
    */
   $new(className: string, props?: Record<string, unknown>): Promise<GameRef | Record<string, unknown>>;
+  /**
+   * Put in place of an argument to get that parameter's value back after the
+   * call, in `out`. Some native functions write their answer into a parameter
+   * the game does not mark as out; the call then returns `{ result, out }`.
+   *
+   * @example
+   * ```ts
+   * const camera = await api.GameInstance.GetCameraSystem(game.instance);
+   * const r = (await camera!.GetActiveCameraWorldTransform(api.$out)) as unknown as {
+   *   result: boolean;
+   *   out: { transform: { position: { X: number; Y: number; Z: number } } };
+   * };
+   * ```
+   */
+  readonly $out: never;
 }
 
 /**
@@ -204,7 +219,9 @@ export interface ApiExtras {
  * | arrays | arrays |
  * | resource references (`rRef`, `raRef`, `ResRef`) | a depot path such as `"base\...\crate_a.mesh"`, or its hash as a string; read back as the hash |
  *
- * Functions with out parameters return `{ result, out }`.
+ * Functions with out parameters return `{ result, out }`, and so does a call with
+ * {@link ApiExtras.$out | api.$out} in place of an argument. Objects a call makes
+ * that nothing in the game holds yet stay alive while you hold their reference.
  *
  * @example
  * ```ts
@@ -220,6 +237,7 @@ export interface ApiExtras {
 export const api: GameApi & ApiExtras = new Proxy({} as GameApi & ApiExtras, {
   get(_t, k) {
     if (typeof k !== "string" || k === "then") return undefined;
+    if (k === "$out") return { $out: true };
     if (k === "$call") return (fn: string, ...args: unknown[]) => invoke("rtti.call", { fn, args });
     if (k === "$new") {
       return (cls: string, props?: Record<string, unknown>) => invoke("rtti.new", { class: cls, props: props ?? null });

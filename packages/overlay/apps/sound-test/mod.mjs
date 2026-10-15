@@ -70,15 +70,17 @@ async function readLive() {
   }
   try {
     const camera = await api.GameInstance.GetCameraSystem(game.instance);
-    const r = await camera.GetActiveCameraWorldTransform({});
-    // An out parameter: the answer is { result, out: { transform } }.
+    // The function writes into its parameter: api.$out asks for it back, in { result, out }.
+    const r = await camera.GetActiveCameraWorldTransform(api.$out);
     const p = r?.out?.transform?.position;
     out.push(`camera  ${p ? [p.X, p.Y, p.Z].map((n) => Number(n).toFixed(1)).join(', ') : JSON.stringify(r).slice(0, 120)}`);
   } catch (err) {
     out.push(`camera: ${err.message}`);
   }
+  out.push(`menu  ${state.menu}`);
   live.set({ text: out.join('\n') });
-  const now = out.slice(0, 2).join(' · ');
+  // Pause, dilation and menu changes go to the log; the camera moves too often.
+  const now = out.filter((l) => !l.startsWith('camera')).join(' · ');
   if (now !== last) console.log(`Now: ${now}`);
   last = now;
 }
@@ -95,6 +97,21 @@ async function playTone(hz) {
   }
 }
 
+// Game calls wait for a loaded save: at the main menu there is no game to ask.
+let state = await game.state();
+let started = false;
+function start() {
+  if (started || state.mainMenu || !state.connected) return;
+  started = true;
+  readSettings();
+}
+game.onState((s) => {
+  state = s;
+  start();
+});
+setInterval(() => {
+  if (!state.mainMenu && state.connected) readLive();
+}, 500);
+live.set({ text: 'Waiting for a loaded save...' });
 console.log('Sound test ready');
-readSettings();
-setInterval(readLive, 500);
+start();
