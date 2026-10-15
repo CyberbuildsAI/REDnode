@@ -190,6 +190,7 @@ Rules that make borderless windows behave:
 | **O9 Debugger** | Chromium DevTools for any overlay app, from an **Inspect** button: first in a desktop window, then, if a prototype works, inside the overlay as a built-in Debugger app. Node mods debugged through Node's inspector, attachable from VS Code and REDcode. See [O9 Debugger: plan](#o9-debugger-plan) | An app's page is inspected and a breakpoint hit while the game runs; a Node mod stops at a breakpoint set in VS Code |
 | **O10 Layers** | A tool layer above packages' windows for REDnode's own windows and packages the player lets stay on top; solo mode, in which one package hides every other package's windows. Asked for by EDGEbuilder ([#10](https://github.com/Edgemodders/REDnode/issues/10), [#7](https://github.com/Edgemodders/REDnode/issues/7)). See [O10 Layers](#o10-layers-built) | A full-screen package cannot cover the launcher or the Test timer, and its solo mode hides everything else until it ends |
 | **O11 Spaces** | Named sets of windows, like virtual desktops: the player switches the space and only its windows show; tool windows and windows set to "all spaces" show in every space. Title-bar actions with overflow. See [O11 Spaces: plan](#o11-spaces-plan) | A player with many HUD widgets keeps them in two or three spaces and switches between them without switching packages on and off |
+| **O12 Console** | A built-in console, like Cyber Engine Tweaks' Lua console, for free-form JavaScript with the whole `rednode` package ready. See [O12 Console: plan](#o12-console-plan) | A player types `await tweakdb.get("Items.money.price")` and gets the answer, then calls a method on a game object from the line before |
 
 ### O1 Windows: test
 
@@ -647,6 +648,23 @@ Use the **Test timer**: Start, then Mark after each step.
 8. Quit the game.
 
 **Result, 2026-10-14: passed.** REDnode 0.21.0. Every step worked, marked 1 to 7, with no page errors. The host log shows each one: Combat made and switched to; Ctrl+1 and Ctrl+2 switching back and forth; the Hello mod moved to Combat from its title bar; Coords put in every space from the Mod Manager, back to Main and to every space again; the Mod Manager pinned to the HUD and its position reset from title bars; Combat renamed to Driving, then deleted, its windows moved to Main. The title-bar shape (close, three action icons, ⋯ past three) is to be revisited only if it does not work well in practice.
+
+### O12 Console: plan
+
+Proposed by the user on 2026-10-15: Cyber Engine Tweaks has a console where players type Lua; REDnode has none. Not scheduled; its place in the order is to be agreed.
+
+**Why not the debugger's console (O9).** It is a tool for fixing one package: it needs Developer mode, a Node mod restarts with its Debug switch on, the code runs inside that package with its own variables, and it is Chromium's DevTools, dense and desktop-styled. The console is the game's command line: one key away for any player, one shared scratch context with every part of REDnode ready, in the HUD style.
+
+| Piece | Plan |
+|---|---|
+| The window | A built-in tool (it stays above packages' windows, O10): an input line, the output above it, history with the up and down arrows, multi-line input with Shift+Enter, Clear. Opened from the launcher and with a key in the overlay (to choose; CET uses the key under Esc) |
+| Where code runs | A built-in Node mod of its own, so a crash or an endless loop stops only the console: each line runs in one shared context, with top-level `await`, and variables kept between lines. `game`, `api`, `tweakdb`, `world`, `ui`, `agent` and the rest of the `rednode` package are in scope without imports |
+| Results | Values printed readably: numbers, strings and objects folded and unfolded; game objects as their type and reference, so the next line can call them (`$1.GetDisplayName()`); errors in red with the line. `console.log` from the line shows in the output |
+| Help | Completion from REDnode's generated game types (the same types `api` uses): global functions, a class's static functions, an object's methods once its type is known. The game API reference one key away for the word under the cursor |
+| Undo | TweakDB changes made from the console go through the undo journal like any package's (T2), and are undone when the console's mod stops, or with a **Revert my changes** button |
+| For agents | The kernel MCP server could offer the same evaluation (an `eval` tool), behind the player's OK, since it can change the game. To decide |
+
+Questions to settle first: the key that opens it, whether players who never turned on Developer mode get it (CET gives its console to everyone), and whether scripts can be saved and run again (a "snippets" list) in the first version.
 
 ### Pointer lock: built
 
