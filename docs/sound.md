@@ -127,7 +127,7 @@ Two more findings. Right after a save loaded, the first settings read timed out 
 | Volume sliders | Read `/audio/volume` through the settings system. Categories: master times one of effects, dialogue or music (and the two radios). Read again when the player leaves the Settings menu (the overlay sees the menu close), or listen with `ConfigVarListener` (**unverified**) |
 | Mute in background | Honor `/audio/misc/MuteInBackground` with the plugin's own focus tracking ("the game left the front") |
 | Pause | Not `IsPausedState`. Pause REDnode's sounds while the global dilation is 0, or while a menu is open, as a package setting (`pauseWith`) |
-| Slow motion | Open. Find the scanner's and the Sandevistan's dilation (the player's own dilation, or a named reason) before S1 adds pitch with dilation; leave it out of S1 if not found |
+| Slow motion | The Sandevistan is the global dilation: 0.3 while active (found in S1's test). The scanner's slow motion is not; where it shows is open. Pitch that follows slow motion is not in S1 |
 | Listener | The active camera's transform, for S2 |
 | Output | miniaudio on the default device works beside Wwise, including an 8-channel HDMI device. Following a device change is still to test. Since 0.24.1 REDnode mixes in stereo and plays on the device's front pair (see the S1 results) |
 
@@ -144,7 +144,7 @@ REDnode 0.24.0. How to use it: [Your own sounds](overlay-apps.md#your-own-sounds
 | `tools/sounds/make-sample-sounds.py` | Synthesizes the sample's four files, so they are REDnode's own |
 | `native/tests/audio_test.cpp` | Decodes the four files with the plugin's set-up: format, length, not silent. Since 0.24.1 also pan on the stereo mix, and the stereo mix reaching only the front pair of a 7.1 device |
 
-Not in S1: easing curves for fades (miniaudio fades are linear), pitch that follows slow motion (the scanner's dilation is still to find), sound on entities and positions (S2). The sliders are applied as linear gain; whether that matches how the game's own sound scales is for the test.
+Not in S1: easing curves for fades (miniaudio fades are linear), pitch that follows slow motion, sound on entities and positions (S2). The sliders are applied as linear gain; whether that matches how the game's own sound scales is for the test.
 
 ### S1 test
 
@@ -182,7 +182,7 @@ Tested in game on 2026-10-16 with REDnode 0.24.0, game 2.31. The Test timer was 
 | 8 Mute in background | Passed. The overlay log read `muted in the background`; the music was silent while the game was in the background |
 | 9 Stop all | Passed |
 | 10 Package stops | Passed. The music stopped when the Sound test was switched off |
-| 11 Sandevistan | Not done. The slow-motion question stays open |
+| 11 Sandevistan | Done afterwards, the same day. The global dilation read 0.30 for 2 to 3 seconds on each of two activations, then 1.00. V's dilation stayed 1.00 and V did not ignore the global dilation. So the global dilation is the signal for the Sandevistan; V's own value does not show that V moves at normal speed |
 
 **Why pan failed.** The device was the 8-channel HDMI output. miniaudio's engine mixed at the device's 8 channels, and its panner works only on a stereo mix: for other channel counts it copies the sound through unchanged. Our mono files were spread over all 8 speakers, whatever the pan.
 
@@ -193,7 +193,7 @@ Tested in game on 2026-10-16 with REDnode 0.24.0, game 2.31. The Test timer was 
 | Question | Status |
 |---|---|
 | The volume reads | **Unverified.** Each read after a Settings visit showed master and effects equal (45 and 45, later 60 and 60), and music at 100, while step 6 lowers music. Either the player set those, or a read is wrong. The spike's reads (master 50, effects 55) were right |
-| Slow motion | Open: the Sandevistan (step 11) |
+| Slow motion | The Sandevistan: answered (step 11). The scanner's slow motion: still not found; the global dilation stays 1 |
 | A change of the Windows default device | Open |
 
 ### S1 check, REDnode 0.24.1
@@ -204,6 +204,6 @@ Switch on **Test timer** first, press **Start**, and press **Mark** after each s
 |---|---|---|
 | 1 | Load a save, switch on **Sound test**. Press **Chime left**, then **Chime right**, then **Chime (FLAC)** | Left speaker only, right speaker only, then both. The plugin log says `mixed in stereo to the front pair` |
 | 2 | In Settings, Sound, set **Music volume** to 30 and leave the others. Close the menus | The overlay log reads `master 100, effects 100, dialogue 100, music 30`. Put it back |
-| 3 | If you can: use a Sandevistan, and the scanner, with the Sound test on | Note the "global dilation" and "V's dilation" lines while each is active |
+| 3 | Hold the scanner for a few seconds with the Sound test on | Note whether "V's dilation" changes (the global dilation did not in the spike) |
 
 Then quit the game, so the logs are complete.
