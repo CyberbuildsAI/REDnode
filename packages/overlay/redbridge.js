@@ -18,8 +18,9 @@ const { spawn } = require('node:child_process');
 const IDLE_MS = 10 * 60 * 1000;
 // Editors whose storage folders may hold a fetched REDbridge, and the extensions that fetch it.
 const EDITORS = ['Code', 'Code - Insiders', 'VSCodium', 'EDGEkit', 'Cursor'];
-// redcode-core is REDcode before 0.6.0, when the extension became edgemodders.redcode; both are looked at.
-const EXTENSIONS = ['edgemodders.reddeck', 'edgemodders.redcode', 'edgemodders.redcode-core'];
+// REDcode's id: edgemodders.redcode-cyberpunk since 0.8.2 (the store name collided), edgemodders.redcode
+// from 0.6.0, edgemodders.redcode-core before. All three are looked at.
+const EXTENSIONS = ['edgemodders.reddeck', 'edgemodders.redcode-cyberpunk', 'edgemodders.redcode', 'edgemodders.redcode-core'];
 
 function compareVersions(a, b) {
   const pa = String(a).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);

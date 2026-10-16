@@ -73,5 +73,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
-          $notes = "REDnode $version. Install: extract into the game folder, or add the zip to Vortex or REDdeck. Needs RED4ext and redscript. Docs: https://edgemodders.github.io/REDnode/"
+          $notes = "REDnode $version. Install: extract into the game folder, or add the zip to Vortex or REDdeck. Needs RED4ext and redscript. Packages that read the game's archives also need REDbridge, which REDdeck or REDcode download for you. Docs: https://edgemodders.github.io/REDnode/"
           gh release create "v$version" "native/build/release/REDnode-$version.zip" --target $env:GITHUB_SHA --title "REDnode $version" --notes $notes --generate-notes
