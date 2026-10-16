@@ -50,7 +50,7 @@ On GitHub: the **Release zip** workflow (`.github/workflows/release.yml`).
 | Trigger | Result |
 |---|---|
 | Actions tab, **Run workflow** | Builds the zip on a Windows runner and keeps it as the run's artifact, `REDnode-zip` |
-| **Run workflow** with **Make a release** ticked | The same, then tags the commit `v<VERSION>` and makes a GitHub release with the zip. It stops before building if that version is already released |
+| **Run workflow** with **Make a release** ticked, or `npm run release` (the gh CLI starts the same run on `main`) | The same, then tags the commit `v<VERSION>` and makes a GitHub release with the zip. It stops before building if that version is already released |
 
 On this machine, after the usual build:
 
