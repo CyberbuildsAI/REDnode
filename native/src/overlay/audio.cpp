@@ -97,6 +97,7 @@ struct Sound
 };
 
 std::mutex g_audioMutex;
+std::unique_ptr<ma_device> g_device;
 std::unique_ptr<ma_engine> g_engine;
 bool g_failed = false;
 ma_sound_group g_groups[CategoryCount]{};
@@ -135,8 +136,33 @@ ma_engine* Engine(std::string& aError)
         aError = "REDnode's audio output failed to start; see the plugin log";
         return nullptr;
     }
+    // The mix is stereo, played on the device's front left and right speakers. miniaudio
+    // pans only a stereo mix (on a 5.1 or 7.1 device a pan did nothing), and the simple mix
+    // mode keeps it off the centre, surround and LFE speakers, which its default upmix
+    // would fill. Every speaker layout has the front pair, and a downmix keeps it.
     auto engine = std::make_unique<ma_engine>();
-    const ma_result r = ma_engine_init(nullptr, engine.get());
+    auto device = std::make_unique<ma_device>();
+    ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
+    deviceConfig.playback.format = ma_format_f32;
+    deviceConfig.playback.channels = 2;
+    static ma_channel frontPair[2] = {MA_CHANNEL_FRONT_LEFT, MA_CHANNEL_FRONT_RIGHT};
+    deviceConfig.playback.pChannelMap = frontPair;
+    deviceConfig.playback.channelMixMode = ma_channel_mix_mode_simple;
+    deviceConfig.dataCallback = [](ma_device* aDevice, void* aOut, const void*, ma_uint32 aFrames) {
+        ma_engine_read_pcm_frames(static_cast<ma_engine*>(aDevice->pUserData), aOut, aFrames, nullptr);
+    };
+    deviceConfig.pUserData = engine.get();
+    deviceConfig.noPreSilencedOutputBuffer = MA_TRUE; // the engine writes every frame
+    deviceConfig.noClip = MA_TRUE;                    // and clips itself
+    ma_result r = ma_device_init(nullptr, &deviceConfig, device.get());
+    if (r == MA_SUCCESS)
+    {
+        ma_engine_config engineConfig = ma_engine_config_init();
+        engineConfig.pDevice = device.get();
+        r = ma_engine_init(&engineConfig, engine.get());
+        if (r != MA_SUCCESS)
+            ma_device_uninit(device.get());
+    }
     if (r != MA_SUCCESS)
     {
         g_failed = true;
@@ -144,11 +170,11 @@ ma_engine* Engine(std::string& aError)
         aError = std::string("REDnode's audio output could not start: ") + ma_result_description(r);
         return nullptr;
     }
-    ma_device* device = ma_engine_get_device(engine.get());
     char name[256] = {};
-    ma_device_get_name(device, ma_device_type_playback, name, sizeof(name), nullptr);
-    Log("Audio: output started on \"%s\", %u Hz, %u channels (miniaudio %s)", name, ma_engine_get_sample_rate(engine.get()),
-        ma_engine_get_channels(engine.get()), MA_VERSION_STRING);
+    ma_device_get_name(device.get(), ma_device_type_playback, name, sizeof(name), nullptr);
+    Log("Audio: output started on \"%s\", %u Hz, %u channels, mixed in stereo to the front pair (miniaudio %s)", name,
+        ma_engine_get_sample_rate(engine.get()), device->playback.internalChannels, MA_VERSION_STRING);
+    g_device = std::move(device);
     g_engine = std::move(engine);
     return g_engine.get();
 }
@@ -668,8 +694,10 @@ void StopAudio()
     }
     if (g_engine)
     {
-        ma_engine_uninit(g_engine.get());
+        ma_engine_uninit(g_engine.get()); // stops the device first
         g_engine.reset();
+        ma_device_uninit(g_device.get());
+        g_device.reset();
         Log("Audio: output stopped");
     }
 }

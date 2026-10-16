@@ -237,7 +237,7 @@ A package can play its own audio files: WAV, OGG, MP3 and FLAC. They play throug
 | `dialogue` | Dialogue | Voice lines |
 | `music` | Music | Music; read as it plays instead of loaded first |
 
-Sounds pause while a game menu is open and go on when it closes. When the player's **Mute in background** setting is on, they mute while the game is in the background. A package's sounds stop when the package stops: switched off, restarted or hot reloaded.
+Sounds pause while a game menu is open and go on when it closes; one started in a menu begins when the menu closes. REDnode mixes in stereo and plays on the front left and right speakers, also on a surround device. When the player's **Mute in background** setting is on, they mute while the game is in the background. A package's sounds stop when the package stops: switched off, restarted or hot reloaded.
 
 Name a sound by its file in your package's folder, or declare it in `rednode-app.json` with its settings and play it by that name:
 

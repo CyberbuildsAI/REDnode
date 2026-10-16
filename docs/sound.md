@@ -1,6 +1,6 @@
 # Sound API
 
-Status: **S1 built** in REDnode 0.24.0, awaiting its in-game test. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
+Status: **S1 Play** passed in game on 2026-10-16 (REDnode 0.24.0) except pan, fixed in REDnode 0.24.1, which awaits a short check. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
 
 ## Clean-room rule
 
@@ -129,7 +129,7 @@ Two more findings. Right after a save loaded, the first settings read timed out 
 | Pause | Not `IsPausedState`. Pause REDnode's sounds while the global dilation is 0, or while a menu is open, as a package setting (`pauseWith`) |
 | Slow motion | Open. Find the scanner's and the Sandevistan's dilation (the player's own dilation, or a named reason) before S1 adds pitch with dilation; leave it out of S1 if not found |
 | Listener | The active camera's transform, for S2 |
-| Output | miniaudio on the default device works beside Wwise, including an 8-channel HDMI device. Following a device change is to test in S1 |
+| Output | miniaudio on the default device works beside Wwise, including an 8-channel HDMI device. Following a device change is still to test. Since 0.24.1 REDnode mixes in stereo and plays on the device's front pair (see the S1 results) |
 
 ## S1 Play: built
 
@@ -137,12 +137,12 @@ REDnode 0.24.0. How to use it: [Your own sounds](overlay-apps.md#your-own-sounds
 
 | Piece | What it does |
 |---|---|
-| `native/src/overlay/audio.cpp` | The engine on miniaudio 0.11.25, with stb_vorbis for OGG. Files open on a loader thread. Three groups (effects, dialogue, music) under the engine's master volume. Each frame on the game thread: sounds pause while a menu or loading screen is up (the overlay's own game state) and the ones that ended are announced as `sound-end` events. Mute in background follows the game window's focus. Bridge methods `sound.play`, `sound.stop`, `sound.set`, `sound.list`, `sound.mix` |
+| `native/src/overlay/audio.cpp` | The engine on miniaudio 0.11.25, with stb_vorbis for OGG. The mix is stereo, played on the device's front left and right speakers (0.24.1). Files open on a loader thread. Three groups (effects, dialogue, music) under the engine's master volume. Each frame on the game thread: sounds pause while a menu or loading screen is up (the overlay's own game state) and the ones that ended are announced as `sound-end` events. Mute in background follows the game window's focus. Bridge methods `sound.play`, `sound.stop`, `sound.set`, `sound.list`, `sound.mix` |
 | `packages/overlay/main.js` | Finds a sound's file (a manifest name or a path, which must stay inside the package's folder), merges the manifest's settings with the call's, turns semitones into a rate, and checks that a package only stops and changes its own sounds. Reads the game's sliders and Mute in background through the settings system before the first sound, and again after a menu closes or a save loads (`Sound: the game's volumes are ...` in the overlay log). Stops a package's sounds when it stops. A manifest's `sounds` are checked when the package is found |
 | `packages/rednode/src/audio.ts` | `audio.play`, `audio.stopAll`, `audio.playing`, and a `Sound` with `stop`, `set` and `ended` |
 | `apps/sound-test` | 0.2.0: buttons for each format and setting, the list of what plays, and the game's and V's time dilation for the Sandevistan check |
 | `tools/sounds/make-sample-sounds.py` | Synthesizes the sample's four files, so they are REDnode's own |
-| `native/tests/audio_test.cpp` | Decodes the four files with the plugin's set-up: format, length, not silent |
+| `native/tests/audio_test.cpp` | Decodes the four files with the plugin's set-up: format, length, not silent. Since 0.24.1 also pan on the stereo mix, and the stereo mix reaching only the front pair of a 7.1 device |
 
 Not in S1: easing curves for fades (miniaudio fades are linear), pitch that follows slow motion (the scanner's dilation is still to find), sound on entities and positions (S2). The sliders are applied as linear gain; whether that matches how the game's own sound scales is for the test.
 
@@ -163,5 +163,47 @@ Switch on **Test timer** and **Sound test** in the launcher, press **Start**, an
 | 9 | Press **Stop all** | Everything fades out over half a second. The list says nothing is playing |
 | 10 | Press **Music (OGG)**, then switch the Sound test off in the launcher | The music stops (fades out) when the package stops |
 | 11 | If you can: use a Sandevistan with the Sound test on | Note the "global dilation" and "V's dilation" lines while it is active |
+
+Then quit the game, so the logs are complete.
+
+### S1 Play: results
+
+Tested in game on 2026-10-16 with REDnode 0.24.0, game 2.31. The Test timer was not used, so the log lines are not tied to steps. Steps 1 to 10 passed by ear, except the pan in step 3. Step 11 was not done.
+
+| Step | Result |
+|---|---|
+| 1 Music | Passed. Fade in and a clean loop |
+| 2 Formats | Passed. WAV, FLAC and MP3 over the OGG music |
+| 3 Settings | Pitch (+12 semitones) and the 2 s delay passed. **Pan failed:** "Chime left" and "Chime right" sounded the same, both a little to the right |
+| 4 Fades | Passed |
+| 5 Menus | Passed. The music stopped in the pause menu and the map, and went on from where it was |
+| 6 Sliders | Passed by ear. A chime pressed while the Settings menu was open waited for the menu to close, as `pauseInMenu` says: the log has three chimes from the menu ending together when it closed |
+| 7 Master | Passed by ear: ours and the game's sound dropped together. The linear gain is close enough for now |
+| 8 Mute in background | Passed. The overlay log read `muted in the background`; the music was silent while the game was in the background |
+| 9 Stop all | Passed |
+| 10 Package stops | Passed. The music stopped when the Sound test was switched off |
+| 11 Sandevistan | Not done. The slow-motion question stays open |
+
+**Why pan failed.** The device was the 8-channel HDMI output. miniaudio's engine mixed at the device's 8 channels, and its panner works only on a stereo mix: for other channel counts it copies the sound through unchanged. Our mono files were spread over all 8 speakers, whatever the pan.
+
+**The fix, REDnode 0.24.1.** The plugin opens the device itself, mixes in stereo, and maps the mix to the device's front left and right speakers with miniaudio's "simple" channel mode. Its default mode would also fill the centre and surround speakers from a stereo mix. Every speaker layout has the front pair, and a downmix to headphones keeps it. S2's direction is then left and right only, like most games on headphones; surround output can come later as a setting. The unit test now checks pan on the stereo mix and the stereo-to-7.1 conversion. The plugin log line now reads `..., 8 channels, mixed in stereo to the front pair`.
+
+**Open from this run.**
+
+| Question | Status |
+|---|---|
+| The volume reads | **Unverified.** Each read after a Settings visit showed master and effects equal (45 and 45, later 60 and 60), and music at 100, while step 6 lowers music. Either the player set those, or a read is wrong. The spike's reads (master 50, effects 55) were right |
+| Slow motion | Open: the Sandevistan (step 11) |
+| A change of the Windows default device | Open |
+
+### S1 check, REDnode 0.24.1
+
+Switch on **Test timer** first, press **Start**, and press **Mark** after each step.
+
+| Step | Do | Look for |
+|---|---|---|
+| 1 | Load a save, switch on **Sound test**. Press **Chime left**, then **Chime right**, then **Chime (FLAC)** | Left speaker only, right speaker only, then both. The plugin log says `mixed in stereo to the front pair` |
+| 2 | In Settings, Sound, set **Music volume** to 30 and leave the others. Close the menus | The overlay log reads `master 100, effects 100, dialogue 100, music 30`. Put it back |
+| 3 | If you can: use a Sandevistan, and the scanner, with the Sound test on | Note the "global dilation" and "V's dilation" lines while each is active |
 
 Then quit the game, so the logs are complete.
