@@ -1,0 +1,69 @@
+# Builds the REDnode player zip: the plugin, its scripts, the packaged overlay host and the
+# samples, laid out like the game folder (tools/release/nexus-zip.mjs). The same zip goes to
+# Nexus Mods (uploaded by hand) and to the GitHub release.
+#
+#   Run workflow (Actions tab)      builds the zip and keeps it as the run's artifact
+#   git tag v0.24.2 && git push origin v0.24.2
+#                                   also checks the tag against VERSION and makes the GitHub release
+name: Release zip
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    # VS 2022's toolset, as on the dev machine (docs/dev-setup.md): players' Visual C++ runtimes cover it.
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: The tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $have = (Get-Content VERSION -Raw).Trim()
+          if ("v$have" -ne $env:GITHUB_REF_NAME) {
+            Write-Output "::error::Tag $env:GITHUB_REF_NAME does not match VERSION $have"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1 # the packager fetches its own Electron
+
+      - name: Build the plugin and run its unit tests
+        run: .\tools\build-native.ps1
+
+      - name: Package the overlay host
+        run: npm run overlay:package
+
+      - name: Build the zip
+        run: npm run release:zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: REDnode-zip
+          path: native/build/release/REDnode-*.zip
+          if-no-files-found: error
+
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $notes = "REDnode $version. Install: extract into the game folder, or add the zip to Vortex or REDdeck. Needs RED4ext and redscript. Docs: https://edgemodders.github.io/REDnode/"
+          gh release create $env:GITHUB_REF_NAME "native/build/release/REDnode-$version.zip" --title "REDnode $version" --notes $notes --generate-notes

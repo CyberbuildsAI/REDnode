@@ -13,7 +13,8 @@
     "gameapi:import": "node tools/gameapi/import.mjs",
     "overlay": "npm start --workspace @rednode/overlay",
     "overlay:window": "npm run window --workspace @rednode/overlay",
-    "overlay:package": "node tools/overlay/package-host.mjs"
+    "overlay:package": "node tools/overlay/package-host.mjs",
+    "release:zip": "node tools/release/nexus-zip.mjs"
   },
   "devDependencies": {
     "marked": "18.1.0"
