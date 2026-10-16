@@ -28,6 +28,7 @@ REDnode is a Node.js API for scripting Cyberpunk 2077 (PC, single-player). These
 | [Sound API](sound.md) | The plan for REDnode's own audio engine: a package's audio files in the game, following its volume and pause, on entities |
 | [HTML overlay](overlay.md) | Design of the overlay: how it works, in-game test results, and the plan for phases O1 to O9 |
 | [P0 findings](p0-findings.md) | How RED4ext loads plugins, the plugin entry points, and what that means for the bridge |
+| [Tests](testing.md) | Every test so far, automated and in the game: how to run it again, what to expect, and what it showed |
 | [P1 results](p1-results.md) | The in-game probe test: what passed, the logs, and when `OnGameAttached` fires |
 | [Dev setup](dev-setup.md) | Every tool and step needed to build and test REDnode on a new machine |
 
