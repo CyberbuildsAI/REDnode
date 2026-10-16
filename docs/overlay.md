@@ -690,6 +690,29 @@ Use the **Test timer**: Start, then Mark after each step.
 
 **Result, 2026-10-15: passed.** REDnode 0.22.0, steps 1 to 4 marked. The cursor stayed put and hidden while the right button was held, and the camera kept turning. The plugin log shows three locks by the test window, each ended a different way: letting go ("the page let go"), Esc, and F10 ("the overlay left interactive mode"). [#11](https://github.com/Edgemodders/REDnode/issues/11) closed.
 
+### Polish 0.24.2: built
+
+Asked for by the user on 2026-10-16, after the Sound API's S1 test, and built before S2.
+
+| Change | What it does |
+|---|---|
+| Tooltips | Overlay windows are drawn off screen, where Chromium's own tooltips never show, so no `title` ever showed in the game. The UI kit now draws them in the page: any element with a `title` gets one after half a second's hover, the title-bar icons too. See the kit's README |
+| Tool windows in the Mod Manager | A package granted `front` (the Test timer) is in the tool layer and shows in every space, by design. The Mod Manager now says so: its Space column reads **All**, and its space buttons are greyed with a note |
+| Open at start | A launcher switch, on by default. Off, the game starts with only HUD widgets showing; the launcher tab and windows pinned to the HUD wait for the first F10 (`settings.openAtStart`). Decided with the user: HUD widgets still show |
+| Volume reads | The host reads the game's volumes when a save loads, not only once a sound played, and logs every read with its reason: `Sound: the game's volumes are ... (a save loaded)`, `(a menu closed, unchanged)`, or a line saying the read failed |
+
+Tested in the mock game: with Open at start off, only the HUD widget opened on the HUD; going interactive put the launcher tab back and logged `Open at start: the overlay was opened`. A hover over the Test timer's roll-up icon drew "Roll up" below it. The volumes were read 5 seconds after the save loaded. The Mod Manager's greyed buttons are **unverified**.
+
+### Polish 0.24.2: test
+
+0. Switch on **Test timer** in the launcher, press **Start**, and press **Mark** after each step.
+1. Load a save and press F10. Hover a title-bar icon on any window, such as roll up on the Mod Manager or the Test timer: a tooltip names it after half a second. Hover the launcher's **Open at start** switch: a tooltip explains it. Mark.
+2. If you have only one space, make a second in the launcher's **Space** row (**New**). In the Mod Manager, select **Test timer**: the Space column says **All**, the space buttons are greyed, and a note says it is a tool window. Delete the extra space if you like. Mark.
+3. In the launcher, switch **Open at start** off. Quit the game and start it again. At the main menu, only HUD widgets show: no launcher tab, no other windows. Load a save: still only HUD widgets.
+4. Press F10. The launcher and your windows show. Press **Start** on the Test timer again (it restarted with the game) and **Mark**. Switch **Open at start** back on if you like.
+
+Then quit the game. The overlay log should have `Open at start is off`, `Open at start: the overlay was opened`, and a `Sound: the game's volumes are ... (a save loaded)` line after each save load.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:

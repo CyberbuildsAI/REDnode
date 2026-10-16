@@ -179,6 +179,13 @@ $('dev').addEventListener('change', async (e) => {
   RednodeUI.notify(on ? 'Windows show a debug button next to close' : 'Developer mode off', { title: 'Developer mode' });
 });
 
+// Open at start: off, the game starts with only HUD widgets showing, until F10.
+$('start').addEventListener('change', async (e) => {
+  const on = await window.rednode.apps.openAtStart(e.detail.checked);
+  $('start').checked = on;
+  RednodeUI.notify(on ? 'REDnode opens with the game' : 'Next start: only HUD widgets until you press F10', { title: 'Open at start' });
+});
+
 // Theme: every window that uses the UI kit follows it, unless the app chose its own.
 const themeButtons = [...document.querySelectorAll('[data-theme]')];
 function showTheme(name) {
@@ -201,6 +208,7 @@ async function refresh() {
     showTheme(await window.rednode.apps.theme());
     $('mcp').checked = await window.rednode.apps.mcp();
     $('dev').checked = await window.rednode.apps.developer();
+    $('start').checked = await window.rednode.apps.openAtStart();
     const state = await window.rednode.state();
     $('version').textContent = `REDNODE ${state.version}`;
     // Solo mode: which package has the screen, and a way out.

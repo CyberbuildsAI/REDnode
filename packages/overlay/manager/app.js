@@ -85,7 +85,7 @@ const wantsText = (r) => `${r.name}${r.wants && r.wants !== '*' ? ` ${r.wants}` 
 // Spaces (O11): shown only once the player has made a second one.
 let spaceState = { names: ['Main'], current: 'Main' };
 const manySpaces = () => spaceState.names.length > 1;
-const spaceLabel = (i) => (i.space === '*' ? 'All' : i.space === 'mixed' ? 'Mixed' : i.space ?? '-');
+const spaceLabel = (i) => (i.tool || i.space === '*' ? 'All' : i.space === 'mixed' ? 'Mixed' : i.space ?? '-');
 
 const hasError = (i) =>
   missingOf(i).length > 0 || (!!i.mod && (i.mod.status === 'crashed' || i.mod.status === 'not-responding' || !!i.mod.error));
@@ -337,12 +337,16 @@ function renderDetails() {
   );
   if (manySpaces() && !i.builtin) {
     // The whole package to a space, or to every space; a window's own title bar can still choose.
+    // A tool window (the front permission) shows in every space, so its buttons are off.
     const row = el('div', 'row spaces-row');
     row.append(el('span', 'dim', 'Space'));
     for (const [value, label] of [...spaceState.names.map((n) => [n, n]), ['*', 'All']]) {
-      row.append(button(label, () => act(i.name, () => window.rednode.apps.spaces('move', i.id, value)), i.space === value ? null : 'ghost'));
+      const b = button(label, () => act(i.name, () => window.rednode.apps.spaces('move', i.id, value)), (i.tool ? value === '*' : i.space === value) ? null : 'ghost');
+      if (i.tool) b.setAttribute('disabled', '');
+      row.append(b);
     }
     parts.push(row);
+    if (i.tool) parts.push(el('p', 'dim', 'A tool window: it stays above other windows (the front permission) and shows in every space.'));
   }
   if (i.mod) {
     parts.push(

@@ -401,6 +401,18 @@ function windowOnHud(w) {
   return owner ? isOnHud(owner) : true;
 }
 
+// Open at start (0.24.2): with the launcher's switch off, the game starts with REDnode
+// closed. Until the player first opens the overlay (F10), only HUD widgets show in passive
+// mode; windows pinned to the HUD, the launcher tab among them, wait for that F10.
+let startHold = false;
+const shownInPassive = (w) => (startHold ? w.app.manifest.kind === 'hud' : windowOnHud(w));
+function endStartHold() {
+  if (!startHold) return;
+  startHold = false;
+  for (const w of windows.values()) sendJson({ cmd: 'window.hud', window: w.id, onHud: shownInPassive(w) });
+  log('Open at start: the overlay was opened, so pinned windows show again');
+}
+
 // ---------- layers and solo mode (O10) ----------
 //
 // The tool layer is always above packages' windows: REDnode's own windows (launcher,
@@ -618,7 +630,7 @@ function setPin(id, where, on) {
   writeJson('settings.json', settings);
   if (where === 'hud') {
     for (const w of windows.values()) {
-      if (ownerOf(w) === entry) sendJson({ cmd: 'window.hud', window: w.id, onHud: windowOnHud(w) });
+      if (ownerOf(w) === entry) sendJson({ cmd: 'window.hud', window: w.id, onHud: shownInPassive(w) });
     }
   }
   log(`${on ? 'Pinned' : 'Unpinned'} ${id} ${on ? 'to' : 'from'} the ${where === 'hud' ? 'HUD' : 'launcher'}`);
@@ -843,7 +855,7 @@ function openInGame(w) {
     kind: m.kind,
     hideWith: m.hideWith,
     draggable: m.kind !== 'hud',
-    onHud: windowOnHud(w),
+    onHud: shownInPassive(w),
     layer: windowLayer(w),
     hidden: windowHidden(w),
   });
@@ -860,6 +872,8 @@ function connect() {
     writable = true;
     log('Connected to the game');
     sendJson({ cmd: 'host', pid: process.pid }); // lets the plugin open our texture handles
+    startHold = settings.openAtStart === false;
+    if (startHold) log('Open at start is off: only HUD widgets show until the overlay is opened (F10)');
     for (const w of windows.values()) openInGame(w);
     toAllPages({ event: 'link', connected: true });
     stateChanged();
@@ -1063,6 +1077,7 @@ function onGameMessage(m) {
     case 'overlay':
       mode = m.mode;
       log(m.event === 'hello' ? `Game says hello (${m.plugin}), mode ${mode}` : `Mode ${mode}`);
+      if (mode === 'interactive') endStartHold();
       if (mode !== 'interactive') onFocus(0);
       // Windows not pinned to the HUD appear and disappear with the mode: give them a frame.
       if (m.event === 'overlay') for (const w of windows.values()) if (!w.win.isDestroyed()) repaint(w.win.webContents);
@@ -1409,7 +1424,7 @@ let mixKnown = false; // the plugin has the sliders of this connection
 let mixReading = null;
 let lastMix = '';
 
-async function readMix() {
+async function readMix(why = 'before the first sound') {
   const refs = [];
   const call = async (params) => {
     const r = await bridgeCall('rtti.call', params);
@@ -1437,7 +1452,8 @@ async function readMix() {
     await bridgeCall('sound.mix', mix);
     mixKnown = true;
     const text = `master ${mix.master}, effects ${mix.sfx}, dialogue ${mix.dialogue}, music ${mix.music}${mix.muteInBackground ? ', muted in the background' : ''}`;
-    if (text !== lastMix) log(`Sound: the game's volumes are ${text}`);
+    // Every read is logged, so a test can tell a read that saw no change from no read.
+    log(`Sound: the game's volumes are ${text} (${why}${text === lastMix ? ', unchanged' : ''})`);
     lastMix = text;
   } finally {
     if (refs.length) bridgeCall('rtti.release', { refs }).catch(() => {});
@@ -1456,10 +1472,19 @@ function ensureMix() {
   return mixReading;
 }
 
+// Reads the volumes when a save loads, so they are known before the first sound, and
+// after each menu once known (the player may have moved a slider). After a load the
+// game takes a moment to answer (the S1 spike saw a timeout), so that read waits longer
+// and tries twice.
 function onUiStateForSound(before, after) {
-  const left = (before.menu && !after.menu) || (before.mainMenu && !after.mainMenu);
-  // After a save loads the game takes a moment to answer (the S1 spike saw a timeout).
-  if (left && mixKnown) setTimeout(() => readMix().catch(() => {}), 1500);
+  if (before.mainMenu && !after.mainMenu) setTimeout(() => readMixLogged('a save loaded', 2), 5000);
+  else if (before.menu && !after.menu && mixKnown) setTimeout(() => readMixLogged('a menu closed', 1), 1500);
+}
+function readMixLogged(why, tries) {
+  readMix(why).catch((err) => {
+    if (tries > 1) setTimeout(() => readMixLogged(why, tries - 1), 5000);
+    else log(`Sound: could not read the game's volumes after ${why} (${err.message})`);
+  });
 }
 
 ipcMain.handle('rednode:call', (event, method, params) => {
@@ -1514,6 +1539,8 @@ function appList() {
         onHud: isOnHud(entry),
         isNew: isNew(entry),
         manager: !!entry.manager,
+        // In the tool layer (the front permission): its windows show in every space.
+        tool: isGranted(m.id, 'front'),
         mod: m.main ? mods.info(m.id, metrics) : null,
         closedWindows: [...playerClosed.values()].filter((c) => c.modId === m.id).map((c) => c.win),
         hasWindow: windowsOfPackage(m.id).length > 0,
@@ -2274,6 +2301,16 @@ ipcMain.handle('rednode:host:hot-reload', (event, on) => {
     setHotReload(on);
   }
   return hotReload;
+});
+
+ipcMain.handle('rednode:host:open-at-start', (event, on) => {
+  fromLauncher(event);
+  if (typeof on === 'boolean' && on !== (settings.openAtStart !== false)) {
+    settings.openAtStart = on;
+    writeJson('settings.json', settings);
+    log(`Open at start: ${on ? 'on' : 'off'}`);
+  }
+  return settings.openAtStart !== false;
 });
 
 ipcMain.handle('rednode:host:render-path', (event, path) => {

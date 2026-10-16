@@ -975,6 +975,75 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
     return n;
   }
 
+  // ---------- tooltips for title attributes ----------
+  //
+  // Overlay windows are drawn off screen, where Chromium's own tooltips (a separate
+  // desktop window) never show. So the kit draws them in the page: any element with a
+  // title, also inside the kit's shadow roots (the title-bar icons), gets one after a
+  // short hover. While it shows, the title moves to data-rn-title, so a page on the
+  // desktop does not show both. Kit elements whose title is their heading are skipped.
+  const HEADING_TITLE = new Set(['rn-window', 'rn-panel', 'rn-menu', 'rn-notification']);
+  let tipBox = null;
+  let tipTarget = null;
+  let tipTimer = 0;
+
+  function titledIn(path) {
+    for (const node of path) {
+      if (!(node instanceof Element) || HEADING_TITLE.has(node.localName)) return null;
+      if (node.getAttribute('title') || node.getAttribute('data-rn-title')) return node;
+    }
+    return null;
+  }
+  function hideTip() {
+    clearTimeout(tipTimer);
+    if (tipTarget?.hasAttribute('data-rn-title')) {
+      if (!tipTarget.hasAttribute('title')) tipTarget.setAttribute('title', tipTarget.getAttribute('data-rn-title'));
+      tipTarget.removeAttribute('data-rn-title');
+    }
+    tipTarget = null;
+    if (tipBox) tipBox.hidden = true;
+  }
+  function showTip(target) {
+    const text = target.getAttribute('title');
+    if (!text || !target.isConnected) return;
+    target.setAttribute('data-rn-title', text);
+    target.removeAttribute('title');
+    if (!tipBox) {
+      tipBox = document.createElement('div');
+      tipBox.id = 'rn-tip';
+      tipBox.setAttribute('role', 'tooltip');
+      tipBox.style.cssText =
+        'position:fixed;z-index:2147483001;pointer-events:none;max-width:280px;padding:5px 9px;white-space:pre-line;' +
+        'font:500 14px var(--rn-body);color:var(--rn-fg);background:var(--rn-panel-2);border:1px solid var(--rn-accent-2)';
+      document.body.appendChild(tipBox);
+    }
+    tipBox.textContent = text;
+    tipBox.hidden = false;
+    // Below the element, centred, kept inside the page; above it when there is no room below.
+    const r = target.getBoundingClientRect();
+    const w = tipBox.offsetWidth;
+    const h = tipBox.offsetHeight;
+    const x = Math.min(Math.max(4, r.left + r.width / 2 - w / 2), innerWidth - w - 4);
+    const y = r.bottom + 6 + h <= innerHeight - 4 ? r.bottom + 6 : Math.max(4, r.top - h - 6);
+    tipBox.style.left = `${x}px`;
+    tipBox.style.top = `${y}px`;
+  }
+  document.addEventListener(
+    'pointerover',
+    (e) => {
+      const target = titledIn(e.composedPath());
+      if (target === tipTarget) return;
+      hideTip();
+      if (!target) return;
+      tipTarget = target;
+      tipTimer = setTimeout(() => showTip(target), 500);
+    },
+    true,
+  );
+  for (const type of ['pointerdown', 'wheel', 'keydown']) document.addEventListener(type, hideTip, true);
+  document.documentElement.addEventListener('pointerleave', hideTip);
+  window.addEventListener('blur', hideTip);
+
   // ---------- registration ----------
 
   const RednodeUI = {

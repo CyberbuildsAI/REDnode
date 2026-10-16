@@ -34,7 +34,7 @@ red4ext/plugins/REDnode/
 
 ## Expected log after loading a save
 
-`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.24.1, author(s): Edgemodders) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
+`red4ext/logs/red4ext-*.log` should list `REDnode (version: 0.24.2, author(s): Edgemodders) has been loaded`. The plugin's own lines go to its log in `red4ext/plugins/REDnode/` or the RED4ext log:
 
 ```
 REDnode <version> loading
@@ -44,7 +44,7 @@ Event drained on frame <n>: PlayerPuppet.OnGameAttached = 42
 Pump heartbeat: 3600 frames
 ```
 
-When a package plays its first sound (or an app plays a test tone), the plugin adds `Audio: output started on "<device>", <rate> Hz, <n> channels, mixed in stereo to the front pair (miniaudio 0.11.25)`, and the overlay log has `Sound: the game's volumes are master <n>, effects <n>, dialogue <n>, music <n>`.
+When a package plays its first sound (or an app plays a test tone), the plugin adds `Audio: output started on "<device>", <rate> Hz, <n> channels, mixed in stereo to the front pair (miniaudio 0.11.25)`, and the overlay log has `Sound: the game's volumes are master <n>, effects <n>, dialogue <n>, music <n> (<why>)`. Since 0.24.2 that line also comes 5 seconds after each save load, `(a save loaded)`.
 
 `= 42` confirms the synchronous call returned its value to the script. The frame number confirms the event was handled on the game thread.
 
