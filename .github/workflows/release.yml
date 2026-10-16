@@ -2,15 +2,19 @@
 # samples, laid out like the game folder (tools/release/nexus-zip.mjs). The same zip goes to
 # Nexus Mods (uploaded by hand) and to the GitHub release.
 #
-#   Run workflow (Actions tab)      builds the zip and keeps it as the run's artifact
-#   git tag v0.24.2 && git push origin v0.24.2
-#                                   also checks the tag against VERSION and makes the GitHub release
+#   Run workflow (Actions tab)                  builds the zip and keeps it as the run's artifact
+#   Run workflow, "Make a release" ticked       also tags the commit v<VERSION> and makes the
+#                                               GitHub release with the zip; stops first if that
+#                                               tag exists (raise VERSION with tools/version.mjs)
 name: Release zip
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: Make a release (tags this commit v<VERSION>)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,14 +34,18 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: The tag matches VERSION
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: The version is not released yet
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          $have = (Get-Content VERSION -Raw).Trim()
-          if ("v$have" -ne $env:GITHUB_REF_NAME) {
-            Write-Output "::error::Tag $env:GITHUB_REF_NAME does not match VERSION $have"
+          $version = (Get-Content VERSION -Raw).Trim()
+          gh api "repos/${{ github.repository }}/git/ref/tags/v$version" --silent 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output "::error::v$version is already released. Raise VERSION with node tools/version.mjs <version>."
             exit 1
           }
+          $global:LASTEXITCODE = 0
 
       - name: Install dependencies
         run: npm ci
@@ -60,10 +68,10 @@ jobs:
           if-no-files-found: error
 
       - name: GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           $notes = "REDnode $version. Install: extract into the game folder, or add the zip to Vortex or REDdeck. Needs RED4ext and redscript. Docs: https://edgemodders.github.io/REDnode/"
-          gh release create $env:GITHUB_REF_NAME "native/build/release/REDnode-$version.zip" --title "REDnode $version" --notes $notes --generate-notes
+          gh release create "v$version" "native/build/release/REDnode-$version.zip" --target $env:GITHUB_SHA --title "REDnode $version" --notes $notes --generate-notes

@@ -50,7 +50,7 @@ On GitHub: the **Release zip** workflow (`.github/workflows/release.yml`).
 | Trigger | Result |
 |---|---|
 | Actions tab, **Run workflow** | Builds the zip on a Windows runner and keeps it as the run's artifact, `REDnode-zip` |
-| Push a tag `v<version>` matching `VERSION` (`git tag v0.24.2`, `git push origin v0.24.2`) | The same, then a GitHub release with the zip |
+| **Run workflow** with **Make a release** ticked | The same, then tags the commit `v<VERSION>` and makes a GitHub release with the zip. It stops before building if that version is already released |
 
 On this machine, after the usual build:
 
@@ -69,7 +69,7 @@ npm run release:zip      # native\build\release\REDnode-<version>.zip
 1. Edit `description.bbcode` here, commit, push.
 2. Check it: `node tools/check-bbcode.mjs nexus/description.bbcode`.
 3. Paste the whole file into the description field on Nexus and save.
-4. For a new version: run the workflow (or push the tag), download the zip, and upload it on Nexus as the main file with the version from `VERSION`. Archive the old file.
+4. For a new version: run the workflow with **Make a release** ticked, download the zip from the release, and upload it on Nexus as the main file with the version from `VERSION`. Archive the old file.
 
 Keep these in step with the repo's status (README, docs/index.md):
 
