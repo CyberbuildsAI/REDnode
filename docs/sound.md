@@ -1,6 +1,6 @@
 # Sound API
 
-Status: **S1 Play** passed in game on 2026-10-16 (REDnode 0.24.0) except pan, fixed in REDnode 0.24.1, which awaits a short check. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
+Status: **S1 Play** passed in game on 2026-10-16 (REDnode 0.24.0), and its pan fix in REDnode 0.24.1 the same day. Open: the volume reads (unverified) and the scanner's slow motion. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
 
 ## Clean-room rule
 
@@ -207,3 +207,5 @@ Switch on **Test timer** first, press **Start**, and press **Mark** after each s
 | 3 | Hold the scanner for a few seconds with the Sound test on | Note whether "V's dilation" changes (the global dilation did not in the spike) |
 
 Then quit the game, so the logs are complete.
+
+**Result, 2026-10-16.** Step 1 passed: left only, right only, then both; the plugin log says `8 channels, mixed in stereo to the front pair`. Step 2 left no answer: the overlay log has no new volume read after the Settings visit, and only step 1 was marked, so whether the music slider was changed is not known. The volume reads stay **unverified**. Step 3: the scanner did not slow time in this run, and NPCs walked at normal speed while V seemed slower. The player suspects one of their mods; the scanner's slow motion stays open.
