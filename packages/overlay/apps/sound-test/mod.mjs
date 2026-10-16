@@ -1,117 +1,128 @@
-// Sound test: the Sound API's research spike (docs/sound.md). It answers, in the game:
-//   - where the game keeps its volume sliders, and their names and values;
-//   - how to tell the game is paused, and how much time is slowed;
-//   - where the listener is (the active camera);
-//   - whether REDnode's own audio output (miniaudio, in the plugin) plays beside the game's.
-// Everything it finds goes to the Mod log as well.
+// Sound test: the Sound API's S1 test (docs/sound.md). Plays the package's own files
+// (sounds/, made by tools/sounds/make-sample-sounds.py) through REDnode's audio engine:
+//   - music.ogg loops in the music category, beep.wav and chime.flac are effects,
+//     voice.mp3 is dialogue; each follows its game volume slider;
+//   - every sound pauses while a game menu is open;
+//   - settings: pan, delay, pitch, fades.
+// It also shows the game's slow-motion state, for the Sandevistan test.
+// Everything it does goes to the Mod log as well.
 
-import { api, game, ui } from 'rednode';
+import { api, audio, game, ui } from 'rednode';
 
-const volumes = ui.text('Reading the audio settings...', { tone: 'dim' });
+const status = ui.text('Waiting for a loaded save...', { tone: 'dim' });
+const playingLine = ui.text('', { tone: 'dim' });
 const live = ui.text('', { tone: 'normal' });
-const tone = ui.text('', { tone: 'dim' });
+
+let music = null;
+const musicButton = ui.button('Music (OGG)', toggleMusic);
 
 ui.window({
   title: 'Sound test',
   anchor: 'left',
   x: 40,
   y: 200,
-  width: 440,
-  height: 470,
+  width: 470,
+  height: 520,
   children: [
-    ui.row(ui.button('Play test tone', () => playTone(440)), ui.button('Low', () => playTone(220), { variant: 'ghost' }), ui.button('Read settings', readSettings, { variant: 'ghost' })),
-    tone,
-    volumes,
+    ui.heading('Files'),
+    ui.row(musicButton, ui.button('Beep (WAV)', () => play('beep'), { variant: 'ghost' }), ui.button('Chime (FLAC)', () => play('chime'), { variant: 'ghost' })),
+    ui.row(ui.button('Voice (MP3)', () => play('voice'), { variant: 'ghost' }), ui.button('Voice +12 semitones', () => play('voice', { semitones: 12 }), { variant: 'ghost' })),
+    ui.heading('Settings'),
+    ui.row(
+      ui.button('Chime left', () => play('chime', { pan: -1 }), { variant: 'ghost' }),
+      ui.button('Chime right', () => play('chime', { pan: 1 }), { variant: 'ghost' }),
+      ui.button('Beep in 2 s', () => play('beep', { delay: 2000 }), { variant: 'ghost' }),
+    ),
+    ui.row(ui.button('Music quieter', () => music?.set({ fadeTo: { volume: 0.3, ms: 1000 } }), { variant: 'ghost' }), ui.button('Music louder', () => music?.set({ fadeTo: { volume: 1, ms: 1000 } }), { variant: 'ghost' }), ui.button('Stop all', () => audio.stopAll({ fadeOut: 500 }), { variant: 'ghost' })),
+    status,
+    playingLine,
+    ui.heading('Game time'),
     live,
   ],
 });
 
-const fmt = (n) => (typeof n === 'number' ? n.toFixed(2) : String(n));
-
-// The audio settings: every group under /audio and every setting in them.
-async function readSettings() {
+async function play(name, options) {
   try {
-    const settings = await api.GameInstance.GetSettingsSystem(game.instance);
-    const audio = await settings.GetGroup('/audio');
-    const groups = audio ? await audio.GetGroups(false) : [];
-    const lines = [];
-    for (const g of [audio, ...groups]) {
-      if (!g) continue;
-      const path = await g.GetPath();
-      for (const v of await g.GetVars(false)) {
-        const name = await v.GetName();
-        let value = '?';
-        try {
-          value = await v.GetValue();
-        } catch {
-          // a list or a bool: GetValue differs by type
-        }
-        lines.push(`${path}/${name}  ${fmt(value)}  (${v.$type.replace('userSettingsVar', '')})`);
-      }
-    }
-    volumes.set({ text: lines.join('\n') || 'No settings under /audio', tone: 'normal' });
-    console.log(`Audio settings:\n${lines.join('\n')}`);
+    const sound = await audio.play(name, options);
+    const what = `${name}${options ? ` ${JSON.stringify(options)}` : ''}`;
+    status.set({ text: `Playing ${what}`, tone: 'dim' });
+    console.log(`Play ${what}: sound ${sound.id}`);
+    sound.ended.then((end) => console.log(`Sound ${sound.id} (${name}) ${end.why}${end.error ? `: ${end.error}` : ''}`));
+    return sound;
   } catch (err) {
-    volumes.set({ text: `Settings: ${err.message}`, tone: 'danger' });
-    console.log(`Reading the audio settings failed: ${err.message}`);
+    status.set({ text: `${name}: ${err.message}`, tone: 'danger' });
+    console.log(`Play ${name} failed: ${err.message}`);
+    return null;
   }
 }
 
-// Pause, slow motion and the camera, twice a second; changes go to the log.
+async function toggleMusic() {
+  if (music) {
+    const m = music;
+    music = null;
+    musicButton.set({ label: 'Music (OGG)' });
+    await m.stop({ fadeOut: 1500 });
+    return;
+  }
+  const m = await play('music');
+  if (!m) return;
+  music = m;
+  musicButton.set({ label: 'Stop music' });
+  m.ended.then(() => {
+    if (music !== m) return;
+    music = null;
+    musicButton.set({ label: 'Music (OGG)' });
+  });
+}
+
+// What is playing, twice a second.
+async function showPlaying() {
+  try {
+    const list = await audio.playing();
+    playingLine.set({
+      text: list.length ? list.map((s) => `${s.id} ${s.file.split(/[\\/]/).pop()} ${s.state} ${s.position.toFixed(1)}/${s.length.toFixed(1)} s`).join('\n') : 'Nothing playing',
+    });
+  } catch (err) {
+    playingLine.set({ text: err.message });
+  }
+}
+
+// Slow motion: the global dilation, and V's own (a Sandevistan slows the world, not V).
+const fmt = (n) => (typeof n === 'number' ? n.toFixed(2) : String(n));
 let last = '';
 async function readLive() {
   const out = [];
   try {
     const time = await api.GameInstance.GetTimeSystem(game.instance);
-    out.push(`paused  ${await time.IsPausedState()}`);
-    out.push(`dilation  ${fmt(await time.GetActiveTimeDilation('', false))}`);
+    out.push(`global dilation  ${fmt(await time.GetActiveTimeDilation('', false))}`);
   } catch (err) {
     out.push(`time: ${err.message}`);
   }
   try {
-    const camera = await api.GameInstance.GetCameraSystem(game.instance);
-    // The function writes into its parameter: api.$out asks for it back, in { result, out }.
-    const r = await camera.GetActiveCameraWorldTransform(api.$out);
-    const p = r?.out?.transform?.position;
-    out.push(`camera  ${p ? [p.X, p.Y, p.Z].map((n) => Number(n).toFixed(1)).join(', ') : JSON.stringify(r).slice(0, 120)}`);
+    const player = await api.GetPlayer(game.instance);
+    out.push(`V's dilation  ${fmt(await player.GetTimeDilationValue())}${(await player.IsIgnoringGlobalTimeDilation()) ? ' (ignores global)' : ''}`);
   } catch (err) {
-    out.push(`camera: ${err.message}`);
+    out.push(`V: ${err.message}`);
   }
   out.push(`menu  ${state.menu}`);
   live.set({ text: out.join('\n') });
-  // Pause, dilation and menu changes go to the log; the camera moves too often.
-  const now = out.filter((l) => !l.startsWith('camera')).join(' · ');
+  const now = out.join(' · ');
   if (now !== last) console.log(`Now: ${now}`);
   last = now;
 }
 
-// A tone through REDnode's own output (miniaudio in the plugin), not the game's.
-async function playTone(hz) {
-  try {
-    const r = await game.call('audio.tone', { hz, ms: 800, volume: 0.2 });
-    tone.set({ text: `${hz} Hz on "${r.device}", ${r.sampleRate} Hz, ${r.channels} channels (miniaudio ${r.miniaudio})`, tone: 'dim' });
-    console.log(`Tone ${hz} Hz on "${r.device}", ${r.sampleRate} Hz, ${r.channels} channels`);
-  } catch (err) {
-    tone.set({ text: `Tone: ${err.message}`, tone: 'danger' });
-    console.log(`Tone failed: ${err.message}`);
-  }
-}
-
 // Game calls wait for a loaded save: at the main menu there is no game to ask.
 let state = await game.state();
-let started = false;
-function start() {
-  if (started || state.mainMenu || !state.connected) return;
-  started = true;
-  readSettings();
-}
+let ready = false;
 game.onState((s) => {
   state = s;
-  start();
 });
 setInterval(() => {
-  if (!state.mainMenu && state.connected) readLive();
+  if (!state.mainMenu && state.connected) {
+    if (!ready) status.set({ text: 'Ready: press a button', tone: 'dim' });
+    ready = true;
+    readLive();
+    showPlaying();
+  }
 }, 500);
-live.set({ text: 'Waiting for a loaded save...' });
 console.log('Sound test ready');
-start();

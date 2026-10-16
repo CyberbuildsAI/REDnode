@@ -81,6 +81,7 @@ void Update(uint64_t aFrame)
 {
     detail::RunRequests(aFrame);
     detail::PollGameState(aFrame);
+    detail::UpdateAudio();
 }
 
 uint64_t detail::NowMs()

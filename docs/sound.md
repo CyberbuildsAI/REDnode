@@ -1,6 +1,6 @@
 # Sound API
 
-Status: **planned**, agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
+Status: **S1 built** in REDnode 0.24.0, awaiting its in-game test. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
 
 ## Clean-room rule
 
@@ -17,7 +17,7 @@ Audioware's repository has no license file and declares none (checked on 2026-10
 | `game.audio.play(name)` | Plays one of the game's own sound events as a 2D UI sound. Tested in game; six names are confirmed (see `gameapi/notes/gameGameAudioSystem.md`) |
 | UI kit sounds | `<rn-button sound="...">` and the kit's press and hover sounds, through the plugin's `audio.play` |
 | The rest of the game's `AudioSystem` | 49 functions reachable through `api`: `Play` and `Stop` on an entity or emitter, `PlayOnEmitter`, `Parameter`, `GlobalParameter`, `Switch`, `State`, radio and playlists. **Untested** beyond `Play` |
-| Your own audio files | None. The game's engine (Wwise) plays only events from its own soundbanks |
+| Your own audio files | S1 (REDnode 0.24.0, test pending): `audio.play` in the rednode package plays a package's WAV, OGG, MP3 and FLAC files through REDnode's own engine. See [Your own sounds](overlay-apps.md#your-own-sounds) |
 | Audio from an overlay page | **Unverified** whether Chromium plays it in the host. If it does, it ignores the game's volume and pause |
 | Tier 1 (in the game, synchronous) | None: Tier 1 is designed but not built |
 
@@ -130,3 +130,38 @@ Two more findings. Right after a save loaded, the first settings read timed out 
 | Slow motion | Open. Find the scanner's and the Sandevistan's dilation (the player's own dilation, or a named reason) before S1 adds pitch with dilation; leave it out of S1 if not found |
 | Listener | The active camera's transform, for S2 |
 | Output | miniaudio on the default device works beside Wwise, including an 8-channel HDMI device. Following a device change is to test in S1 |
+
+## S1 Play: built
+
+REDnode 0.24.0. How to use it: [Your own sounds](overlay-apps.md#your-own-sounds).
+
+| Piece | What it does |
+|---|---|
+| `native/src/overlay/audio.cpp` | The engine on miniaudio 0.11.25, with stb_vorbis for OGG. Files open on a loader thread. Three groups (effects, dialogue, music) under the engine's master volume. Each frame on the game thread: sounds pause while a menu or loading screen is up (the overlay's own game state) and the ones that ended are announced as `sound-end` events. Mute in background follows the game window's focus. Bridge methods `sound.play`, `sound.stop`, `sound.set`, `sound.list`, `sound.mix` |
+| `packages/overlay/main.js` | Finds a sound's file (a manifest name or a path, which must stay inside the package's folder), merges the manifest's settings with the call's, turns semitones into a rate, and checks that a package only stops and changes its own sounds. Reads the game's sliders and Mute in background through the settings system before the first sound, and again after a menu closes or a save loads (`Sound: the game's volumes are ...` in the overlay log). Stops a package's sounds when it stops. A manifest's `sounds` are checked when the package is found |
+| `packages/rednode/src/audio.ts` | `audio.play`, `audio.stopAll`, `audio.playing`, and a `Sound` with `stop`, `set` and `ended` |
+| `apps/sound-test` | 0.2.0: buttons for each format and setting, the list of what plays, and the game's and V's time dilation for the Sandevistan check |
+| `tools/sounds/make-sample-sounds.py` | Synthesizes the sample's four files, so they are REDnode's own |
+| `native/tests/audio_test.cpp` | Decodes the four files with the plugin's set-up: format, length, not silent |
+
+Not in S1: easing curves for fades (miniaudio fades are linear), pitch that follows slow motion (the scanner's dilation is still to find), sound on entities and positions (S2). The sliders are applied as linear gain; whether that matches how the game's own sound scales is for the test.
+
+### S1 test
+
+Switch on **Test timer** and **Sound test** in the launcher, press **Start**, and press **Mark** after each step.
+
+| Step | Do | Look for |
+|---|---|---|
+| 1 | Load a save. Press **Music (OGG)** | Music fades in over a second and a half and loops without a gap or click at the loop point (every 8 seconds). The list shows it playing |
+| 2 | Press **Beep (WAV)**, **Chime (FLAC)** and **Voice (MP3)**, one after another, with the music on | Each plays once over the music. The voice is a synthetic "ah, oh" |
+| 3 | Press **Voice +12 semitones**, **Chime left**, **Chime right**, **Beep in 2 s** | The voice an octave higher and twice as fast; the chime in the left ear, then the right; the beep two seconds after the press |
+| 4 | Press **Music quieter**, wait, then **Music louder** | The music fades down over a second, then back up |
+| 5 | Open the pause menu for a few seconds, then close it. Do the same with the map | The music stops while the menu is open and goes on from where it was when it closes |
+| 6 | In Settings, Sound, lower **Music volume** to about 30, close the menus | The music is quieter. Then lower **Sound effects volume** and press **Chime (FLAC)**: the chime is quieter too. Put both back |
+| 7 | In Settings, Sound, lower **Master volume** to about 30, close the menus, press **Beep (WAV)** | Music and beep are quieter. Compare by ear with the game's own sound: do ours and the game's drop by about the same amount? Put it back |
+| 8 | Turn on **Mute in background** in Settings, Sound if it is off. Alt+Tab out for a few seconds with the music on, then come back | The music is silent while the game is in the background, and plays again when it is back |
+| 9 | Press **Stop all** | Everything fades out over half a second. The list says nothing is playing |
+| 10 | Press **Music (OGG)**, then switch the Sound test off in the launcher | The music stops (fades out) when the package stops |
+| 11 | If you can: use a Sandevistan with the Sound test on | Note the "global dilation" and "V's dilation" lines while it is active |
+
+Then quit the game, so the logs are complete.

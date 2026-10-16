@@ -214,6 +214,9 @@ const ANCHORS = ['top-left', 'top', 'top-right', 'left', 'center', 'right', 'bot
 // Game states a window can hide with (manifest hideWith). The plugin reads them from the game.
 const HIDE_WITH = ['menu', 'photo-mode', 'scene', 'main-menu'];
 
+// The audio files the Sound API plays (sound.play, a manifest's "sounds").
+const SOUND_TYPES = new Set(['.wav', '.ogg', '.mp3', '.flac']);
+
 function readManifest(dir) {
   const file = path.join(dir, 'rednode-app.json');
   if (!fs.existsSync(file)) return null;
@@ -258,6 +261,18 @@ function readManifest(dir) {
       }
     }
   }
+  if (m.sounds !== undefined) {
+    if (typeof m.sounds !== 'object' || m.sounds === null || Array.isArray(m.sounds)) {
+      problems.push('sounds must be an object of names and files, such as { "alarm": "sounds/alarm.ogg" }');
+    } else {
+      for (const [name, s] of Object.entries(m.sounds)) {
+        const f = typeof s === 'string' ? s : s?.file;
+        if (typeof f !== 'string') problems.push(`sounds "${name}" needs a file`);
+        else if (!SOUND_TYPES.has(path.extname(f).toLowerCase())) problems.push(`sounds "${name}": ${f} is not .wav, .ogg, .mp3 or .flac`);
+        else if (!fs.existsSync(path.join(dir, f))) problems.push(`sounds "${name}": ${f} not found`);
+      }
+    }
+  }
   if (problems.length) throw new Error(`${file}: ${problems.join('; ')}`);
   return {
     id: m.id,
@@ -271,6 +286,7 @@ function readManifest(dir) {
     permissions: m.permissions ?? [],
     provides: m.provides ?? [],
     kind: m.kind ?? 'window',
+    sounds: m.sounds ?? {},
     width: m.width,
     height: m.height,
     anchor: m.anchor ?? 'top-left',
@@ -585,9 +601,10 @@ function endSolo(why) {
 }
 
 // Solo ends when its package stops: no window left, and no mod running. TweakDB changes
-// of a stopped package are undone at the same moments.
+// of a stopped package are undone, and its sounds stopped, at the same moments.
 function checkSolo() {
   checkTweaks();
+  checkSounds();
   if (!soloOwner) return;
   if (!packageRunning(soloOwner)) endSolo('the package stopped');
 }
@@ -878,6 +895,9 @@ function connect() {
     connected = false;
     stateChanged();
     pendingFrames.clear();
+    // The plugin's sounds and volumes belong to that connection.
+    soundOwners.clear();
+    mixKnown = false;
     releaseSharedFrames(() => true);
     for (const [id, p] of pending) {
       clearTimeout(p.timer);
@@ -1052,6 +1072,7 @@ function onGameMessage(m) {
     case 'ui-state': {
       const next = { menu: !!m.menu, photoMode: !!m.photoMode, scene: !!m.scene, mainMenu: !!m.mainMenu };
       const changed = JSON.stringify(next) !== JSON.stringify(uiState);
+      onUiStateForSound(uiState, next);
       uiState = next;
       // A window hidden with the game's UI loses its texture in the game. Repaint every
       // window, so one that is shown again gets a frame even if its page is idle.
@@ -1063,6 +1084,9 @@ function onGameMessage(m) {
     case 'game':
       toAllPages(m);
       mods?.broadcast(m);
+      return;
+    case 'sound-end':
+      onSoundEnd(m);
       return;
     case 'pointer-lock': {
       // The plugin began or ended a window's pointer lock: the page's Pointer Lock follows.
@@ -1249,6 +1273,7 @@ async function packageCall(id, method, params) {
   // A restarted package waits until its old changes are undone, so it never saves a
   // half-restored value as the original.
   if (id && undoing.has(id)) await undoing.get(id);
+  if (typeof method === 'string' && method.startsWith('sound.')) return soundCall(id, method, params);
   if (method === 'tweakdb.set' && id && params?.path) {
     const path = String(params.path);
     if (!tweakJournal.has(id)) tweakJournal.set(id, new Map());
@@ -1294,6 +1319,147 @@ function packageRunning(id) {
 
 function checkTweaks() {
   for (const id of [...tweakJournal.keys()]) if (!packageRunning(id)) undoTweaks(id, 'the package stopped');
+}
+
+// ---------- sound per package (Sound API, S1) ----------
+//
+// Packages play their own audio files through the plugin's engine (audio.cpp). The host
+// finds the file (a name from the manifest's "sounds", or a path in the package's folder),
+// remembers which package owns each sound, and stops a package's sounds when it stops.
+// It also reads the game's volume sliders and sends them to the plugin (sound.mix).
+
+const SOUND_CATEGORIES = ['sfx', 'dialogue', 'music'];
+const PLAY_KEYS = ['category', 'volume', 'loop', 'delay', 'start', 'end', 'rate', 'semitones', 'pan', 'fadeIn', 'stream', 'pauseInMenu'];
+const soundOwners = new Map(); // sound id -> package id, until the plugin says it ended
+
+function soundFile(entry, name) {
+  const file = path.resolve(entry.dir, name);
+  const rel = path.relative(entry.dir, file);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`${name} is outside the package's folder`);
+  if (!SOUND_TYPES.has(path.extname(file).toLowerCase())) throw new Error(`${name}: REDnode plays .wav, .ogg, .mp3 and .flac files`);
+  if (!fs.existsSync(file)) throw new Error(`${name} was not found in the package's folder`);
+  return file;
+}
+
+async function soundCall(id, method, params) {
+  const entry = id ? apps.get(id) : null;
+  if (!entry) throw new Error('Only a package can play sounds');
+  params = params ?? {};
+  switch (method) {
+    case 'sound.play': {
+      const name = String(params.sound ?? '');
+      if (!name) throw new Error('Name a sound: an id from the manifest\'s "sounds", or a file in the package');
+      const declared = entry.manifest.sounds?.[name];
+      const base = typeof declared === 'string' ? { file: declared } : (declared ?? { file: name });
+      const opts = {};
+      for (const k of PLAY_KEYS) {
+        if (base[k] !== undefined) opts[k] = base[k];
+        if (params[k] !== undefined) opts[k] = params[k];
+      }
+      if (opts.semitones !== undefined) {
+        opts.rate = (Number(opts.rate) || 1) * 2 ** (Number(opts.semitones) / 12);
+        delete opts.semitones;
+      }
+      if (opts.category !== undefined && !SOUND_CATEGORIES.includes(opts.category)) {
+        throw new Error(`category must be ${SOUND_CATEGORIES.join(', ')}`);
+      }
+      const file = soundFile(entry, String(base.file ?? name));
+      await ensureMix();
+      const r = await bridgeCall('sound.play', { ...opts, file, owner: id });
+      soundOwners.set(r.id, id);
+      return r;
+    }
+    case 'sound.stop':
+    case 'sound.set': {
+      if (method === 'sound.stop' && params.id === undefined) return bridgeCall('sound.stop', { owner: id, fadeOut: params.fadeOut ?? 0 });
+      const owner = soundOwners.get(params.id);
+      if (owner === undefined) return method === 'sound.stop' ? { stopped: 0 } : false; // it has ended
+      if (owner !== id) throw new Error('That sound belongs to another package');
+      return bridgeCall(method, params);
+    }
+    case 'sound.list':
+      return bridgeCall('sound.list', { owner: id });
+    default:
+      throw new Error(`${method} is not available to packages`);
+  }
+}
+
+function stopSounds(id, fadeOut = 300) {
+  if (![...soundOwners.values()].includes(id) || !connected) return;
+  bridgeCall('sound.stop', { owner: id, fadeOut }).catch(() => {});
+}
+
+function checkSounds() {
+  for (const id of new Set(soundOwners.values())) if (!packageRunning(id)) stopSounds(id);
+}
+
+// The plugin announced that a sound ended: tell its package (its mod and its pages).
+function onSoundEnd(m) {
+  const owner = soundOwners.get(m.sound) ?? m.owner;
+  soundOwners.delete(m.sound);
+  if (!owner) return;
+  mods?.toMod(owner, m);
+  for (const w of windowsOfPackage(owner)) toPage(w, m);
+}
+
+// The game's volume sliders, read through its settings system. Read before the first
+// sound, and again when the player leaves a menu or loads a save, since a slider may
+// have moved.
+let mixKnown = false; // the plugin has the sliders of this connection
+let mixReading = null;
+let lastMix = '';
+
+async function readMix() {
+  const refs = [];
+  const call = async (params) => {
+    const r = await bridgeCall('rtti.call', params);
+    if (r && typeof r === 'object' && typeof r.$ref === 'number') refs.push(r.$ref);
+    return r;
+  };
+  try {
+    const settings = await call({ class: 'GameInstance', fn: 'GetSettingsSystem', args: [{}] });
+    if (!settings) throw new Error('the game has no settings system yet');
+    const groups = {};
+    const read = async (group, name) => {
+      if (!(group in groups)) groups[group] = await call({ self: { $ref: settings.$ref }, fn: 'GetGroup', args: [group] });
+      if (!groups[group]) return undefined;
+      const v = await call({ self: { $ref: groups[group].$ref }, fn: 'GetVar', args: [name] });
+      return v ? bridgeCall('rtti.call', { self: { $ref: v.$ref }, fn: 'GetValue', args: [] }) : undefined;
+    };
+    const mix = {
+      master: await read('/audio/volume', 'MasterVolume'),
+      sfx: await read('/audio/volume', 'SfxVolume'),
+      dialogue: await read('/audio/volume', 'DialogueVolume'),
+      music: await read('/audio/volume', 'MusicVolume'),
+      muteInBackground: await read('/audio/misc', 'MuteInBackground'),
+    };
+    for (const k of Object.keys(mix)) if (mix[k] === undefined || mix[k] === null) delete mix[k];
+    await bridgeCall('sound.mix', mix);
+    mixKnown = true;
+    const text = `master ${mix.master}, effects ${mix.sfx}, dialogue ${mix.dialogue}, music ${mix.music}${mix.muteInBackground ? ', muted in the background' : ''}`;
+    if (text !== lastMix) log(`Sound: the game's volumes are ${text}`);
+    lastMix = text;
+  } finally {
+    if (refs.length) bridgeCall('rtti.release', { refs }).catch(() => {});
+  }
+}
+
+function ensureMix() {
+  if (mixKnown) return Promise.resolve();
+  if (!mixReading) {
+    mixReading = readMix()
+      .catch((err) => log(`Sound: could not read the game's volumes (${err.message}); playing at full volume`))
+      .finally(() => {
+        mixReading = null;
+      });
+  }
+  return mixReading;
+}
+
+function onUiStateForSound(before, after) {
+  const left = (before.menu && !after.menu) || (before.mainMenu && !after.mainMenu);
+  // After a save loads the game takes a moment to answer (the S1 spike saw a timeout).
+  if (left && mixKnown) setTimeout(() => readMix().catch(() => {}), 1500);
 }
 
 ipcMain.handle('rednode:call', (event, method, params) => {
@@ -2443,7 +2609,11 @@ app.whenReady().then(() => {
     },
     soloFor: setSolo,
     // A mod's TweakDB changes are undone each time it stops, restarts and hot reloads included.
-    stopped: (id) => undoTweaks(id, 'the mod stopped'),
+    // Its sounds stop too.
+    stopped: (id) => {
+      undoTweaks(id, 'the mod stopped');
+      stopSounds(id);
+    },
     onLog: onModLog,
   });
   if (!fs.existsSync(path.join(SDK_DIR, 'index.js'))) {

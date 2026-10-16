@@ -227,6 +227,55 @@ Sound event names confirmed in game on 2026-10-11:
 
 The game has many more. An unknown name plays nothing and is not an error, so the kit app's **Sound** tab is the quickest way to try one. The same call from redscript is in the game API reference: [AudioSystem.Play](game/t/gameGameAudioSystem.html#Play).
 
+## Your own sounds
+
+A package can play its own audio files: WAV, OGG, MP3 and FLAC. They play through REDnode's audio engine in the plugin, beside the game's sound, so no soundbank or REDmod is needed. Each sound follows one of the game's volume sliders, under master volume:
+
+| Category | Slider | Default for |
+|---|---|---|
+| `sfx` | Sound effects | Every sound without a category |
+| `dialogue` | Dialogue | Voice lines |
+| `music` | Music | Music; read as it plays instead of loaded first |
+
+Sounds pause while a game menu is open and go on when it closes. When the player's **Mute in background** setting is on, they mute while the game is in the background. A package's sounds stop when the package stops: switched off, restarted or hot reloaded.
+
+Name a sound by its file in your package's folder, or declare it in `rednode-app.json` with its settings and play it by that name:
+
+```json
+"sounds": {
+  "alarm": { "file": "sounds/alarm.ogg", "volume": 0.8 },
+  "theme": { "file": "sounds/theme.ogg", "category": "music", "loop": true, "fadeIn": 2000 },
+  "click": "sounds/click.wav"
+}
+```
+
+```js
+import { audio } from 'rednode';
+
+const theme = await audio.play('theme');                    // the manifest's settings
+const ping = await audio.play('sounds/ping.wav', { pan: -1 }); // a file, with settings
+await theme.set({ fadeTo: { volume: 0.3, ms: 1000 } });     // quieter, over a second
+await theme.stop({ fadeOut: 2000 });
+const { why } = await ping.ended;                           // "ended", "stopped" or "error"
+```
+
+Settings, in the manifest or in the call (the call's win):
+
+| Setting | Meaning |
+|---|---|
+| `category` | `sfx`, `dialogue` or `music` |
+| `volume` | 1 as recorded |
+| `loop` | Repeat until stopped |
+| `delay` | Milliseconds to wait before it starts |
+| `start`, `end` | Seconds into the file to start and to end; a loop repeats between them |
+| `rate`, `semitones` | Speed and pitch together: `rate: 2` or `semitones: 12` is an octave up and twice as fast |
+| `pan` | -1 left to 1 right |
+| `fadeIn` | Milliseconds to fade in |
+| `stream` | Read the file as it plays instead of loading it first; on by default for music |
+| `pauseInMenu` | Pause while a game menu is open; on by default |
+
+`audio.playing()` lists your sounds with their position, and `audio.stopAll()` stops them. The file loads in the background, so `audio.play` returns at once and the sound starts when it is ready. The same works from an overlay app's page. The [Sound API page](sound.md) has the plan: sound on entities and positions comes next.
+
 ## Talking to the game
 
 Import the `rednode` package, the same one Node mods use. An import map lets the page import it by name; the host serves it at `rednode://sdk/index.js`. This is the [Coords HUD](https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps/coords) app:

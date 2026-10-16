@@ -10,7 +10,8 @@
 //                    through AudioSystem.Play with no entity, as UI sounds are played
 //   rtti.call, rtti.get, rtti.set, rtti.new, rtti.release   the generic game API, in reflect.cpp
 //   tweakdb.get, tweakdb.record, tweakdb.records           TweakDB, read, in reflect.cpp
-//   audio.tone                                             REDnode's own audio output, in audio.cpp
+//   sound.play, sound.stop, sound.set, sound.list, sound.mix, audio.tone
+//                                                          REDnode's own audio output, in audio.cpp
 
 #include "json.hpp"
 #include "jvalue.hpp"

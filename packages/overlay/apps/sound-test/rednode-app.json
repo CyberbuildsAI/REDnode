@@ -1,8 +1,14 @@
 {
   "id": "sound-test",
   "name": "Sound test",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Edgemodders",
-  "description": "The Sound API's research spike (S1): reads the game's audio settings, its pause and slow-motion state and the camera, live, and plays a test tone through REDnode's own audio output beside the game's.",
-  "main": "mod.mjs"
+  "description": "The Sound API's test (S1): plays the package's own OGG, WAV, FLAC and MP3 files in the game, following the game's volume sliders and pausing in menus, and shows the game's pause and slow-motion state.",
+  "main": "mod.mjs",
+  "sounds": {
+    "music": { "file": "sounds/music.ogg", "category": "music", "loop": true, "fadeIn": 1500 },
+    "beep": "sounds/beep.wav",
+    "chime": { "file": "sounds/chime.flac", "volume": 0.8 },
+    "voice": { "file": "sounds/voice.mp3", "category": "dialogue" }
+  }
 }

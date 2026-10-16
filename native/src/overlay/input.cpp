@@ -275,6 +275,7 @@ LRESULT CALLBACK WndProc(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     case WM_ACTIVATEAPP:
         if (aWParam)
             g_activatedAt = NowMs();
+        SetAudioFront(aWParam != 0);
         Log("Overlay: the game %s the front (mode %s)", aWParam ? "came back to" : "left", ModeName(GetMode()));
         break;
     default:

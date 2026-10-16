@@ -12,7 +12,7 @@ Reference machine: Windows 11 Home (build 26200), 16 GB RAM.
 | Git for Windows | 2.55.0 | Source control. Includes Git Credential Manager 2.8.0 | `winget install --id Git.Git -e` |
 | nvm for Windows | (any) | Manages Node versions | `winget install --id CoreyButler.NVMforWindows -e` |
 | Node.js | 24.18.0, npm 12.0.1 | The `rednode` SDK package | `nvm install 24` then `nvm use 24` |
-| Python | 3.14.6 | Small analysis scripts in `tools/`. Standard library only | Any Python 3.10 or later, for example from python.org |
+| Python | 3.14.6 | Small analysis scripts in `tools/`. Standard library only, except `tools/sounds/make-sample-sounds.py`, which needs numpy 2.4.3 and soundfile 0.13.1 (`pip install numpy==2.4.3 soundfile==0.13.1`; only to change the Sound test's files) | Any Python 3.10 or later, for example from python.org |
 
 `gh` (GitHub CLI) 2.102.0 is optional. It makes repository settings scriptable and shows Pages deploy runs:
 
