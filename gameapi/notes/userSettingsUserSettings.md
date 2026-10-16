@@ -4,7 +4,7 @@ The game's settings, the values of its Settings menu. `GameInstance.GetSettingsS
 
 Each call to `GetGroup`, `GetGroups` or `GetVars` makes new objects. REDnode keeps them alive while a mod holds them (REDnode 0.23.1 and later).
 
-Measured in game on 2.31 (2026-10-16, [Sound API spike](https://edgemodders.github.io/REDnode/sound.html#s1-spike-results)): `/audio` has the groups `volume` (`MasterVolume`, `SfxVolume`, `DialogueVolume`, `MusicVolume`, `CarRadioVolume`, `RadioportVolume`, Ints from 0 to 100), `dynamicrange` (`SpeakerSetup`, `EnableControllerSpeaker`) and `misc` (`MuteDetectionUISounds`, `StreamerMode`, `MuteInBackground`). A read after the player changes a slider shows the new value.
+Measured in game on 2.31 (2026-10-16, [Sound API spike](https://edgemodders.github.io/REDnode/sound.html#s1-spike-results)): `/audio` has the groups `volume` (`MasterVolume`, `SfxVolume`, `DialogueVolume`, `MusicVolume`, `CarRadioVolume`, `RadioportVolume`, Ints from 0 to 100), `dynamicrange` (`SpeakerSetup`, `EnableControllerSpeaker`) and `misc` (`MuteDetectionUISounds`, `StreamerMode`, `MuteInBackground`). A read after the player changes a slider shows the new value; a marked retest the same day confirmed it for `MusicVolume` (set to 30, read 30 once the menu closed).
 
 ```js
 const settings = await api.GameInstance.GetSettingsSystem(game.instance);

@@ -1,6 +1,6 @@
 # Sound API
 
-Status: **S1 Play** passed in game on 2026-10-16 (REDnode 0.24.0), and its pan fix in REDnode 0.24.1 the same day. Open: the volume reads (unverified) and the scanner's slow motion. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
+Status: **S1 Play** passed in game on 2026-10-16 (REDnode 0.24.0), and its pan fix in REDnode 0.24.1 the same day. Open: the scanner's slow motion. Agreed with the user on 2026-10-14: REDnode builds its own audio engine first, for tighter integration with the EDGE platform and other plugins. [Audioware](https://github.com/cyb3rpsych0s1s/audioware) stays the fallback, as a dependency through `requires`, only if building our own proves prohibitive. Order: after the [TweakDB API](tweakdb.md) and overlay phase O11 Spaces.
 
 ## Clean-room rule
 
@@ -192,7 +192,7 @@ Tested in game on 2026-10-16 with REDnode 0.24.0, game 2.31. The Test timer was 
 
 | Question | Status |
 |---|---|
-| The volume reads | **Unverified.** Each read after a Settings visit showed master and effects equal (45 and 45, later 60 and 60), and music at 100, while step 6 lowers music. Either the player set those, or a read is wrong. The spike's reads (master 50, effects 55) were right |
+| The volume reads | Answered by a retest the same day (below): the reads are right. The earlier 45 and 60 readings were the player's own settings |
 | Slow motion | The Sandevistan: answered (step 11). The scanner's slow motion: still not found; the global dilation stays 1 |
 | A change of the Windows default device | Open |
 
@@ -208,4 +208,6 @@ Switch on **Test timer** first, press **Start**, and press **Mark** after each s
 
 Then quit the game, so the logs are complete.
 
-**Result, 2026-10-16.** Step 1 passed: left only, right only, then both; the plugin log says `8 channels, mixed in stereo to the front pair`. Step 2 left no answer: the overlay log has no new volume read after the Settings visit, and only step 1 was marked, so whether the music slider was changed is not known. The volume reads stay **unverified**. Step 3: the scanner did not slow time in this run, and NPCs walked at normal speed while V seemed slower. The player suspects one of their mods; the scanner's slow motion stays open.
+**Result, 2026-10-16.** Step 1 passed: left only, right only, then both; the plugin log says `8 channels, mixed in stereo to the front pair`. Step 2 left no answer: the overlay log has no new volume read after the Settings visit, and only step 1 was marked, so whether the music slider was changed is not known. Step 3: the scanner did not slow time in this run, and NPCs walked at normal speed while V seemed slower. The player suspects one of their mods; the scanner's slow motion stays open.
+
+**Music retest, 2026-10-16.** REDnode 0.24.1, marked with the Test timer. Step 1, a beep, made the host read the volumes: all 100. Step 2, Music set to 30 in Settings: the read after the menu closed showed `music 30` and the rest at 100. Step 3, Music back: `music 100`. The volume reads follow each slider. A run with no sound played reads nothing: the host reads the volumes only once a package has played a sound (0.24.1).
