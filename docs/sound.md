@@ -102,3 +102,31 @@ Switch on **Test timer** and **Sound test** in the launcher. Press **Start** on 
 | 8 | If you have headphones or a second output, switch Windows' output to it, then press **Play test tone** | Note where the tone plays: the new output or the old one |
 
 Then quit the game, so the logs are complete.
+
+### S1 spike: results
+
+Tested in game on 2026-10-16 with REDnode 0.23.1, game 2.31. Steps 1 to 4, 6 and 7 passed. Step 5 found a gap. Step 8 was skipped.
+
+| Step | Result |
+|---|---|
+| 1 Settings | Passed. `/audio` has three groups: `volume` (`MasterVolume`, `SfxVolume`, `DialogueVolume`, `MusicVolume`, `CarRadioVolume`, `RadioportVolume`, each an Int from 0 to 100), `dynamicrange` (`SpeakerSetup`, a ListString such as `Headphones`; `EnableControllerSpeaker`) and `misc` (`MuteDetectionUISounds`, `StreamerMode`, `MuteInBackground`, Bools) |
+| 2 Changes | Passed. After the player set master to 50 and effects to 55 in Settings, the next read showed 50 and 55 |
+| 3 Tone | Passed. Both tones played cleanly beside the game's sound, which kept playing. The output was the Windows default device, "Optoma UHD (NVIDIA High Definition Audio)", 48 kHz, 8 channels; miniaudio spread the mono tone over it |
+| 4 Pause | Partly. `TimeSystem.IsPausedState()` stayed false the whole time, also in the pause menu. `GetActiveTimeDilation('', false)` read 0 while a menu was open, and the overlay's `menu` state turned true for each menu. In one of the two menus the dilation stayed 1; which one is **unverified** |
+| 5 Slow motion | Gap. The scanner slowed the game, but `GetActiveTimeDilation('', false)` stayed 1. The scanner's slow motion is not the global dilation. A Sandevistan was not tried |
+| 6 Camera | Passed. `GetActiveCameraWorldTransform(api.$out)` gave the camera's position: it changed while walking and stayed put while only turning |
+| 7 Alt+Tab | Passed. The tone played after Alt+Tab and back |
+| 8 Output switch | Skipped. Whether REDnode's output follows a change of the Windows default device is **unverified** |
+
+Two more findings. Right after a save loaded, the first settings read timed out (the overlay's state no longer said main menu, but the game did not answer yet); a read 2 minutes later worked. And the 0.23.0 try showed that the settings system makes new objects at each call, which led to 0.23.1's fix.
+
+**What this means for S1:**
+
+| Question | Answer for S1 |
+|---|---|
+| Volume sliders | Read `/audio/volume` through the settings system. Categories: master times one of effects, dialogue or music (and the two radios). Read again when the player leaves the Settings menu (the overlay sees the menu close), or listen with `ConfigVarListener` (**unverified**) |
+| Mute in background | Honor `/audio/misc/MuteInBackground` with the plugin's own focus tracking ("the game left the front") |
+| Pause | Not `IsPausedState`. Pause REDnode's sounds while the global dilation is 0, or while a menu is open, as a package setting (`pauseWith`) |
+| Slow motion | Open. Find the scanner's and the Sandevistan's dilation (the player's own dilation, or a named reason) before S1 adds pitch with dilation; leave it out of S1 if not found |
+| Listener | The active camera's transform, for S2 |
+| Output | miniaudio on the default device works beside Wwise, including an 8-channel HDMI device. Following a device change is to test in S1 |
