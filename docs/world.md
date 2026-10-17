@@ -127,3 +127,21 @@ Use the **Test timer**: Start, then Mark after each step.
 
 Also in REDnode 0.17.1, from EDGEbuilder's requests: the World test sample uses only base-game assets ([#6](https://github.com/Edgemodders/REDnode/issues/6)), and a saved window position applies only while the window keeps the size it was saved with ([#8](https://github.com/Edgemodders/REDnode/issues/8)). Positions saved before 0.17.1 have no size and are ignored once.
 
+
+## W3 REDbridge for players
+
+Agreed with the user on 2026-10-17, as REDnode 0.25.0, right after the Polish and EDGEdeck test (0.24.4). Today REDnode only finds a REDbridge that EDGEdeck or REDcode fetched in VS Code, so a player without VS Code who installs a mod that uses `kernel.bridge()` gets "not installed" and no way forward. W3 lets REDnode fetch REDbridge itself, with the player's OK, from inside the game.
+
+| Piece | Plan |
+|---|---|
+| **Get REDbridge** in the Mod Manager | Where a package needs REDbridge and none is found, a button replaces the red error. It says what it does before anything happens: "Downloads REDbridge 0.10.0 (58 MB) from GitHub, and the .NET 10 runtime if it is missing. No admin rights." Then a progress bar, and the package's line turns to "REDbridge 0.10.0 from REDnode" |
+| Download | The latest release of Edgemodders/REDbridge, asset `REDbridge-<version>-win-x64.zip`, into `%LOCALAPPDATA%\REDnode\bridge\<tag>\`. Checked against the SHA-256 GitHub gives for the asset before it is unpacked; a mismatch deletes it and says so |
+| .NET 10 | Only when no .NET 10 runtime is found: Microsoft's `dotnet-install.ps1`, runtime only, for this Windows user, the way EDGEdeck does it. Never machine-wide, and never a user-level `DOTNET_ROOT` (it broke Vortex's .NET check for EDGEdeck); the host already sets `DOTNET_ROOT` for the REDbridge process alone |
+| Lookup | `findRedbridge` adds REDnode's own folder after the setting and `REDBRIDGE_EXE`, beside EDGEdeck's and REDcode's copies; the newest version still wins. The source reads `REDnode` |
+| Updates | When REDbridge starts, the host asks GitHub once a session for a newer release; the Mod Manager offers **Update REDbridge**. Never automatic |
+| `requires` | `"requires": { "redbridge": ">=0.10" }` in a manifest, checked like the game's plugins, so the Mod Manager shows the need, and the button, before the mod runs. `kernel.requirements()` reports it |
+| MCP and messages | The "not installed" messages point to the Mod Manager's button first, EDGEdeck and REDcode second. The MCP `apps` tool shows where REDbridge is |
+
+Not in W3: REDbridge in the REDnode zip (58 MB more, plus .NET, for players who never use it), and REDbridge as its own Nexus mod (it would still need .NET from elsewhere; maybe later, for Vortex users).
+
+**The test proves:** on a Windows user with no REDbridge and no .NET 10, a package that needs REDbridge shows the button; one click fetches both, and the package lists the game's archives. The test needs a second Windows user, or the dev PC's EDGEdeck and REDcode copies moved aside and .NET 10 hidden, to start from nothing.
