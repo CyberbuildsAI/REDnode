@@ -18,7 +18,7 @@ The source of REDnode's Nexus Mods page lives here, so updates are edits in the 
 | Author | Edgemodders |
 | Language | English |
 | Primary image | `docs/assets/brand/social.png` (1280 x 640). The banner (`docs/assets/brand/banner.png`) is already at the top of the description |
-| Requirements | RED4ext and redscript (Nexus pages). Optional, noted as such: Codeware, TweakXL, ArchiveXL |
+| Requirements | RED4ext and redscript (Nexus pages). Optional, noted as such: REDdeck (35366; note: "Only for REDnode mods that read the game's archives. Open REDdeck once and press Get REDbridge. REDnode and its samples run without it."), Codeware, TweakXL, ArchiveXL (note: "Only for REDnode packages that ask for it; the Mod Manager tells you.") |
 | Permissions | MIT: open source, free to modify and redistribute with the license notice. Bundled third-party parts keep their own licenses (`THIRD-PARTY-NOTICES.txt` in the zip) |
 | Tags | Framework, modders resource, utility, user interface |
 
