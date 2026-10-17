@@ -99,8 +99,14 @@ int PreGame()
             return -1;
         g_scenario = rtti::Handle(raw);
     }
-    rtti::Handle handler;
-    if (!rtti::Call(g_scenario, "GetSystemRequestsHandler", &handler) || !handler)
+    // It returns a weak handle (whandle): taken into a strong Handle, its destructor
+    // would drop a strong reference never added, and the game would free its own
+    // handler after a few polls. That crashed the game in REDnode 0.24.5.
+    RED4ext::WeakHandle<RED4ext::IScriptable> weak;
+    if (!rtti::Call(g_scenario, "GetSystemRequestsHandler", &weak))
+        return -1;
+    const rtti::Handle handler = weak.Lock();
+    if (!handler)
         return -1;
     bool value = false;
     if (!rtti::Call(handler, "IsPreGame", &value))

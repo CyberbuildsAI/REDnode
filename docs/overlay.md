@@ -746,7 +746,11 @@ Agreed with the user on 2026-10-17, after the 0.24.4 test.
 | Tooltip trace | The kit logs each tooltip's fate at debug level: `[rn-tip] hover "Roll up"`, `showed ... at x,y`, `hid ... (pointerdown)`, `dropped before showing ... (blur)`, `skipped ...`. The MCP server's `window_console` reads them, to find why the title-bar tooltips do not show in the game |
 | Main menu by `IsPreGame()` | `main-menu` is now "no player, or `IsPreGame()` is true". The plugin reaches the game's system requests handler through an `inkMenuScenario` it makes, as CET mods do. **Unverified** in REDnode. The plugin logs each change: `Overlay: main menu on (player yes, IsPreGame true)`, or a line saying IsPreGame could not be read |
 
+**0.24.5 crashed the game, fixed in 0.24.6.** On 2026-10-17 the game closed less than a second after the title screen showed, with no crash report. The plugin log ended right after `Overlay: main menu on (player no, IsPreGame true)` and `Overlay: interactive`. The cause: `GetSystemRequestsHandler` returns a weak handle (`whandle`), and 0.24.5 took it into a strong `Handle`. Each poll then dropped a strong reference that was never added, so the game soon freed its own handler while still using it. 0.24.6 takes a `WeakHandle` and locks it. The check itself worked: IsPreGame read true at the title screen.
+
 ### Polish 0.24.5: test
+
+Run with REDnode 0.24.6.
 
 0. Switch on **Test timer** in the launcher, press **Start**, and press **Mark** after each step. The timer is out of reach until step 2, so step 1 is done before it.
 1. Start the game. On the boot loading screen and at the main menu, Vitals and Coords do **not** show. Load a save: they show once you are in the game.

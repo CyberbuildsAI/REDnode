@@ -34,7 +34,7 @@ Last updated 2026-10-16. REDagent's own tests (C2 to C5, the chat and authoring)
 | [S1 Play](#s1-play) | In the game | Sound S1 | 2026-10-16 | 0.24.0 | Pass but pan, fixed in 0.24.1 |
 | [S1 check, 0.24.1](#s1-check-0241) | In the game | Sound S1 | 2026-10-16 | 0.24.1 | Pass |
 | [Polish 0.24.2](#polish-0242) | In the game | Polish | 2026-10-17 | 0.24.4 | **Partly**: tooltips failed, HUD widgets on the boot loading screen |
-| [Polish 0.24.5](#polish-0245) | In the game | Polish | Not run | 0.24.5 | |
+| [Polish 0.24.5](#polish-0245) | In the game | Polish | 2026-10-17 | 0.24.5 | **Fail**: the game crashed at the title screen (fixed in 0.24.6, not run yet) |
 
 ## Before any in-game test
 
@@ -299,7 +299,7 @@ Showed: Chromium drops `movementX` from injected moves, so the host sends raw mo
 
 ### Polish 0.24.5
 
-[Source](overlay.md#polish-0245-test). Built, **not run yet**. Retests 0.24.2's failed parts: tooltips through shadow roots checked in an offscreen repro only; the main menu by `IsPreGame()` unverified.
+[Source](overlay.md#polish-0245-test). First run 2026-10-17 with 0.24.5: **the game crashed** at the title screen, from a weak handle taken as a strong one in the IsPreGame check. Fixed in 0.24.6, **not run yet**. Retests 0.24.2's failed parts: tooltips through shadow roots checked in an offscreen repro only; the main menu by `IsPreGame()` unverified.
 
 1. Start the game. Boot loading screen and main menu: no Vitals, no Coords. Load a save: both show.
 2. **F10**, Test timer on, **Start**, **Mark**.
