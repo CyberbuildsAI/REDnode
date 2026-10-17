@@ -33,7 +33,7 @@ Last updated 2026-10-16. REDagent's own tests (C2 to C5, the chat and authoring)
 | [S1 research spike](#s1-research-spike) | In the game | Sound S1 | 2026-10-16 | 0.23.1 | Partial |
 | [S1 Play](#s1-play) | In the game | Sound S1 | 2026-10-16 | 0.24.0 | Pass but pan, fixed in 0.24.1 |
 | [S1 check, 0.24.1](#s1-check-0241) | In the game | Sound S1 | 2026-10-16 | 0.24.1 | Pass |
-| [Polish 0.24.2](#polish-0242) | In the game | Polish | Not run | 0.24.2 | |
+| [Polish 0.24.2](#polish-0242) | In the game | Polish | 2026-10-17 | 0.24.4 | **Partly**: tooltips failed, HUD widgets on the boot loading screen |
 
 ## Before any in-game test
 
@@ -287,7 +287,7 @@ Showed: Chromium drops `movementX` from injected moves, so the host sends raw mo
 
 ### Polish 0.24.2
 
-[Source](overlay.md#polish-0242-test). Built, **not run yet**; checked in the mock game only (the Mod Manager's greyed buttons not even there).
+[Source](overlay.md#polish-0242-test). First run 2026-10-17, REDnode 0.24.4, without the timer. **Partly passed:** steps 2, 4 and 5 passed. Step 1 failed: no tooltips at all, in the game only (the mock game and an offscreen repro drew the title-bar ones). Step 3: Vitals and Coords showed on the boot loading screen, since the game makes a player there.
 
 1. Load a save, **F10**. Hover a title-bar icon (roll up on the Mod Manager or the Test timer): a tooltip after half a second. Hover the launcher's **Open at start**: a tooltip explains it.
 2. Make a second space if needed. Mod Manager, **Test timer**: the Space column says **All**, the space buttons are greyed, a note says it is a tool window.

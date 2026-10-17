@@ -718,6 +718,24 @@ Before starting the game, for step 5: install EDGEdeck in VS Code and press its 
 
 Then quit the game. The overlay log should have `Open at start is off`, `Open at start: the overlay was opened`, and a `Sound: the game's volumes are ... (a save loaded)` line after each save load.
 
+**Result, 2026-10-17: partly passed.** REDnode 0.24.4, without the Test timer: step 1 failed, and the user ran the other steps anyway to learn more.
+
+| Step | Result |
+|---|---|
+| 1. Tooltips | **Failed.** No tooltip on the title-bar icons or on **Open at start** |
+| 2. Tool windows | Passed. Test timer: Space column **All**, space buttons greyed, the tool-window note |
+| 3. Open at start off | **Partly.** No launcher tab or other windows until F10. But Vitals and Coords showed on the loading screen before the main menu |
+| 4. F10 | Passed (the log has `Open at start: the overlay was opened` at 15:29:46) |
+| 5. EDGEdeck | Passed. The host started `REDbridge 0.10.0 from EDGEdeck (Code)` and the Packaging test listed the archives. #13 closed |
+
+What the logs and a repro showed:
+
+| Finding | Cause |
+|---|---|
+| No tooltip on **Open at start** | The kit's tooltip code walks up from the hovered element and stops at a shadow root. The switch is an `rn-toggle` with `title`, and the hovered part is inside its own shadow root. Reproduced in an offscreen Electron window with the host's options: a title-bar icon and a plain button got their tooltip, the `rn-toggle` never did |
+| No tooltip on the title-bar icons | **Unknown.** They show in the same repro and in the mock game, so something differs in the game itself |
+| Vitals and Coords on the boot loading screen | `main-menu` means "no player", but the game makes a player during the boot loading screen: `PlayerPuppet.OnGameAttached` came 0.7 s after the first frame. The volume read then logged `(a save loaded)` 5 s later, still before the main menu. The same root as telling a real session start from the main-menu attach (P1 results) |
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:
