@@ -736,6 +736,27 @@ What the logs and a repro showed:
 | No tooltip on the title-bar icons | **Unknown.** They show in the same repro and in the mock game, so something differs in the game itself |
 | Vitals and Coords on the boot loading screen | `main-menu` means "no player", but the game makes a player during the boot loading screen: `PlayerPuppet.OnGameAttached` came 0.7 s after the first frame. The volume read then logged `(a save loaded)` 5 s later, still before the main menu. The same root as telling a real session start from the main-menu attach (P1 results) |
 
+### Polish 0.24.5: built
+
+Agreed with the user on 2026-10-17, after the 0.24.4 test.
+
+| Change | What it does |
+|---|---|
+| Tooltips through shadow roots | The kit's walk from the hovered element now passes shadow roots, so a kit control with a `title` (the launcher's **Open at start**, an `rn-toggle`) gets its tooltip. Checked in the offscreen repro: the title-bar icon, a plain button and an `rn-toggle` all showed theirs |
+| Tooltip trace | The kit logs each tooltip's fate at debug level: `[rn-tip] hover "Roll up"`, `showed ... at x,y`, `hid ... (pointerdown)`, `dropped before showing ... (blur)`, `skipped ...`. The MCP server's `window_console` reads them, to find why the title-bar tooltips do not show in the game |
+| Main menu by `IsPreGame()` | `main-menu` is now "no player, or `IsPreGame()` is true". The plugin reaches the game's system requests handler through an `inkMenuScenario` it makes, as CET mods do. **Unverified** in REDnode. The plugin logs each change: `Overlay: main menu on (player yes, IsPreGame true)`, or a line saying IsPreGame could not be read |
+
+### Polish 0.24.5: test
+
+0. Switch on **Test timer** in the launcher, press **Start**, and press **Mark** after each step. The timer is out of reach until step 2, so step 1 is done before it.
+1. Start the game. On the boot loading screen and at the main menu, Vitals and Coords do **not** show. Load a save: they show once you are in the game.
+2. Press F10. Switch on the Test timer if it is off, press **Start**, and **Mark** (for step 1).
+3. Hover the launcher's **Open at start** switch and keep still: a tooltip after half a second. Mark.
+4. Hover a title-bar icon, such as **Roll up** on the Mod Manager, and keep still: a tooltip names it. Mark. If none shows, leave the game running and say so: the window's `[rn-tip]` trace is read through the MCP server while the game runs.
+5. Quit the game.
+
+The plugin log should have `Overlay: main menu on` at the start, `main menu off (player yes, IsPreGame false)` once the save runs, and no `could not read IsPreGame`.
+
 ### UI kit
 
 UI is written as markup, not built by hand in code. Two layers keep it optional:

@@ -6,12 +6,18 @@
 // | menu       | UI_System blackboard, IsInMenu                                 |
 // | photo-mode | PhotoModeSystem.IsPhotoModeActive()                            |
 // | scene      | the player's PlayerStateMachine blackboard, SceneTier >= 4     |
-// | main-menu  | no player: the main menu and loading screens                   |
+// | main-menu  | no player, or the system requests handler's IsPreGame(): the   |
+// |            | main menu and loading screens, also the boot loading screen,   |
+// |            | where the game already has a player                            |
 //
 // The SceneTier threshold is unverified. Tiers run from 1 (free gameplay) to
 // 5 (full cinematic); the in-game test calibrates it.
 //
-// Sends {"event":"ui-state", ...} to the host when the state changes.
+// IsPreGame() is reached the way CET mods do, through an inkMenuScenario made for
+// it: the handler is the game's own, not the scenario's. Unverified in REDnode.
+//
+// Sends {"event":"ui-state", ...} to the host when the state changes, and logs
+// each change of main-menu with its reason.
 
 #include "overlay.hpp"
 #include "rtti.hpp"
@@ -30,6 +36,10 @@ std::atomic<uint32_t> g_state{StateMainMenu};
 std::atomic_bool g_resend{true};
 int g_lastTier = -1;
 bool g_warned = false;
+bool g_preGameWarned = false;
+int g_lastMainMenu = -1; // 0 or 1 once logged
+
+rtti::Handle g_scenario; // an inkMenuScenario, only to reach the system requests handler
 
 rtti::Handle g_defs; // GetAllBlackboardDefs(), a long-lived singleton
 
@@ -78,6 +88,26 @@ bool InPhotoMode()
     return value;
 }
 
+// The game's IsPreGame(): true before a save is running. -1 when it cannot be read.
+int PreGame()
+{
+    if (!g_scenario)
+    {
+        auto* cls = RED4ext::CRTTISystem::Get()->GetClass("inkMenuScenario");
+        auto* raw = cls ? static_cast<RED4ext::IScriptable*>(cls->CreateInstance(true)) : nullptr;
+        if (!raw)
+            return -1;
+        g_scenario = rtti::Handle(raw);
+    }
+    rtti::Handle handler;
+    if (!rtti::Call(g_scenario, "GetSystemRequestsHandler", &handler) || !handler)
+        return -1;
+    bool value = false;
+    if (!rtti::Call(handler, "IsPreGame", &value))
+        return -1;
+    return value ? 1 : 0;
+}
+
 int SceneTier(const rtti::Handle& aPlayer)
 {
     auto psm = Def("PlayerStateMachine");
@@ -108,7 +138,13 @@ void PollGameState(uint64_t aFrame)
     uint32_t state = 0;
     int tier = -1;
     const auto player = rtti::Player();
-    if (!player)
+    const int preGame = PreGame();
+    if (preGame < 0 && !g_preGameWarned)
+    {
+        g_preGameWarned = true;
+        Log("Overlay: could not read IsPreGame; the main menu is only \"no player\"");
+    }
+    if (!player || preGame == 1)
     {
         state |= StateMainMenu;
     }
@@ -126,6 +162,14 @@ void PollGameState(uint64_t aFrame)
             g_warned = true;
             Log("Overlay: could not read the scene tier; scene hiding is off");
         }
+    }
+
+    const int mainMenu = (state & StateMainMenu) ? 1 : 0;
+    if (mainMenu != g_lastMainMenu)
+    {
+        g_lastMainMenu = mainMenu;
+        Log("Overlay: main menu %s (player %s, IsPreGame %s)", mainMenu ? "on" : "off", player ? "yes" : "no",
+            preGame < 0 ? "unread" : (preGame ? "true" : "false"));
     }
 
     const uint32_t old = g_state.exchange(state);

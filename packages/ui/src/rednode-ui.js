@@ -982,6 +982,9 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
   // title, also inside the kit's shadow roots (the title-bar icons), gets one after a
   // short hover. While it shows, the title moves to data-rn-title, so a page on the
   // desktop does not show both. Kit elements whose title is their heading are skipped.
+  // The walk goes through shadow roots, so a kit control with a title (rn-toggle) gets
+  // one when its inner parts are hovered. Each tooltip's fate goes to the console as
+  // "[rn-tip] ..." (debug level), for the MCP server's window_console.
   const HEADING_TITLE = new Set(['rn-window', 'rn-panel', 'rn-menu', 'rn-notification']);
   let tipBox = null;
   let tipTarget = null;
@@ -989,13 +992,19 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
 
   function titledIn(path) {
     for (const node of path) {
+      if (node instanceof ShadowRoot) continue;
       if (!(node instanceof Element) || HEADING_TITLE.has(node.localName)) return null;
       if (node.getAttribute('title') || node.getAttribute('data-rn-title')) return node;
     }
     return null;
   }
-  function hideTip() {
+  const tipName = (el) => el.getAttribute('title') || el.getAttribute('data-rn-title');
+  function hideTip(e) {
     clearTimeout(tipTimer);
+    if (tipTarget) {
+      const shown = tipBox && !tipBox.hidden;
+      console.debug(`[rn-tip] ${shown ? 'hid' : 'dropped before showing'} "${tipName(tipTarget)}" (${e?.type || 'moved on'})`);
+    }
     if (tipTarget?.hasAttribute('data-rn-title')) {
       if (!tipTarget.hasAttribute('title')) tipTarget.setAttribute('title', tipTarget.getAttribute('data-rn-title'));
       tipTarget.removeAttribute('data-rn-title');
@@ -1005,7 +1014,10 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
   }
   function showTip(target) {
     const text = target.getAttribute('title');
-    if (!text || !target.isConnected) return;
+    if (!text || !target.isConnected) {
+      console.debug(`[rn-tip] skipped "${tipName(target)}": ${target.isConnected ? 'no title' : 'no longer on the page'}`);
+      return;
+    }
     target.setAttribute('data-rn-title', text);
     target.removeAttribute('title');
     if (!tipBox) {
@@ -1027,6 +1039,7 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
     const y = r.bottom + 6 + h <= innerHeight - 4 ? r.bottom + 6 : Math.max(4, r.top - h - 6);
     tipBox.style.left = `${x}px`;
     tipBox.style.top = `${y}px`;
+    console.debug(`[rn-tip] showed "${text}" at ${Math.round(x)},${Math.round(y)} (page ${innerWidth}x${innerHeight})`);
   }
   document.addEventListener(
     'pointerover',
@@ -1036,6 +1049,7 @@ nav button:focus-visible { outline: 2px solid var(--rn-accent-2); outline-offset
       hideTip();
       if (!target) return;
       tipTarget = target;
+      console.debug(`[rn-tip] hover "${tipName(target)}"`);
       tipTimer = setTimeout(() => showTip(target), 500);
     },
     true,

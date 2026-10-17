@@ -34,6 +34,7 @@ Last updated 2026-10-16. REDagent's own tests (C2 to C5, the chat and authoring)
 | [S1 Play](#s1-play) | In the game | Sound S1 | 2026-10-16 | 0.24.0 | Pass but pan, fixed in 0.24.1 |
 | [S1 check, 0.24.1](#s1-check-0241) | In the game | Sound S1 | 2026-10-16 | 0.24.1 | Pass |
 | [Polish 0.24.2](#polish-0242) | In the game | Polish | 2026-10-17 | 0.24.4 | **Partly**: tooltips failed, HUD widgets on the boot loading screen |
+| [Polish 0.24.5](#polish-0245) | In the game | Polish | Not run | 0.24.5 | |
 
 ## Before any in-game test
 
@@ -295,6 +296,16 @@ Showed: Chromium drops `movementX` from injected moves, so the host sends raw mo
 4. **F10**: the launcher and windows show. Start the timer again and Mark. Open at start back on if you like.
 5. Since 0.24.4 (#13), with EDGEdeck installed and its **Get REDbridge** pressed before the game: **Packaging test** on, its REDbridge permission allowed. The Mod Manager says REDbridge was found in **EDGEdeck (Code)**; the window lists the archives.
 6. Quit. The overlay log has `Open at start is off`, `Open at start: the overlay was opened`, and `Sound: the game's volumes are ... (a save loaded)` after each load.
+
+### Polish 0.24.5
+
+[Source](overlay.md#polish-0245-test). Built, **not run yet**. Retests 0.24.2's failed parts: tooltips through shadow roots checked in an offscreen repro only; the main menu by `IsPreGame()` unverified.
+
+1. Start the game. Boot loading screen and main menu: no Vitals, no Coords. Load a save: both show.
+2. **F10**, Test timer on, **Start**, **Mark**.
+3. Hover **Open at start** and keep still: a tooltip.
+4. Hover a title-bar icon (Roll up on the Mod Manager) and keep still: a tooltip. If not, leave the game running for an MCP `window_console` read of the `[rn-tip]` trace.
+5. Quit. The plugin log has `Overlay: main menu on`, then `main menu off (player yes, IsPreGame false)` in the save, and no `could not read IsPreGame`.
 
 ## MCP server
 
