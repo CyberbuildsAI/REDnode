@@ -1,6 +1,6 @@
 # REDnode on Nexus Mods
 
-The source of REDnode's Nexus Mods page lives here, so updates are edits in the repo, not in Nexus's text box. The page: https://www.nexusmods.com/cyberpunk2077/mods/35355 (published 2026-10-16 with REDnode 0.24.3). REDdeck is 35366 and REDcode 35356.
+The source of REDnode's Nexus Mods page lives here, so updates are edits in the repo, not in Nexus's text box. Not on Nexus at the moment: the pages were posted on 2026-10-16 from an Edgemodders account (REDnode 35355, REDdeck 35366, REDcode 35356), and Nexus took them down because the owner already has a personal account. They will be posted again from that account, with new mod ids. Then replace the ids in the three descriptions' links, and upload the images again: their `staticdelivery.nexusmods.com` URLs carry the old mod id.
 
 | File | What it is |
 |---|---|

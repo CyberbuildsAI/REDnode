@@ -10,10 +10,18 @@
 REDnode is built in the open and tested in the game after every phase, on game version 2.31. Everything on this page works in the game today. It is a preview: the API can still change between versions, and some parts (listed in the roadmap) are still to come.
 [b]Players:[/b] install REDnode when a mod you want needs it.
 [b]Modders:[/b] start with the [url=https://edgemodders.github.io/REDnode/overlay-apps.html]guide[/url]; your first mod is one folder and one file.[/quote]
-
 [line]
+Make all kinds of screen apps, widgets, with true transparency even.
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792177505-2048305127.png[/img]
 
-[color=#19f3ff][i][Screenshot 1: the overlay open in the game. The launcher tab at the lower left, a couple of windows in the HUD theme, a HUD widget at the top.][/i][/color]
+Easy to use mod manager for REDnode apps and mods (think of these like CET mods).
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792177505-1995929837.png[/img]
+
+Full 3D, in-game editor called EDGEbuilder.
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792177511-1467588338.png[/img]
+
+Choose from 3 different themes, including this HUD red theme like the game's UI.
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792177511-1847338957.png[/img]
 
 [size=5][b][color=#fcee0a]What REDnode is[/color][/b][/size]
 
@@ -26,7 +34,6 @@ It has three parts, all in this download:
 [*][b][color=#19f3ff]The overlay host[/color][/b], a small app beside the game that the plugin starts and stops with it. It renders the windows and runs each Node mod in its own process, so a mod that breaks cannot take the game, or the other mods, down with it.[/*]
 [*][b][color=#19f3ff]The rednode package[/color][/b], the API that mods and apps import: the game, windows, sound, TweakDB, the world, the AI assistant and more.[/*]
 [/list]
-
 [size=5][b][color=#fcee0a]Highlights[/color][/b][/size]
 
 [size=4][b][color=#19f3ff]Web pages over the game[/color][/b][/size]
@@ -40,15 +47,18 @@ Any HTML page can be a window in the game: drag it, resize it, roll it up, close
 const player = await api.GetPlayer(game.instance);
 const shop = await api.GameInstance.GetTransactionSystem(game.instance);
 await shop.GiveItem(player, await api.MarketSystem.Money(), 100); // 100 eddies[/code]
-
 [size=4][b][color=#19f3ff]REDagent: an AI modder in the game[/color][/b][/size]
 REDagent, powered by Claude, is a chat window in the game that writes REDnode mods with you, starts them, reads their logs, looks at the screen, and fixes what went wrong, while you play. Other mods can ask it questions too. It is a separate download from its [url=https://github.com/Edgemodders/REDagent]repo[/url] and uses your own Anthropic API key.
 REDnode also has an MCP server, so Claude Code on your desktop can read your mods' logs, see the overlay's windows, look up game types and call the game.
 
-[color=#19f3ff][i][Screenshot 2: REDagent's chat in the game, part way through writing a mod.][/i][/color]
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792183544-1962604485.png[/img]
 
 [size=4][b][color=#19f3ff]Hot reload[/color][/b][/size]
 Save your mod's file while the game runs and the mod restarts with the change. No game restart, no save reload.
+
+[b][color=#00ffff][size=4]Performance GPU Sharing[/size][/color]
+[/b]
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792183728-887783471.png[/img]
 
 [size=4][b][color=#19f3ff]Spaces[/color][/b][/size]
 Sort windows into named spaces, like virtual desktops, and switch between them with the launcher or Ctrl+1 to 9. REDnode's own tools show in every space.
@@ -56,7 +66,7 @@ Sort windows into named spaces, like virtual desktops, and switch between them w
 [size=4][b][color=#19f3ff]Mod Manager[/color][/b][/size]
 Every REDnode package in one table: switch it on or off, pin it to the launcher or the HUD, move it to a space, and grant or take back what it asks for (the AI assistant, the game's files, staying on top). If a package needs another mod (Codeware, TweakXL, ArchiveXL...), it says which, and whether you have it.
 
-[color=#19f3ff][i][Screenshot 3: the Mod Manager, with a few packages and their switches.][/i][/color]
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792182783-77381118.png[/img]
 
 [size=4][b][color=#19f3ff]Your own sounds[/color][/b][/size]
 Play WAV, OGG, MP3 and FLAC files from your mod, with no soundbank and no REDmod. They follow the game's volume sliders, pause in menus, fade, loop and pan.
@@ -79,11 +89,10 @@ const where = ui.text('Waiting for the game...');
 ui.window({ title: 'Hello mod', children: [ui.heading('Where is V'), where] });
 
 setInterval(async () => {
-  const p = await game.player.position();
-  where.set({ text: `X ${p.x.toFixed(1)}  Y ${p.y.toFixed(1)}  Z ${p.z.toFixed(1)}` });
+  const p = await game.player.position();
+  where.set({ text: `X ${p.x.toFixed(1)}  Y ${p.y.toFixed(1)}  Z ${p.z.toFixed(1)}` });
 }, 1000);[/code]
-
-[color=#19f3ff][i][Screenshot 4: the UI kit sample window, showing its widgets in the game.][/i][/color]
+[img width=884]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792183359-417269450.png[/img]
 
 [size=5][b][color=#fcee0a]What is in the download[/color][/b][/size]
 
@@ -92,7 +101,6 @@ setInterval(async () => {
 [*]The built-in tools: the launcher, the Mod log and the Mod Manager.[/*]
 [*]Six samples, all switched off until you turn them on in the launcher: [b]Hello mod[/b] (a window from Node), [b]Ask mod[/b] (a mod asking the AI assistant), [b]UI kit[/b] (every widget), [b]Vitals[/b] and [b]Coords[/b] (HUD widgets) and [b]Perf[/b] (what the overlay costs).[/*]
 [/list]
-
 [size=5][b][color=#fcee0a]Requirements[/color][/b][/size]
 
 [list]
@@ -102,7 +110,6 @@ setInterval(async () => {
 [*]Only for the packages that ask for them: [url=https://www.nexusmods.com/cyberpunk2077/mods/7780]Codeware[/url] (things in the world), [url=https://www.nexusmods.com/cyberpunk2077/mods/4197]TweakXL[/url] (TweakDB changes), [url=https://www.nexusmods.com/cyberpunk2077/mods/4198]ArchiveXL[/url]. The Mod Manager tells you when one is missing.[/*]
 [*]Only for packages that read the game's files: REDbridge. Install [url=https://www.nexusmods.com/cyberpunk2077/mods/35366]REDdeck[/url] and press [b]Get REDbridge[/b], or let [url=https://www.nexusmods.com/cyberpunk2077/mods/35356]REDcode[/url] download it. REDnode finds their copy; it is not in this download.[/*]
 [/list]
-
 REDnode works beside Cyber Engine Tweaks, other RED4ext plugins, redscript mods and REDmod.
 
 [size=5][b][color=#fcee0a]Install[/color][/b][/size]
@@ -112,7 +119,6 @@ REDnode works beside Cyber Engine Tweaks, other RED4ext plugins, redscript mods 
 [*][b]REDdeck:[/b] add the zip, switch it on, deploy.[/*]
 [*][b]By hand:[/b] extract the zip into the game folder, so that [i]red4ext/plugins/REDnode/REDnode.dll[/i] is next to the other RED4ext plugins.[/*]
 [/list]
-
 Start the game and press [b]F10[/b]. The first press makes the overlay take the mouse and keyboard, the second hides it, the third shows it again. [b]Esc[/b] gives the mouse back to the game. The [b]REDNODE[/b] tab at the lower left is the launcher.
 
 [b]Uninstall:[/b] remove the mod in your mod manager, or delete [i]red4ext/plugins/REDnode[/i]. Your settings are kept in [i]%APPDATA%\@rednode\overlay[/i]; delete that folder too for a clean slate.
@@ -127,8 +133,11 @@ A REDnode mod is a folder with a [b]rednode-app.json[/b] and either a web page (
 [*][url=https://edgemodders.github.io/REDnode/game/]Game API reference[/url]: every class, struct, enum and function in the base game.[/*]
 [*][url=https://github.com/Edgemodders/REDnode/tree/main/packages/overlay/apps]Samples[/url], including the ones in this download.[/*]
 [/list]
+[color=#00ffff][size=4]Live Debugging[/size][/color]
 
-[color=#19f3ff][i][Screenshot 5: an editor with a mod's code completing a game class, beside the game showing the mod's window.][/i][/color]
+[color=#ffffff][size=3]Using tools you already know...[/size][/color]
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35355/35355-1792184062-1944907690.png[/img]
+
 
 [size=5][b][color=#fcee0a]Roadmap[/color][/b][/size]
 
@@ -141,7 +150,6 @@ A REDnode mod is a folder with a [b]rednode-app.json[/b] and either a web page (
 [*][b]Display[/b]: the overlay right in HDR, with frame generation, on ultrawide screens and across resolution and window-mode changes. Planned.[/*]
 [*][b]Interceptors[/b]: small scripts that change the game's own functions as they run, inside the game. Planned.[/*]
 [/list]
-
 The full table, with every in-game test: [url=https://edgemodders.github.io/REDnode/]REDnode docs[/url].
 
 [size=5][b][color=#fcee0a]Questions[/color][/b][/size]
@@ -178,10 +186,10 @@ Yes, and open source under the MIT license. The code is on [url=https://github.c
 [*]REDagent: [url=https://github.com/Edgemodders/REDagent]github.com/Edgemodders/REDagent[/url][/*]
 [*]Community Discord: [url=https://discord.gg/63qP3Erw43]discord.gg/63qP3Erw43[/url][/*]
 [/list]
-
 [size=5][b][color=#fcee0a]Credits[/color][/b][/size]
 
 [list]
+[*][b][url=https://www.nexusmods.com/profile/Cyberbuilds]Cyberbuilds [/url]for making Edgemodders and these tools.[/b][/*]
 [*][b]RED4ext[/b] and [b]RED4ext.SDK[/b] by WopsS and contributors (MIT): how REDnode gets into the game.[/*]
 [*][b]redscript[/b] by jac3km4: the scripts REDnode's plugin uses.[/*]
 [*][b]Codeware[/b], [b]TweakXL[/b] and [b]ArchiveXL[/b] by psiberx: the world and TweakDB support build on them.[/*]
@@ -190,5 +198,4 @@ Yes, and open source under the MIT license. The code is on [url=https://github.c
 [*][b]WolvenKit[/b] and its team, whose libraries REDbridge runs.[/*]
 [*]The Cyberpunk 2077 modding community, whose tools and knowledge this builds on.[/*]
 [/list]
-
 [size=2]REDnode is not affiliated with CD PROJEKT RED or Anthropic. Cyberpunk 2077 and REDengine are trademarks of CD PROJEKT. Claude and Claude Code are trademarks of Anthropic.[/size]

@@ -4,14 +4,14 @@ import * as fs from "node:fs";
 
 const file = process.argv[2] ?? "nexus/description.bbcode";
 const text = fs.readFileSync(file, "utf8");
-// Tags Nexus's editor understands. [*] and [line] stand alone.
+// Tags Nexus's editor understands, with an optional value or attributes ([img width=400]). [*] and [line] stand alone.
 const known = new Set(["b", "i", "u", "s", "size", "color", "font", "center", "left", "right", "quote", "code", "list", "url", "email", "img", "youtube", "spoiler", "sup", "sub"]);
 const alone = new Set(["*", "line"]);
 const stack = [];
 const problems = [];
 let line = 1;
 let last = 0;
-for (const m of text.matchAll(/\[(\/?)([a-z*]+)(=[^\]]*)?\]/gi)) {
+for (const m of text.matchAll(/\[(\/?)([a-z*]+)([= ][^\]]*)?\]/gi)) {
   line += (text.slice(last, m.index).match(/\n/g) ?? []).length;
   last = m.index;
   const [, close, rawName] = m;
