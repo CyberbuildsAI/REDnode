@@ -293,7 +293,8 @@ Showed: Chromium drops `movementX` from injected moves, so the host sends raw mo
 2. Make a second space if needed. Mod Manager, **Test timer**: the Space column says **All**, the space buttons are greyed, a note says it is a tool window.
 3. Launcher: **Open at start** off. Restart the game: only HUD widgets at the main menu and after loading a save.
 4. **F10**: the launcher and windows show. Start the timer again and Mark. Open at start back on if you like.
-5. Quit. The overlay log has `Open at start is off`, `Open at start: the overlay was opened`, and `Sound: the game's volumes are ... (a save loaded)` after each load.
+5. Since 0.24.4 (#13), with EDGEdeck installed and its **Get REDbridge** pressed before the game: **Packaging test** on, its REDbridge permission allowed. The Mod Manager says REDbridge was found in **EDGEdeck (Code)**; the window lists the archives.
+6. Quit. The overlay log has `Open at start is off`, `Open at start: the overlay was opened`, and `Sound: the game's volumes are ... (a save loaded)` after each load.
 
 ## MCP server
 
@@ -330,7 +331,7 @@ Showed: spawn 254 to 257 ms. Awaited moves run one a frame; ten sent together ru
 
 ### W2 Packaging
 
-[Source](world.md#w2-test). Last run 2026-10-14, REDnode 0.17.0. **Pass.** Needs Codeware and ArchiveXL, a REDbridge (found in REDdeck's or REDcode's storage, or `REDBRIDGE_EXE`) and .NET 10. Uses **Packaging test**.
+[Source](world.md#w2-test). Last run 2026-10-14, REDnode 0.17.0. **Pass.** Needs Codeware and ArchiveXL, a REDbridge (found in EDGEdeck's or REDcode's storage, or `REDBRIDGE_EXE`) and .NET 10. Uses **Packaging test**.
 
 1. Deploy, load a save.
 2. **F10**. Mod Manager, **Packaging test** (New filter): **NEEDS**. Under **Requires**: Codeware and ArchiveXL ticked with versions, `not-a-real-mod` crossed out. The **Errors** filter lists it.

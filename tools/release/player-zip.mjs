@@ -5,7 +5,7 @@
 //   npm run release:zip
 //
 // Output: native/build/release/REDnode-<version>.zip, laid out like the game folder, so
-// Vortex, REDdeck or a player extracting it by hand into the game folder all put it in
+// Vortex, EDGEdeck or a player extracting it by hand into the game folder all put it in
 // the same place:
 //   red4ext/plugins/REDnode/REDnode.dll           the plugin
 //   red4ext/plugins/REDnode/Scripts/              its redscript parts
@@ -14,7 +14,7 @@
 //   red4ext/plugins/REDnode/LICENSE.txt, THIRD-PARTY-NOTICES.txt, README.txt
 //
 // REDbridge is not in it: REDnode runs without it, and packages that use kernel.bridge()
-// find the copy REDdeck or REDcode fetched (packages/overlay/redbridge.js).
+// find the copy EDGEdeck or REDcode fetched (packages/overlay/redbridge.js).
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -105,7 +105,7 @@ writeFileSync(
     'Needs: RED4ext and redscript. Some packages also need Codeware, TweakXL or ArchiveXL;',
     'the Mod Manager says which.',
     '',
-    'Packages that read the game\'s archives also need REDbridge. Install REDdeck or REDcode',
+    'Packages that read the game\'s archives also need REDbridge. Install EDGEdeck or REDcode',
     '(VS Code extensions) and let it download REDbridge once; REDnode finds that copy.',
     'Or set REDBRIDGE_EXE to a REDbridge.exe from github.com/Edgemodders/REDbridge (needs .NET 10).',
     '',

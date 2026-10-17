@@ -1,6 +1,6 @@
 // REDbridge for packages (W2, kernel.bridge()): WolvenKit's engine behind JSON-RPC,
 // a separate GPL-3.0 program (https://github.com/Edgemodders/REDbridge). REDnode
-// does not ship it: it finds the copy REDdeck or REDcode fetched, starts it on the
+// does not ship it: it finds the copy EDGEdeck or REDcode fetched, starts it on the
 // first call with the game folder, and shares it between the packages the player
 // allowed. It stops after IDLE_MS without calls; the next call starts it again.
 //
@@ -20,7 +20,7 @@ const IDLE_MS = 10 * 60 * 1000;
 const EDITORS = ['Code', 'Code - Insiders', 'VSCodium', 'EDGEkit', 'Cursor'];
 // REDcode's id: edgemodders.redcode-cyberpunk since 0.8.2 (the store name collided), edgemodders.redcode
 // from 0.6.0, edgemodders.redcode-core before. All three are looked at.
-const EXTENSIONS = ['edgemodders.reddeck', 'edgemodders.redcode-cyberpunk', 'edgemodders.redcode', 'edgemodders.redcode-core'];
+const EXTENSIONS = ['edgemodders.edgedeck', 'edgemodders.redcode-cyberpunk', 'edgemodders.redcode', 'edgemodders.redcode-core'];
 
 function compareVersions(a, b) {
   const pa = String(a).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
@@ -42,7 +42,7 @@ const isFile = (p) => {
 
 /**
  * REDbridge.exe: a configured path (a file or its folder), REDBRIDGE_EXE, or the newest
- * copy REDdeck or REDcode fetched into an editor's storage. { exe, version, source } or null.
+ * copy EDGEdeck or REDcode fetched into an editor's storage. { exe, version, source } or null.
  */
 function findRedbridge(configured) {
   for (const [p, source] of [
@@ -66,7 +66,7 @@ function findRedbridge(configured) {
       }
       for (const tag of tags) {
         const exe = path.join(dir, tag, 'REDbridge.exe');
-        if (isFile(exe)) copies.push({ exe, version: tag.replace(/^v/, ''), source: `${ext === EXTENSIONS[0] ? 'REDdeck' : 'REDcode'} (${editor})` });
+        if (isFile(exe)) copies.push({ exe, version: tag.replace(/^v/, ''), source: `${ext === EXTENSIONS[0] ? 'EDGEdeck' : 'REDcode'} (${editor})` });
       }
     }
   }
@@ -113,7 +113,7 @@ function createRedbridge(host) {
     if (child) return;
     if (!locate()) {
       throw new Error(
-        'REDbridge is not installed. Get it with REDdeck ("Get REDbridge") or REDcode in VS Code, ' +
+        'REDbridge is not installed. Get it with EDGEdeck ("Get REDbridge") or REDcode in VS Code, ' +
           'or set its path in REDnode (REDBRIDGE_EXE).',
       );
     }

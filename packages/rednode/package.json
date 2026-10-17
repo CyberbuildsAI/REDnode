@@ -1,6 +1,6 @@
 {
   "name": "rednode",
-  "version": "0.24.3",
+  "version": "0.24.4",
   "description": "Node.js API for scripting Cyberpunk 2077",
   "license": "MIT",
   "type": "module",

@@ -2007,7 +2007,7 @@ async function bridgeFor(id, op, method, params) {
   if (op === 'status') {
     const s = redbridge.status();
     if (!s.found) {
-      throw new Error('REDbridge is not installed. Get it with REDdeck ("Get REDbridge") or REDcode in VS Code.');
+      throw new Error('REDbridge is not installed. Get it with EDGEdeck ("Get REDbridge") or REDcode in VS Code.');
     }
     return { version: s.version, source: s.source, running: s.running };
   }

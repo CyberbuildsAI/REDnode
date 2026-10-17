@@ -449,7 +449,7 @@ O6 One runtime is done: Node mods run beside overlay apps, both use the `rednode
 
 ### O8 Mod Manager: plan
 
-Agreed with the user on 2026-10-13, to come after REDagent's C4 test and before C5 or C6. The launcher's single list works for a handful of packages; with dozens it is overwhelmed, and REDagent makes new packages easily. REDdeck, the pre-launch mod manager for game mods (archives), stays separate: the Mod Manager manages REDnode packages, in the game.
+Agreed with the user on 2026-10-13, to come after REDagent's C4 test and before C5 or C6. The launcher's single list works for a handful of packages; with dozens it is overwhelmed, and REDagent makes new packages easily. EDGEdeck, the pre-launch mod manager for game mods (archives), stays separate: the Mod Manager manages REDnode packages, in the game.
 
 | Piece | What it does |
 |---|---|
@@ -703,13 +703,18 @@ Asked for by the user on 2026-10-16, after the Sound API's S1 test, and built be
 
 Tested in the mock game: with Open at start off, only the HUD widget opened on the HUD; going interactive put the launcher tab back and logged `Open at start: the overlay was opened`. A hover over the Test timer's roll-up icon drew "Roll up" below it. The volumes were read 5 seconds after the save loaded. The Mod Manager's greyed buttons are **unverified**.
 
+REDnode 0.24.3 finds a REDbridge in REDcode's storage under its store id since 0.8.2, `edgemodders.redcode-cyberpunk`. REDnode 0.24.4 ([#13](https://github.com/Edgemodders/REDnode/issues/13)): REDdeck is now EDGEdeck, a new extension (`edgemodders.edgedeck`), so REDnode looks in EDGEdeck's storage and no longer in REDdeck's, a clean break decided with the user on 2026-10-17. The messages say EDGEdeck. On the dev PC, where only REDdeck had fetched REDbridge, `findRedbridge()` now finds none, as expected.
+
 ### Polish 0.24.2: test
+
+Before starting the game, for step 5: install EDGEdeck in VS Code and press its **Get REDbridge**. The REDbridge REDdeck fetched no longer counts.
 
 0. Switch on **Test timer** in the launcher, press **Start**, and press **Mark** after each step.
 1. Load a save and press F10. Hover a title-bar icon on any window, such as roll up on the Mod Manager or the Test timer: a tooltip names it after half a second. Hover the launcher's **Open at start** switch: a tooltip explains it. Mark.
 2. If you have only one space, make a second in the launcher's **Space** row (**New**). In the Mod Manager, select **Test timer**: the Space column says **All**, the space buttons are greyed, and a note says it is a tool window. Delete the extra space if you like. Mark.
 3. In the launcher, switch **Open at start** off. Quit the game and start it again. At the main menu, only HUD widgets show: no launcher tab, no other windows. Load a save: still only HUD widgets.
 4. Press F10. The launcher and your windows show. Press **Start** on the Test timer again (it restarted with the game) and **Mark**. Switch **Open at start** back on if you like.
+5. In the launcher, switch on **Packaging test** and allow its REDbridge permission in the Mod Manager. The Mod Manager says REDbridge was found in **EDGEdeck (Code)**, and the Packaging test's window lists the game's archives. Mark.
 
 Then quit the game. The overlay log should have `Open at start is off`, `Open at start: the overlay was opened`, and a `Sound: the game's volumes are ... (a save loaded)` line after each save load.
 

@@ -434,7 +434,7 @@ const missing = (await kernel.requirements()).filter((r) => !r.ok);
 
 ## The game's files through REDbridge
 
-[REDbridge](https://github.com/Edgemodders/REDbridge) runs WolvenKit's engine and answers JSON-RPC: the game's archives (list, search, extract), CR2W files as JSON and back, textures as PNG, hashes. REDnode does not ship it (it is GPL-3.0, its own program): it uses the copy [REDdeck](https://github.com/Edgemodders/REDdeck) ("Get REDbridge") or REDcode fetched, or one set with the `REDBRIDGE_EXE` environment variable. One REDbridge serves every package: it starts on the first call, loads the game's archive index in about three seconds, and stops after 10 minutes without calls.
+[REDbridge](https://github.com/Edgemodders/REDbridge) runs WolvenKit's engine and answers JSON-RPC: the game's archives (list, search, extract), CR2W files as JSON and back, textures as PNG, hashes. REDnode does not ship it (it is GPL-3.0, its own program): it uses the copy [EDGEdeck](https://github.com/Edgemodders/EDGEdeck) ("Get REDbridge") or REDcode fetched, or one set with the `REDBRIDGE_EXE` environment variable. One REDbridge serves every package: it starts on the first call, loads the game's archive index in about three seconds, and stops after 10 minutes without calls.
 
 Add `"permissions": ["bridge"]` to the manifest; the player allows it in the Mod Manager, which also says where REDbridge was found.
 

@@ -409,7 +409,7 @@ function renderDetails() {
         parts.push(
           i.bridge.found
             ? el('div', 'perm dim', `REDbridge ${i.bridge.version ?? ''} from ${i.bridge.source}${i.bridge.running ? ', running' : ''}`)
-            : el('div', 'perm err', 'REDbridge is not installed. Get it with REDdeck ("Get REDbridge") or REDcode in VS Code.'),
+            : el('div', 'perm err', 'REDbridge is not installed. Get it with EDGEdeck ("Get REDbridge") or REDcode in VS Code.'),
         );
       }
       parts.push(toggle('Allowed', p.granted, (on) => act(i.name, () => window.rednode.apps.grant(i.id, p.name, on))));

@@ -162,7 +162,7 @@ export interface Requirement {
 export interface KernelBridge {
   /** REDbridge's version, such as `0.5.1`, when known. */
   readonly version: string | null;
-  /** Where REDnode found it, such as `REDdeck (Code)`. */
+  /** Where REDnode found it, such as `EDGEdeck (Code)`. */
   readonly source: string | null;
   /**
    * Calls a REDbridge method with its parameters by name, as REDbridge's docs list
@@ -209,7 +209,7 @@ export const kernel = {
    * REDbridge, WolvenKit's engine, shared by every package that may use it: the
    * game's archives (list, search, extract), CR2W files as JSON and back, textures
    * as PNG, hashes. REDnode does not ship REDbridge (GPL-3.0); it uses the copy
-   * REDdeck or REDcode fetched. The package must ask for the `bridge` permission
+   * EDGEdeck or REDcode fetched. The package must ask for the `bridge` permission
    * in its rednode-app.json and the player must allow it in the Mod Manager; this
    * rejects and says why until then, or when REDbridge is not installed.
    *

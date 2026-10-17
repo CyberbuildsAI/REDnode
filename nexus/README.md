@@ -1,6 +1,6 @@
 # REDnode on Nexus Mods
 
-The source of REDnode's Nexus Mods page lives here, so updates are edits in the repo, not in Nexus's text box. Not on Nexus at the moment: the pages were posted on 2026-10-16 from an Edgemodders account (REDnode 35355, REDdeck 35366, REDcode 35356), and Nexus took them down because the owner already has a personal account. They will be posted again from that account, with new mod ids. Then replace the ids in the three descriptions' links, and upload the images again: their `staticdelivery.nexusmods.com` URLs carry the old mod id.
+The source of REDnode's Nexus Mods page lives here, so updates are edits in the repo, not in Nexus's text box. Not on Nexus at the moment: the pages were posted on 2026-10-16 from an Edgemodders account (REDnode 35355, REDdeck 35366, REDcode 35356; REDdeck is now EDGEdeck, a new extension with its own page to come), and Nexus took them down because the owner already has a personal account. They will be posted again from that account, with new mod ids. Then replace the ids in the three descriptions' links, and upload the images again: their `staticdelivery.nexusmods.com` URLs carry the old mod id.
 
 | File | What it is |
 |---|---|
@@ -18,7 +18,7 @@ The source of REDnode's Nexus Mods page lives here, so updates are edits in the 
 | Author | Edgemodders |
 | Language | English |
 | Primary image | `docs/assets/brand/social.png` (1280 x 640). The banner (`docs/assets/brand/banner.png`) is already at the top of the description |
-| Requirements | RED4ext and redscript (Nexus pages). Optional, noted as such: REDdeck (35366; note: "Only for REDnode mods that read the game's archives. Open REDdeck once and press Get REDbridge. REDnode and its samples run without it."), Codeware, TweakXL, ArchiveXL (note: "Only for REDnode packages that ask for it; the Mod Manager tells you.") |
+| Requirements | RED4ext and redscript (Nexus pages). Optional, noted as such: EDGEdeck (its new Nexus page; note: "Only for REDnode mods that read the game's archives. Open EDGEdeck once and press Get REDbridge. REDnode and its samples run without it."), Codeware, TweakXL, ArchiveXL (note: "Only for REDnode packages that ask for it; the Mod Manager tells you.") |
 | Permissions | MIT: open source, free to modify and redistribute with the license notice. Bundled third-party parts keep their own licenses (`THIRD-PARTY-NOTICES.txt` in the zip) |
 | Tags | Framework, modders resource, utility, user interface |
 
@@ -26,7 +26,7 @@ The description has screenshot placeholders in cyan italics (`[Screenshot N: ...
 
 ## The download
 
-One main file: `REDnode-<version>.zip`, laid out like the game folder, so Vortex, REDdeck and an extract by hand all put it in the same place:
+One main file: `REDnode-<version>.zip`, laid out like the game folder, so Vortex, EDGEdeck and an extract by hand all put it in the same place:
 
 ```
 red4ext/plugins/REDnode/
@@ -39,8 +39,8 @@ red4ext/plugins/REDnode/
 
 | What | Where it comes from |
 |---|---|
-| The samples | `SAMPLES` in `tools/release/nexus-zip.mjs`: Hello mod, Ask mod, UI kit, Vitals, Coords, Perf. The other apps in `packages/overlay/apps` are tests and stay out. The zip's copies have `"open": false` |
-| REDbridge | Not in the zip. REDnode runs without it; packages that use `kernel.bridge()` find the copy REDdeck or REDcode fetched. REDbridge is GPL-3.0 and 60 MB, and already reaches players through those two |
+| The samples | `SAMPLES` in `tools/release/player-zip.mjs`: Hello mod, Ask mod, UI kit, Vitals, Coords, Perf. The other apps in `packages/overlay/apps` are tests and stay out. The zip's copies have `"open": false` |
+| REDbridge | Not in the zip. REDnode runs without it; packages that use `kernel.bridge()` find the copy EDGEdeck or REDcode fetched. REDbridge is GPL-3.0 and 60 MB, and already reaches players through those two |
 | REDagent | Not in the zip. It is its own download (its repo), installed into the same `apps` folder |
 
 ### Building it
@@ -62,7 +62,7 @@ npm run release:zip      # native\build\release\REDnode-<version>.zip
 
 ### File description on Nexus
 
-> REDnode &lt;version&gt;: the plugin, the overlay host and six samples. Install with Vortex or REDdeck, or extract into the game folder. Needs RED4ext and redscript.
+> REDnode &lt;version&gt;: the plugin, the overlay host and six samples. Install with Vortex or EDGEdeck, or extract into the game folder. Needs RED4ext and redscript.
 
 ## Updating the page
 

@@ -81,7 +81,7 @@ Use the **Test timer**: Start, then Mark after each step. At the time of this te
 | Piece | Request | Plan |
 |---|---|---|
 | `requires` in the manifest | [#5](https://github.com/Edgemodders/REDnode/issues/5) | `"requires": { "codeware": ">=1.16", "archivexl": ">=1.23" }`. The host checks the RED4ext plugins and redscript modules installed in the game; the Mod Manager shows what is missing next to the package, and the package can read the result |
-| `kernel.bridge()` | [#4](https://github.com/Edgemodders/REDnode/issues/4) | How to reach a running REDbridge, behind a `bridge` permission the player grants, like `kernel.mcp()`. The host finds the copy REDdeck or REDcode already fetched and starts it on demand. REDbridge stays its own GPL-3.0 program, reached over JSON-RPC |
+| `kernel.bridge()` | [#4](https://github.com/Edgemodders/REDnode/issues/4) | How to reach a running REDbridge, behind a `bridge` permission the player grants, like `kernel.mcp()`. The host finds the copy EDGEdeck or REDcode already fetched and starts it on demand. REDbridge stays its own GPL-3.0 program, reached over JSON-RPC |
 
 **The test proves:** a package that requires something missing says so in the Mod Manager, and a package with the `bridge` permission lists the game's archives through REDbridge.
 
@@ -93,7 +93,7 @@ REDnode 0.17.0. How to use both: [Requirements](overlay-apps.md#requirements) an
 |---|---|
 | Game folder scan | `packages/overlay/gamefiles.js`: RED4ext plugins with their DLL file versions (read from the version resource, three parts; the fourth is a build number some plugins fill with a date that overflows), redscript modules, CET mods, and RED4ext, CET and redscript. Rescanned at most every 30 seconds. The host finds the game folder from its own place (`<game>/red4ext/plugins/REDnode/host`), or `--game` |
 | `requires` | Checked in the manifest (a bad range is a manifest error). The Mod Manager: **NEEDS** next to the name, the list under **Requires**, and the Errors filter. The launcher: a "Needs ..." line. A Node mod's log: a line at each start. The MCP `apps` tool: each package's `requires`. `kernel.requirements()` in the `rednode` package |
-| REDbridge | `packages/overlay/redbridge.js`: finds `REDbridge.exe` (`REDBRIDGE_EXE`, then the newest copy in REDdeck's or REDcode's storage in VS Code, VS Code Insiders, VSCodium, EDGEkit or Cursor), starts it with `--game` on the first call, and speaks Content-Length framed JSON-RPC on its stdio. One process for every package; it stops after 10 minutes without calls, and exits by itself if the host dies (its stdin closes). `DOTNET_ROOT` is set for it only when .NET 10 is per-user |
+| REDbridge | `packages/overlay/redbridge.js`: finds `REDbridge.exe` (`REDBRIDGE_EXE`, then the newest copy in EDGEdeck's or REDcode's storage in VS Code, VS Code Insiders, VSCodium, EDGEkit or Cursor), starts it with `--game` on the first call, and speaks Content-Length framed JSON-RPC on its stdio. One process for every package; it stops after 10 minutes without calls, and exits by itself if the host dies (its stdin closes). `DOTNET_ROOT` is set for it only when .NET 10 is per-user |
 | `kernel.bridge()` | The `bridge` permission. `kernel.bridge()` resolves with `{ version, source, call(method, params) }`, or rejects with why (not allowed, or not installed and how to get it). The Mod Manager shows where REDbridge was found |
 | Sample | `apps/packaging-test`: requires Codeware, ArchiveXL and `not-a-real-mod`; lists and searches the archives |
 
