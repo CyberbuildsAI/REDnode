@@ -6,13 +6,16 @@
 #   Run workflow, "Make a release" ticked       also tags the commit v<VERSION> and makes the
 #                                               GitHub release with the zip; stops first if that
 #                                               tag exists (raise VERSION with tools/version.mjs)
+#
+# Release gate: make a release only after every in-game test of the builds since the last
+# release has passed (docs/testing.md). Untested or failed means no release.
 name: Release zip
 
 on:
   workflow_dispatch:
     inputs:
       release:
-        description: Make a release (tags this commit v<VERSION>)
+        description: Make a release (tags this commit v<VERSION>). Only after every in-game test has passed
         type: boolean
         default: false
 

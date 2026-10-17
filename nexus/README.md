@@ -69,7 +69,7 @@ npm run release:zip      # native\build\release\REDnode-<version>.zip
 1. Edit `description.bbcode` here, commit, push.
 2. Check it: `node tools/check-bbcode.mjs nexus/description.bbcode`.
 3. Paste the whole file into the description field on Nexus and save.
-4. For a new version: run the workflow with **Make a release** ticked, download the zip from the release, and upload it on Nexus as the main file with the version from `VERSION`. Archive the old file.
+4. For a new version, first the release gate: every in-game test of the builds since the last release has passed (docs/testing.md). Untested or failed means no release. Then run the workflow with **Make a release** ticked, download the zip from the release, and upload it on Nexus as the main file with the version from `VERSION`. Archive the old file.
 
 Keep these in step with the repo's status (README, docs/index.md):
 
